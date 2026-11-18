@@ -5,7 +5,7 @@ import type { RoomMessage } from './api'
 import type { Outcome } from './api'
 import { suggestionTitle } from './diet'
 import { describeOutcome } from './outcome'
-import { compact, locale, percent } from './i18n'
+import { compact, locale, percent, t } from './i18n'
 
 const pt = locale === 'pt-BR'
 const HEAVY = 400_000
@@ -29,7 +29,8 @@ function raio(d: Data): string {
   if (!d.found) return pt ? 'Ainda não achei nenhuma sessão deste projeto nos registros.' : 'No session of this project in the logs yet.'
   const ctx = num(d, 'context_tokens')
   const top = (d.top as { name: string; tokens: number }[] | undefined) ?? []
-  const heavy = top.map((item) => `${item.name} (${compact(item.tokens)})`).join(', ')
+  const named: Record<string, string> = { 'your prompts': t.yourPrompts, 'injected text': t.injected }
+  const heavy = top.map((item) => `${named[item.name] ?? item.name} (${compact(item.tokens)})`).join(', ')
   const verdict =
     ctx >= HEAVY
       ? pt ? 'Passou de 400 mil: feche o passo atual e rode /compact.' : 'Over 400K: finish the current step and run /compact.'
@@ -43,7 +44,8 @@ function dieta(d: Data): string {
   const list = (d.suggestions as { id: string; title: string; share: number; confidence: string }[] | undefined) ?? []
   const first = list[0]
   if (!first) return pt ? 'Nada para cortar agora. Prato limpo.' : 'Nothing to cut right now. Clean plate.'
-  const bound = first.confidence === 'upper bound' ? (pt ? 'até ' : 'up to ') : '~'
+  // Old messages said "up to" (a ceiling); the estimate is now net, so every saving reads as ~.
+  const bound = '~'
   const applicable = ((d.applicable as string[] | undefined) ?? []).includes(first.id)
   const how = applicable
     ? pt ? 'Esse dá para aplicar com um clique.' : 'This one can be applied with a click.'

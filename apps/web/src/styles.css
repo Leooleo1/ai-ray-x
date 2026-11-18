@@ -1093,7 +1093,7 @@ body {
 }
 
 .chat-topo b {
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .chat-topo small {
@@ -1198,7 +1198,7 @@ body {
   align-self: flex-end;
   align-items: baseline;
   gap: 8px;
-  margin: 10px 0 2px;
+  margin: 10px 0 0;
 }
 
 .balao {

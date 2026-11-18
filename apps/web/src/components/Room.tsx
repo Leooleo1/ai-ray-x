@@ -118,17 +118,12 @@ export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
       <section className="cartao chat-centro">
         <header className="chat-topo">
           <b>{header.title}</b>
-          <small>{header.hint}</small>
+          {view !== 'channel' && <small>{header.hint}</small>}
           {view !== 'channel' && (
             <button className="voltar" onClick={() => onView('channel')}>
               {t.backToChannel}
             </button>
           )}
-          <span className="pilha">
-            {(view === 'channel' ? ORDER : [view]).map((id) => (
-              <Avatar key={id} agent={AGENTS[id]} size={22} state="still" />
-            ))}
-          </span>
         </header>
 
         <div className="chat-mensagens">
