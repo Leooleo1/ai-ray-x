@@ -6,6 +6,7 @@ pub mod advice;
 pub mod apply;
 pub mod efficiency;
 pub mod model;
+pub mod outcome;
 pub mod report;
 pub mod scan;
 pub mod secrets;

@@ -190,6 +190,8 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
     let mut value = data::refresh_and_collect(&mut panel.store, &panel.roots)?;
     if let Some(object) = value.as_object_mut() {
         object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
+        let measured = crate::room::outcomes(&panel.store, &panel.roots, &panel.state_dir, &panel.project_dir)?;
+        object.insert("outcomes".into(), json!(measured.iter().map(|(_, o)| o).collect::<Vec<_>>()));
         object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
         object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
         object.insert(

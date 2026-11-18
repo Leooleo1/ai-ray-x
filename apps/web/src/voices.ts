@@ -2,7 +2,9 @@
 // Raio reads like a report, Dieta like a nutritionist, Memo like an archivist.
 
 import type { RoomMessage } from './api'
+import type { Outcome } from './api'
 import { suggestionTitle } from './diet'
+import { describeOutcome } from './outcome'
 import { compact, locale, percent } from './i18n'
 
 const pt = locale === 'pt-BR'
@@ -59,16 +61,18 @@ const MEMORY_STATE: Record<string, [string, string]> = {
 }
 
 function memo(d: Data): string {
-  const lessons = (d.lessons as { suggestion: string; undone: boolean }[] | undefined) ?? []
+  const lessons = (d.lessons as { suggestion: string; undone: boolean; outcome?: Outcome; kept_now?: boolean }[] | undefined) ?? []
   const [statePt, stateEn] = MEMORY_STATE[String(d.ai_memory)] ?? ['', '']
   if (lessons.length === 0) {
     return pt ? `Arquivo vazio por enquanto. Quando você aplicar uma sugestão, eu guardo a lição; ${statePt}` : `Nothing archived yet. When you apply a suggestion, I keep the lesson; ${stateEn}`
   }
   const last = lessons[lessons.length - 1]
   const lastTitle = suggestionTitle(last.suggestion, last.suggestion).toLowerCase()
+  const result = last.outcome ? ` ${pt ? 'Resultado' : 'Result'}: ${describeOutcome(last.outcome)}.` : ''
+  const kept = last.kept_now ? (pt ? ' Guardei esse resultado no ai-memory agora.' : ' I just kept this result in ai-memory.') : ''
   return pt
-    ? `Arquivei ${lessons.length} ${lessons.length === 1 ? 'lição' : 'lições'} neste projeto; a última foi ${lastTitle}${last.undone ? ', depois desfeita' : ''}. Quanto ao resto, ${statePt}`
-    : `I archived ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} here; the last was ${lastTitle}${last.undone ? ', later undone' : ''}. Also, ${stateEn}`
+    ? `Arquivei ${lessons.length} ${lessons.length === 1 ? 'lição' : 'lições'} neste projeto; a última foi ${lastTitle}${last.undone ? ', depois desfeita' : ''}.${result}${kept} Quanto ao resto, ${statePt}`
+    : `I archived ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} here; the last was ${lastTitle}${last.undone ? ', later undone' : ''}.${result}${kept} Also, ${stateEn}`
 }
 
 export function speak(message: RoomMessage): string {

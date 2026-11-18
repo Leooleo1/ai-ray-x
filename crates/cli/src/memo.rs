@@ -7,17 +7,29 @@ use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context, Result};
 use raiox_core::apply::Change;
+use raiox_core::outcome::Outcome;
 
 /// Writes (or rewrites) the lesson page for a change; returns its wiki path.
-pub fn keep_lesson(project_dir: &Path, change: &Change, evidence: &str) -> Result<String> {
+pub fn keep_lesson(project_dir: &Path, change: &Change, evidence: &str, result: Option<&Outcome>) -> Result<String> {
     let day = chrono_day(change.applied_ms);
     let path = format!("raiox/{day}-{}.md", change.suggestion);
     let status = match change.undone_ms {
         Some(_) => "Undone: the previous value was restored.",
         None => "Applied and still in place.",
     };
+    let measured = result.map_or_else(String::new, |o| {
+        format!(
+            "- Result: average context per request {before}K -> {after}K ({change:+.0}%) over {requests} requests; compactions per 100 requests {cb:.1} -> {ca:.1}\n",
+            before = o.before.avg_context / 1000,
+            after = o.after.avg_context / 1000,
+            change = o.context_change * 100.0,
+            requests = o.after.requests,
+            cb = o.before.compactions_per_100,
+            ca = o.after.compactions_per_100,
+        )
+    });
     let body = format!(
-        "# Token diet: {suggestion}\n\n- Change: `{key}={after}` in `{file}` (before: {before})\n- Evidence: {evidence}\n- Status: {status}\n- Undo from the raiox panel or with `raiox undo {id}`.\n",
+        "# Token diet: {suggestion}\n\n- Change: `{key}={after}` in `{file}` (before: {before})\n- Evidence: {evidence}\n{measured}- Status: {status}\n- Undo from the raiox panel or with `raiox undo {id}`.\n",
         suggestion = change.suggestion,
         key = change.key,
         after = change.after,

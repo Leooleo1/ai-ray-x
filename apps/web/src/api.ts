@@ -109,6 +109,23 @@ export interface Report {
   applicable: Record<Source, string[]>
   project_dir: string
   room: { opted_in: boolean; messages: RoomMessage[] }
+  outcomes: Outcome[]
+}
+
+export interface Period {
+  requests: number
+  sessions: number
+  avg_context: number
+  compactions_per_100: number
+}
+
+export interface Outcome {
+  change_id: string
+  suggestion: string
+  before: Period
+  after: Period
+  conclusive: boolean
+  context_change: number
 }
 
 export type AgentAuthor = 'raio' | 'dieta' | 'memo'

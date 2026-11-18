@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, Result};
+use raiox_core::outcome::{self, Outcome};
 use raiox_core::{advice, apply, efficiency, Roots, Store};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -103,7 +104,7 @@ pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, a
     let data = match agent {
         "raio" => raio(store, roots, project_dir)?,
         "dieta" => dieta(store)?,
-        "memo" => memo(state_dir, project_dir)?,
+        "memo" => memo(store, roots, state_dir, project_dir)?,
         other => bail!("unknown agent {other}"),
     };
     let now = now_ms();
@@ -148,14 +149,44 @@ fn dieta(store: &Store) -> Result<Value> {
     Ok(json!({ "suggestions": top, "applicable": apply::applicable("claude") }))
 }
 
-fn memo(state_dir: &Path, project_dir: &Path) -> Result<Value> {
+/// Before/after for every change applied in this project.
+pub fn outcomes(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path) -> Result<Vec<(apply::Change, Outcome)>> {
     let here = project_dir.to_string_lossy();
-    let lessons: Vec<Value> = apply::ledger(&state_dir.join("changes.json"))?
+    let label = raiox_core::project_label(project_dir, &roots.home);
+    apply::ledger(&state_dir.join("changes.json"))?
         .into_iter()
         .filter(|c| c.file.starts_with(here.as_ref()))
-        .map(|c| json!({ "suggestion": c.suggestion, "lesson": c.lesson, "applied_ms": c.applied_ms, "undone": c.undone_ms.is_some() }))
-        .collect();
-    Ok(json!({ "lessons": lessons, "ai_memory": ai_memory_state(project_dir) }))
+        .map(|c| {
+            let source = apply::source_of(&c.suggestion).unwrap_or("claude");
+            let measured = outcome::measure(store.conn(), &c, source, &label, now_ms())?;
+            Ok((c, measured))
+        })
+        .collect()
+}
+
+/// Memo reports the lessons and, being asked, keeps each conclusive result in ai-memory once.
+fn memo(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path) -> Result<Value> {
+    let mut lessons = Vec::new();
+    for (change, measured) in outcomes(store, roots, state_dir, project_dir)? {
+        let kept_now = if measured.conclusive && change.result_kept.is_none() {
+            match crate::memo::keep_lesson(project_dir, &change, "", Some(&measured)) {
+                Ok(path) => apply::set_result_kept(&change.id, &path, state_dir).map(|_| true).unwrap_or(false),
+                Err(_) => false,
+            }
+        } else {
+            false
+        };
+        lessons.push(json!({
+            "suggestion": change.suggestion,
+            "lesson": change.lesson,
+            "applied_ms": change.applied_ms,
+            "undone": change.undone_ms.is_some(),
+            "outcome": measured,
+            "result_kept": change.result_kept.is_some() || kept_now,
+            "kept_now": kept_now,
+        }));
+    }
+    Ok(json!({ "lessons": lessons, "ai_memory": ai_memory_state(project_dir), "min_requests": outcome::MIN_REQUESTS, "min_sessions": outcome::MIN_SESSIONS }))
 }
 
 /// Whether ai-memory knows this project, asked through its own CLI.

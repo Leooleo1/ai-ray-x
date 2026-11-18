@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { AGENTS, type Agent } from '../agents'
-import { applySuggestion, undoChange, type Change, type ContextStatus, type Report, type Source } from '../api'
+import { applySuggestion, undoChange, type Change, type ContextStatus, type Outcome, type Report, type Source } from '../api'
 import { dietLines, explainApply } from '../diet'
+import { describeOutcome } from '../outcome'
 import { compact, fill, percent, splitCompact, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Segmented } from './Segmented'
@@ -56,6 +57,7 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
                   id={line.id}
                   source={source}
                   change={open.find((c) => c.suggestion === line.id)}
+                  outcome={report.outcomes.find((o) => o.change_id === open.find((c) => c.suggestion === line.id)?.id)}
                   onChanged={onChanged}
                 />
               )}
@@ -150,13 +152,14 @@ interface ActionProps {
   id: string
   source: Source
   change: Change | undefined
+  outcome: Outcome | undefined
   onChanged: () => void
 }
 
 type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
 
 /** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
-function Action({ id, source, change, onChanged }: ActionProps) {
+function Action({ id, source, change, outcome, onChanged }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const run = async (task: () => ReturnType<typeof applySuggestion>, ok: (memoKept: boolean) => string) => {
     setStep({ kind: 'busy' })
@@ -172,13 +175,14 @@ function Action({ id, source, change, onChanged }: ActionProps) {
   if (change) {
     return (
       <div className="acao">
-        <span className="estado">
+        <span className="estado" title={`${change.key}=${change.after}`}>
           <i className="ponto ok" />
-          {t.applied} · {change.key}={change.after}
+          {t.applied} · {settingLabel(change)}
         </span>
         <button className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id), () => t.undo)}>
           {t.undo}
         </button>
+        {outcome && <span className={`nota resultado ${outcome.conclusive ? 'medido' : ''}`}>{describeOutcome(outcome)}</span>}
         {note}
       </div>
     )
@@ -217,4 +221,10 @@ function Action({ id, source, change, onChanged }: ActionProps) {
       {note}
     </div>
   )
+}
+
+/** A setting in words; the raw key stays in the tooltip. */
+function settingLabel(change: Change): string {
+  if (change.key === 'CLAUDE_CODE_AUTO_COMPACT_WINDOW') return `${t.compacts} ${compact(Number(change.after))}`
+  return `${change.key}=${change.after}`
 }

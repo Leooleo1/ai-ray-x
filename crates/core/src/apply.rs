@@ -35,6 +35,9 @@ pub struct Change {
     pub applied_ms: i64,
     pub undone_ms: Option<i64>,
     pub lesson: Option<String>,
+    /// When Memo kept the measured before/after result (the lesson's wiki path).
+    #[serde(default)]
+    pub result_kept: Option<String>,
 }
 
 /// Documented settings behind each applicable suggestion (code.claude.com/docs/en/env-vars).
@@ -54,6 +57,11 @@ pub fn plan(suggestion: &str, source: &str, project_dir: &Path) -> Option<Plan> 
         value: value.to_string(),
         effect: effect.to_string(),
     })
+}
+
+/// The agent a suggestion's setting belongs to.
+pub fn source_of(suggestion: &str) -> Option<&'static str> {
+    PLANS.iter().find(|(id, ..)| *id == suggestion).map(|(_, source, ..)| *source)
 }
 
 /// Ids of suggestions that can be applied for a source.
@@ -149,6 +157,7 @@ pub fn apply(plan: &Plan, state_dir: &Path, now_ms: i64) -> Result<Change> {
         applied_ms: now_ms,
         undone_ms: None,
         lesson: None,
+        result_kept: None,
     };
     let ledger_path = state_dir.join("changes.json");
     let mut changes = ledger(&ledger_path)?;
@@ -182,6 +191,16 @@ pub fn undo(change_id: &str, state_dir: &Path, now_ms: i64) -> Result<Change> {
     let updated: Vec<Change> = changes.iter().map(|c| if c.id == change_id { undone.clone() } else { c.clone() }).collect();
     save_ledger(&ledger_path, &updated)?;
     Ok(undone)
+}
+
+/// Records that Memo kept the measured result for a change.
+pub fn set_result_kept(change_id: &str, lesson: &str, state_dir: &Path) -> Result<()> {
+    let ledger_path = state_dir.join("changes.json");
+    let updated: Vec<Change> = ledger(&ledger_path)?
+        .into_iter()
+        .map(|c| if c.id == change_id { Change { result_kept: Some(lesson.to_string()), ..c } } else { c })
+        .collect();
+    save_ledger(&ledger_path, &updated)
 }
 
 /// Records where Memo kept the lesson for a change.

@@ -28,7 +28,7 @@ pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, sug
     let plan = apply::plan(suggestion, source, project_dir)
         .ok_or_else(|| anyhow!("{suggestion} for {source} has no setting to apply; it is a habit"))?;
     let change = apply::apply(&plan, state_dir, now_ms())?;
-    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, suggestion, source)) {
+    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, suggestion, source), None) {
         Ok(path) => {
             apply::set_lesson(&change.id, &path, state_dir)?;
             json!({ "kept": path })
@@ -42,7 +42,7 @@ pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, sug
 pub fn undo_change(store: &Store, state_dir: &Path, project_dir: &Path, change_id: &str) -> Result<Value> {
     room::require_opt_in(project_dir)?;
     let change = apply::undo(change_id, state_dir, now_ms())?;
-    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, &change.suggestion, "claude")) {
+    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, &change.suggestion, "claude"), None) {
         Ok(path) => json!({ "kept": path }),
         Err(error) => json!({ "error": format!("{error:#}") }),
     };
