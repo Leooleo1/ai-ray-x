@@ -32,6 +32,30 @@ const PT: Record<string, Text> = {
   },
 }
 
+/** What applying does, shown in the Apply tooltip. Only for suggestions with a setting. */
+const EXPLAIN: Record<string, { pt: string[]; en: string[] }> = {
+  'compact-earlier': {
+    pt: [
+      'Grava CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000 no .claude/settings.local.json deste projeto (só seu, fora do git).',
+      'Nas próximas sessões daqui, o Claude Code resume a conversa ao chegar em 400 mil tokens, em vez de perto de 1 milhão: cada pedido relê bem menos.',
+      'O preço: ele resume com mais frequência, e detalhes antigos viram resumo mais cedo.',
+      'Faz backup antes; "desfazer" volta o valor anterior. Outros projetos não mudam.',
+    ],
+    en: [
+      'Writes CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000 to this project\'s .claude/settings.local.json (yours only, kept out of git).',
+      'In the next sessions here, Claude Code summarizes the conversation at 400K tokens instead of near 1M: every request re-reads much less.',
+      'The cost: it summarizes more often, so older details become summary sooner.',
+      'Backed up first; "undo" restores the previous value. Other projects do not change.',
+    ],
+  },
+}
+
+export function explainApply(id: string): string[] {
+  const text = EXPLAIN[id]
+  if (!text) return []
+  return locale === 'pt-BR' ? text.pt : text.en
+}
+
 export interface DietLine {
   id: string
   title: string

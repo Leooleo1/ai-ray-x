@@ -789,6 +789,54 @@ body {
   color: var(--alerta);
 }
 
+/* Tooltip: solid surface (no live blur), opens on hover and keyboard focus */
+
+.dica-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.dica {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 380px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    0 16px 32px -12px rgb(0 0 0 / 80%);
+  color: var(--nevoa);
+  font: 12px/18px var(--sans);
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.dica span:first-child {
+  color: var(--giz);
+}
+
+.dica-wrap:hover .dica,
+.dica-wrap:focus-within .dica {
+  opacity: 1;
+  transform: none;
+}
+
+.dieta-lista,
+.sugestoes {
+  overflow: visible;
+}
+
 /* Narrow screens: cards stack and the page scrolls */
 
 @media (max-width: 960px) {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AGENTS, type Agent } from '../agents'
 import { applySuggestion, undoChange, type Change, type ContextStatus, type Report, type Source } from '../api'
-import { dietLines } from '../diet'
+import { dietLines, explainApply } from '../diet'
 import { compact, fill, percent, splitCompact, t } from '../i18n'
 import { Avatar } from './Avatar'
 
@@ -202,11 +202,24 @@ function Action({ id, source, change, onChanged }: ActionProps) {
       </div>
     )
   }
+  const tipId = `dica-${id}`
   return (
     <div className="acao">
-      <button className="vidro-btn" disabled={step.kind === 'busy'} onClick={() => setStep({ kind: 'confirm' })}>
-        {t.apply}
-      </button>
+      <span className="dica-wrap">
+        <button
+          className="vidro-btn"
+          aria-describedby={tipId}
+          disabled={step.kind === 'busy'}
+          onClick={() => setStep({ kind: 'confirm' })}
+        >
+          {t.apply}
+        </button>
+        <span className="dica" role="tooltip" id={tipId}>
+          {explainApply(id).map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </span>
+      </span>
       {note}
     </div>
   )
