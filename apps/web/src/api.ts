@@ -162,6 +162,6 @@ export function undoChange(change: string): ReturnType<typeof post> {
   return post('/api/undo', { change })
 }
 
-export function askAgent(agent: AgentAuthor): ReturnType<typeof post> {
-  return post('/api/ask', { agent })
+export function askAgent(agent: AgentAuthor, text?: string): ReturnType<typeof post> {
+  return post('/api/ask', text ? { agent, text } : { agent })
 }

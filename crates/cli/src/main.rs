@@ -84,7 +84,12 @@ enum Command {
     /// Undo an applied change by its id (see the panel or the ledger).
     Undo { change: String },
     /// Ask one agent (raio, dieta or memo) in this project's room; only in opted-in projects.
-    Ask { agent: String },
+    Ask {
+        agent: String,
+        /// What the person wrote (kept in the room; the answer comes from data).
+        #[arg(long)]
+        text: Option<String>,
+    },
     /// Print the report in the terminal.
     Report {
         /// Print JSON instead of text.
@@ -121,9 +126,9 @@ fn main() -> Result<()> {
             raiox_core::refresh(&mut store, &roots)?;
             emit(actions::apply_suggestion(&store, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
         }
-        Command::Ask { agent } => {
+        Command::Ask { agent, text } => {
             raiox_core::refresh(&mut store, &roots)?;
-            let messages = room::ask(&store, &roots, &state_dir(&db), &std::env::current_dir()?, &agent)?;
+            let messages = room::ask(&store, &roots, &state_dir(&db), &std::env::current_dir()?, &agent, text.as_deref())?;
             emit(serde_json::to_value(messages)?)
         }
         Command::Undo { change } => emit(actions::undo_change(&store, &state_dir(&db), &std::env::current_dir()?, &change)?),

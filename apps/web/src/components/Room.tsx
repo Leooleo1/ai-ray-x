@@ -1,41 +1,63 @@
-import { useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { AGENTS, type AgentId } from '../agents'
 import { askAgent, type Report, type RoomMessage } from '../api'
-import { t } from '../i18n'
+import { locale, t } from '../i18n'
 import { askLabel, speak } from '../voices'
 import { Avatar } from './Avatar'
 
 const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
+const GROUP_MS = 5 * 60_000
+/** A beat before the answer, so the reply reads as a reply and not a flash. */
+const MIN_TYPING_MS = 800
+const MENTION = /@(raio|dieta|memo)\b/i
+const OPEN_MENTION = /@(\w*)$/
+
+type View = 'channel' | AgentId
+
+interface Pending {
+  agent: AgentId
+  text: string
+  since: number
+}
 
 interface RoomProps {
   report: Report
   onChanged: () => void
 }
 
-/** The agents room of this project. Agents only speak when asked (a click here or /token-diet). */
+/** Multi-agent chat for this project. Agents speak only when asked: here or via /token-diet. */
 export function Room({ report, onChanged }: RoomProps) {
-  const [busy, setBusy] = useState<AgentId | null>(null)
+  const [view, setView] = useState<View>('channel')
+  const [draft, setDraft] = useState('')
+  const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const seen = useRef(report.room.messages.length)
   const end = useRef<HTMLDivElement>(null)
-  const messages = report.room.messages
-  useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [messages.length])
+  const project = report.project_dir.split('/').pop() ?? ''
+  const all = report.room.messages
 
-  const ask = async (agent: AgentId) => {
-    setBusy(agent)
-    setError(null)
-    try {
-      await askAgent(agent)
-      onChanged()
-    } catch (failure: unknown) {
-      setError(failure instanceof Error ? failure.message : String(failure))
-    } finally {
-      setBusy(null)
-    }
-  }
+  // The optimistic bubble goes away once the server's copy arrives.
+  useEffect(() => {
+    if (pending && all.some((m) => m.author === 'you' && m.ms >= pending.since - 1000)) setPending(null)
+  }, [all, pending])
+  // Jump to the latest line on open; glide only for lines that arrive while reading.
+  const opened = useRef(false)
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end', behavior: opened.current ? 'smooth' : 'auto' })
+    opened.current = true
+  }, [all.length, pending, view])
+  useEffect(() => {
+    const id = window.setTimeout(() => (seen.current = all.length), 600)
+    return () => window.clearTimeout(id)
+  }, [all.length])
+
+  const messages = useMemo(() => (view === 'channel' ? all : all.filter((m) => belongsTo(m, view))), [all, view])
+  const mention = draft.match(OPEN_MENTION)
+  const mentionOptions = mention ? ORDER.filter((id) => id.startsWith(mention[1].toLowerCase())) : []
 
   if (!report.room.opted_in) {
     return (
-      <main className="grade sala">
+      <main className="chat">
         <section className="cartao sala-fora">
           <h2>{t.roomOffTitle}</h2>
           <p>{t.roomOff}</p>
@@ -44,78 +66,196 @@ export function Room({ report, onChanged }: RoomProps) {
     )
   }
 
+  const send = async (agent: AgentId, text: string) => {
+    setError(null)
+    setPending({ agent, text, since: Date.now() })
+    setDraft('')
+    try {
+      await Promise.all([askAgent(agent, text), new Promise((resolve) => setTimeout(resolve, MIN_TYPING_MS))])
+      onChanged()
+    } catch (failure: unknown) {
+      setPending(null)
+      setError(failure instanceof Error ? failure.message : String(failure))
+    }
+  }
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const text = draft.trim()
+    const target = view === 'channel' ? (text.match(MENTION)?.[1].toLowerCase() as AgentId | undefined) : view
+    if (!target) {
+      setError(t.mentionHint)
+      return
+    }
+    void send(target, text || askLabel(target))
+  }
+
+  const busy = pending !== null
+  const quick = view === 'channel' ? ORDER : [view]
+  const header = view === 'channel' ? { title: `# ${project}`, hint: t.channelHint } : { title: AGENTS[view].name, hint: AGENTS[view].role }
+
   return (
-    <main className="grade sala">
-      <section className="cartao membros">
-        <h2>
-          {t.members}
-          <small>{t.membersHint}</small>
-        </h2>
-        <ul className="lista-membros">
-          {ORDER.map((id) => (
-            <li key={id}>
-              <Avatar agent={AGENTS[id]} size={36} />
-              <span className="agente-nome">
-                <b>{AGENTS[id].name}</b>
-                <span>{AGENTS[id].role}</span>
-              </span>
-              <button className="vidro-btn" disabled={busy !== null} onClick={() => void ask(id)}>
-                {busy === id ? '…' : t.ask}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {error && <p className="nota failed">{error}</p>}
-      </section>
-      <section className="cartao conversa">
-        <h2>
-          {t.conversation}
-          <small>{report.project_dir.split('/').pop()}</small>
-        </h2>
-        <div className="mensagens">
-          {messages.length === 0 && <p className="vazio">{t.roomEmpty}</p>}
+    <main className="chat">
+      <aside className="cartao chat-lado">
+        <span className="lado-titulo">{t.channels}</span>
+        <button className={`lado-item ${view === 'channel' ? 'ativo' : ''}`} onClick={() => setView('channel')}>
+          <span className="cerquilha">#</span>
+          <span className="nome">{project}</span>
+        </button>
+        <span className="lado-titulo">{t.directs}</span>
+        {ORDER.map((id) => (
+          <button key={id} className={`lado-item ${view === id ? 'ativo' : ''}`} onClick={() => setView(id)}>
+            <Avatar agent={AGENTS[id]} size={24} state={pending?.agent === id ? 'thinking' : 'idle'} />
+            <span className="nome">{AGENTS[id].name}</span>
+            <span className={`presenca ${pending?.agent === id ? 'digitando' : ''}`}>
+              {pending?.agent === id ? t.typingShort : t.available}
+            </span>
+          </button>
+        ))}
+        <p className="lado-nota">{t.roomRule}</p>
+      </aside>
+
+      <section className="cartao chat-centro">
+        <header className="chat-topo">
+          <b>{header.title}</b>
+          <small>{header.hint}</small>
+          <span className="pilha">
+            {(view === 'channel' ? ORDER : [view]).map((id) => (
+              <Avatar key={id} agent={AGENTS[id]} size={22} state="still" />
+            ))}
+          </span>
+        </header>
+
+        <div className="chat-mensagens">
+          {messages.length === 0 && !pending && <p className="vazio">{t.roomEmpty}</p>}
           {messages.map((message, index) => (
-            <Bubble key={`${message.ms}-${index}`} message={message} />
+            <Line
+              key={`${message.ms}-${index}`}
+              message={message}
+              previous={messages[index - 1]}
+              isNew={view === 'channel' && index >= seen.current}
+            />
           ))}
+          {pending && (
+            <>
+              <div className="linha minha nova">
+                <span className="balao">{pending.text}</span>
+              </div>
+              <div className="linha de-agente nova">
+                <Avatar agent={AGENTS[pending.agent]} size={32} state="thinking" />
+                <div className="corpo">
+                  <span className="quem">
+                    <b style={{ color: AGENTS[pending.agent].color }}>{AGENTS[pending.agent].name}</b>
+                  </span>
+                  <span className="digitando" aria-label={t.typingShort}>
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
           <div ref={end} />
         </div>
-        <div className="perguntas">
-          {ORDER.map((id) => (
-            <button key={id} className="vidro-btn" disabled={busy !== null} onClick={() => void ask(id)}>
+
+        <div className="chat-sugestoes">
+          {quick.map((id) => (
+            <button key={id} className="chip" disabled={busy} onClick={() => void send(id, askLabel(id))}>
               {askLabel(id)}
             </button>
           ))}
         </div>
+
+        <form className="compositor" onSubmit={submit}>
+          {mentionOptions.length > 0 && (
+            <ul className="mencoes" role="listbox">
+              {mentionOptions.map((id) => (
+                <li key={id}>
+                  <button type="button" onClick={() => setDraft(draft.replace(OPEN_MENTION, `@${id} `))}>
+                    <Avatar agent={AGENTS[id]} size={20} state="still" />
+                    <b>@{id}</b>
+                    <span>{AGENTS[id].role}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <input
+            value={draft}
+            maxLength={280}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={view === 'channel' ? t.composeChannel : `${t.composeDirect} ${AGENTS[view].name}`}
+            aria-label={t.composeChannel}
+            disabled={busy}
+          />
+          <button className="enviar" type="submit" disabled={busy} aria-label={t.send}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+          </button>
+        </form>
+        {error && <p className="nota failed">{error}</p>}
       </section>
     </main>
   )
 }
 
-interface BubbleProps {
-  message: RoomMessage
+function belongsTo(message: RoomMessage, agent: AgentId): boolean {
+  if (message.author === 'you') return message.data.agent === agent
+  return message.author === agent
 }
 
-function Bubble({ message }: BubbleProps) {
-  const time = new Date(message.ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+interface LineProps {
+  message: RoomMessage
+  previous: RoomMessage | undefined
+  isNew: boolean
+}
+
+function Line({ message, previous, isNew }: LineProps) {
+  const day = dayLabel(message.ms)
+  const showDay = !previous || dayLabel(previous.ms) !== day
+  const grouped = !showDay && previous?.author === message.author && message.ms - previous.ms < GROUP_MS
+  const time = new Date(message.ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+  const separator = showDay && (
+    <div className="dia">
+      <span>{day}</span>
+    </div>
+  )
   if (message.author === 'you') {
     return (
-      <div className="msg minha">
-        <span className="texto">{speak(message)}</span>
-        <span className="hora">{time}</span>
-      </div>
+      <>
+        {separator}
+        <div className={`linha minha ${isNew ? 'nova' : ''}`}>
+          <span className="balao">{speak(message)}</span>
+          <span className="hora">{time}</span>
+        </div>
+      </>
     )
   }
   const agent = AGENTS[message.author]
   return (
-    <div className="msg">
-      <Avatar agent={agent} size={28} />
-      <div className="corpo">
-        <span className="quem">
-          <b style={{ color: agent.color }}>{agent.name}</b>
-          <span className="hora">{time}</span>
-        </span>
-        <span className="texto">{speak(message)}</span>
+    <>
+      {separator}
+      <div className={`linha de-agente ${grouped ? 'agrupada' : ''} ${isNew ? 'nova' : ''}`}>
+        {grouped ? <span className="recuo" /> : <Avatar agent={agent} size={32} state="idle" />}
+        <div className="corpo">
+          {!grouped && (
+            <span className="quem">
+              <b style={{ color: agent.color }}>{agent.name}</b>
+              <span className="hora">{time}</span>
+            </span>
+          )}
+          <span className="texto">{speak(message)}</span>
+        </div>
       </div>
-    </div>
+    </>
   )
+}
+
+function dayLabel(ms: number): string {
+  const date = new Date(ms)
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) return t.today
+  return date.toLocaleDateString(locale, { weekday: 'long', day: '2-digit', month: 'long' })
 }

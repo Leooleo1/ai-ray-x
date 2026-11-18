@@ -75,7 +75,7 @@ export function speak(message: RoomMessage): string {
   const d = message.data
   switch (message.kind) {
     case 'ask':
-      return askLabel(String(d.agent))
+      return typeof d.text === 'string' && d.text ? d.text : askLabel(String(d.agent))
     case 'answer':
       return message.author === 'raio' ? raio(d) : message.author === 'dieta' ? dieta(d) : memo(d)
     case 'applied':

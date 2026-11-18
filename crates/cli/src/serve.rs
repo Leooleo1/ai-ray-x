@@ -92,6 +92,7 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
                     &panel.state_dir,
                     &panel.project_dir,
                     input.get("agent").and_then(Value::as_str).unwrap_or(""),
+                    input.get("text").and_then(Value::as_str),
                 )
                 .map(|messages| json!(messages)),
             ),

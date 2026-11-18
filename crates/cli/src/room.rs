@@ -15,6 +15,8 @@ use serde_json::{json, Value};
 const OPT_IN: &str = ".claude/skills/token-diet";
 const TOP: usize = 3;
 const MAX_MESSAGES: usize = 200;
+/// The person's own words are kept short; agents answer from data, not from the text.
+const MAX_TEXT: usize = 280;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
@@ -96,7 +98,7 @@ pub fn current_session(store: &Store, roots: &Roots, project_dir: &Path) -> Opti
 }
 
 /// The person asks one agent; the answer is computed now from this project.
-pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, agent: &str) -> Result<Vec<Message>> {
+pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, agent: &str, text: Option<&str>) -> Result<Vec<Message>> {
     require_opt_in(project_dir)?;
     let data = match agent {
         "raio" => raio(store, roots, project_dir)?,
@@ -106,7 +108,12 @@ pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, a
     };
     let now = now_ms();
     let new = vec![
-        Message { ms: now, author: "you".into(), kind: "ask".into(), data: json!({ "agent": agent }) },
+        Message {
+            ms: now,
+            author: "you".into(),
+            kind: "ask".into(),
+            data: json!({ "agent": agent, "text": text.map(|t| t.trim().chars().take(MAX_TEXT).collect::<String>()).filter(|t| !t.is_empty()) }),
+        },
         Message { ms: now, author: agent.into(), kind: "answer".into(), data },
     ];
     append(state_dir, project_dir, new.clone())?;

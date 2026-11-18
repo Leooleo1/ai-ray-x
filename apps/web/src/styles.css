@@ -708,8 +708,12 @@ body {
     margin-left: 12px;
   }
 
-  .meta > span:first-child {
+  .meta {
     display: none;
+  }
+
+  .abas button {
+    padding: 0 10px;
   }
 
   .agente .destaque {
@@ -719,9 +723,7 @@ body {
 
   .agente,
   .dieta-lista,
-  .sessao,
-  .membros,
-  .conversa {
+  .sessao {
     grid-column: span 12;
   }
 
@@ -806,7 +808,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 380px;
+  width: min(380px, calc(100vw - 72px));
   padding: 12px 14px;
   border-radius: 12px;
   background: #16161c;
@@ -839,23 +841,17 @@ body {
   overflow: visible;
 }
 
-/* Agents room */
+/* Agents chat: sidebar with the channel and direct messages, chat in the middle */
 
-.sala {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.membros {
-  grid-column: span 4;
-  align-self: start;
-}
-
-.conversa {
-  grid-column: span 8;
+.chat {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: var(--vao);
+  min-height: 0;
 }
 
 .sala-fora {
-  grid-column: span 12;
+  grid-column: 1 / -1;
   align-self: start;
 }
 
@@ -865,73 +861,164 @@ body {
   color: var(--nevoa);
 }
 
-.lista-membros {
-  display: flex;
-  flex-direction: column;
+.chat-lado {
   gap: 4px;
-  margin: 0 -8px;
-  padding: 0;
-  list-style: none;
+  padding: 16px 12px;
 }
 
-.lista-membros li {
+.lado-titulo {
+  margin: 12px 8px 4px;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.lado-titulo:first-child {
+  margin-top: 0;
+}
+
+.lado-item {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border-radius: var(--raio-item);
-}
-
-.lista-membros li:hover {
-  background: var(--vidro-7);
-}
-
-.membros .vidro-btn,
-.perguntas .vidro-btn {
-  height: 28px;
-  padding: 0 14px;
+  gap: 10px;
+  height: 40px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 10%);
-  box-shadow: inset 0 0 0 1px var(--fio);
-  color: var(--giz);
-  font: 500 13px/16px var(--sans);
-  white-space: nowrap;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/20px var(--sans);
+  text-align: left;
   cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
 }
 
-.membros .vidro-btn:disabled,
-.perguntas .vidro-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
+.lado-item:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
 }
 
-.mensagens {
+.lado-item.ativo {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.cerquilha {
+  color: var(--nevoa);
+  font: 500 16px/20px var(--mono);
+  text-align: center;
+}
+
+.presenca {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.presenca.digitando {
+  color: var(--ok);
+}
+
+.lado-nota {
+  margin: auto 8px 0;
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.chat-centro {
+  gap: 0;
+  padding: 0;
+}
+
+.chat-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 20px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+  white-space: nowrap;
+}
+
+.chat-topo b {
+  font: 500 15px/20px var(--sans);
+}
+
+.chat-topo small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.pilha {
+  display: inline-flex;
+  margin-left: auto;
+  align-self: center;
+}
+
+.pilha .avatar + .avatar {
+  margin-left: -6px;
+}
+
+.chat-mensagens {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 4px;
   min-height: 0;
+  padding: 16px 20px 8px;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.mensagens::-webkit-scrollbar {
+.chat-mensagens::-webkit-scrollbar {
   display: none;
 }
 
-.msg {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
-  max-width: 760px;
+.dia {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 8px;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.msg .corpo {
+.dia::before,
+.dia::after {
+  flex: 1;
+  height: 1px;
+  background: var(--fio);
+  content: '';
+}
+
+.linha {
+  display: flex;
+  gap: 12px;
+  max-width: 780px;
+}
+
+.linha.de-agente {
+  margin-top: 10px;
+}
+
+.linha.agrupada {
+  margin-top: 0;
+}
+
+.recuo {
+  flex: none;
+  width: 32px;
+}
+
+.linha .corpo {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .quem {
@@ -950,26 +1037,297 @@ body {
   font: 11px/14px var(--mono);
 }
 
-.msg .texto {
+.linha .texto {
   color: var(--giz);
-  line-height: 21px;
+  line-height: 22px;
 }
 
-.msg.minha {
-  display: flex;
-  align-items: baseline;
+.linha.minha {
   align-self: flex-end;
+  align-items: baseline;
   gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.balao {
   padding: 8px 14px;
-  border-radius: 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  line-height: 20px;
+}
+
+.digitando {
+  display: inline-flex;
+  gap: 4px;
+  padding: 10px 0 4px;
+}
+
+.digitando i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--nevoa);
+  animation: ponto-digitando 1s ease-in-out infinite;
+}
+
+.digitando i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.digitando i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.chat-sugestoes {
+  display: flex;
+  gap: 8px;
+  padding: 8px 20px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chip {
+  flex: none;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--nevoa);
+  font: 500 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.perguntas {
+.chip:hover:not(:disabled) {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.chip:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.compositor {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  margin: 10px 20px 20px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  transition: box-shadow 160ms ease;
+}
+
+.compositor:focus-within {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+.compositor input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+}
+
+.compositor input::placeholder {
+  color: var(--nevoa);
+}
+
+.enviar {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--giz);
+  cursor: pointer;
+  place-items: center;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.enviar:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.enviar:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.enviar svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--noite);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.mencoes {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 6px;
+  border-radius: 14px;
+  background: #16161c;
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    0 16px 32px -12px rgb(0 0 0 / 80%);
+  list-style: none;
+}
+
+.mencoes button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--giz);
+  font: 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mencoes button:hover {
+  background: var(--vidro-7);
+}
+
+.mencoes span {
+  color: var(--nevoa);
+}
+
+.chat-centro .nota {
+  margin: -12px 20px 12px;
+}
+
+/* New lines rise in; avatars breathe and blink; thinking hops */
+
+.nova {
+  animation: entrar 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.avatar-tudo,
+.avatar-corpo,
+.avatar-olhos {
+  transform-box: fill-box;
+}
+
+.avatar.idle .avatar-corpo {
+  transform-origin: 50% 100%;
+  animation: respirar 4.2s ease-in-out infinite;
+}
+
+.avatar.idle .avatar-olhos,
+.avatar.thinking .avatar-olhos {
+  transform-origin: 50% 50%;
+  animation: piscar 5.4s ease-in-out infinite;
+  animation-delay: var(--piscar-atraso, 0s);
+}
+
+.avatar.thinking .avatar-tudo {
+  transform-origin: 50% 100%;
+  animation: pular 0.9s cubic-bezier(0.3, 0, 0.3, 1) infinite;
+}
+
+.avatar.thinking .avatar-olhos {
+  animation:
+    piscar 5.4s ease-in-out infinite,
+    olhar 1.8s ease-in-out infinite;
+}
+
+@keyframes entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes respirar {
+  50% {
+    transform: scale(1.03, 0.975);
+  }
+}
+
+@keyframes piscar {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes pular {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  30% {
+    transform: translateY(-9%) scale(0.97, 1.03);
+  }
+  60% {
+    transform: translateY(0) scale(1.04, 0.96);
+  }
+}
+
+@keyframes olhar {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  35% {
+    translate: -3px 0;
+  }
+  70% {
+    translate: 3px 0;
+  }
+}
+
+@keyframes ponto-digitando {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nova,
+  .avatar *,
+  .digitando i {
+    animation: none !important;
+  }
 }
 
 /* Narrow screens: cards stack and the page scrolls */
@@ -1056,5 +1414,21 @@ body {
 
   .lista {
     max-height: 264px;
+  }
+}
+
+/* Phones: the chat stacks (kept last so it wins over the desktop grid) */
+
+@media (max-width: 960px) {
+  .chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chat-lado .lado-nota {
+    display: none;
+  }
+
+  .chat-centro {
+    min-height: 70dvh;
   }
 }
