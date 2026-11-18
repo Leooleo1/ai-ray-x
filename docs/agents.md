@@ -5,6 +5,9 @@ Three agents carry the token diet into any harness that speaks MCP and skills
 open-bot-avatar engine (`assets/agents/*.json`, validated with `--strict`).
 The panel renders them live with the `open-bot-avatar` npm package (MIT,
 © 2026 Dominik Scholz): volume, gaze, blinks and moods.
+Bots people make in the setup can wear the package's starter shapes (chat,
+lightbulb, sprout) or shapes copied from its gallery into `assets/avatars/`
+(book, brain, cat, ghost, magnifier, rocket, shield, star), same license.
 
 | Agent | Avatar | Job | Tools |
 | --- | --- | --- | --- |

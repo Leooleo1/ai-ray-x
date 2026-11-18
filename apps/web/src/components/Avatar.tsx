@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { AvatarDefinition } from 'open-bot-avatar'
 import { mountAvatar, type MountedAvatar } from 'open-bot-avatar/dom'
-import type { Face } from '../bots'
+import type { Face } from '../avatars'
 
 /** Live avatar from the open-bot-avatar engine (MIT, Dominik Scholz): volume,
  *  gaze, blinks and moods. `still` draws one static frame, for history rows.

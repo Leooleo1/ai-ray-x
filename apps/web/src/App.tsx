@@ -12,6 +12,7 @@ import { RowsCard, SecretsCard } from './components/Lists'
 import { Room } from './components/Room'
 import { type ChatView, type RoomView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
+import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 
 const REFRESH_MS = 30_000
@@ -25,6 +26,7 @@ const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
 }
 
 const BOTS_PATH = '/bots'
+const SETUP_PATHS = ['/boas-vindas', '/welcome']
 
 function chatFromPath(): ChatView {
   const path = window.location.pathname
@@ -50,6 +52,7 @@ type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind:
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
   const [version, setVersion] = useState(0)
+  const [setupOpen, setSetupOpen] = useState(() => SETUP_PATHS.includes(window.location.pathname))
 
   useEffect(() => {
     const token = sessionToken()
@@ -78,16 +81,31 @@ export function App() {
 
   if (state.kind === 'loading') return <div className="tela-estado">{t.loading}</div>
   if (state.kind === 'failed') return <div className="tela-estado">{`${t.failed}: ${state.message}`}</div>
-  return <Dashboard report={state.report} at={state.at} onChanged={() => setVersion((v) => v + 1)} />
+  if (!state.report.setup.done || setupOpen) {
+    const finish = (firstBot: string | null) => {
+      history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : '/')
+      // Done now, before the next report arrives with it.
+      setState({ ...state, report: { ...state.report, setup: { done: true } } })
+      setSetupOpen(false)
+      setVersion((v) => v + 1)
+    }
+    return <Onboarding onFinish={finish} />
+  }
+  const openSetup = () => {
+    history.pushState(null, '', SETUP_PATHS[0])
+    setSetupOpen(true)
+  }
+  return <Dashboard report={state.report} at={state.at} onChanged={() => setVersion((v) => v + 1)} onSetup={openSetup} />
 }
 
 interface DashboardProps {
   report: Report
   at: Date
   onChanged: () => void
+  onSetup: () => void
 }
 
-function Dashboard({ report, at, onChanged }: DashboardProps) {
+function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [typing, setTyping] = useState<AgentId | null>(null)
@@ -131,6 +149,7 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
         updatedAt={at}
         onTab={go}
         onChat={openChat}
+        onSetup={onSetup}
       />
       <div className="principal">
         <div className="titulo">

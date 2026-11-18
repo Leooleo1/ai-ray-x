@@ -36,7 +36,49 @@ pub struct Bot {
     /// The CLI's session or thread, so the conversation continues.
     #[serde(default)]
     pub session: Option<String>,
+    #[serde(default)]
+    pub persona: Option<Persona>,
     pub created_ms: i64,
+}
+
+/// Name, look and instructions the person chose for a bot.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Persona {
+    /// The preset it started from ("partner", "reviewer"…) or "custom".
+    pub preset: String,
+    pub name: String,
+    pub instructions: String,
+    /// "#rrggbb".
+    pub color: String,
+    /// An avatar shape id from the panel's gallery.
+    pub shape: String,
+}
+
+const MAX_NAME: usize = 32;
+const MAX_INSTRUCTIONS: usize = 1200;
+const MAX_SLUG: usize = 40;
+
+impl Persona {
+    pub fn validate(&self) -> Result<()> {
+        let slug = |s: &str| !s.is_empty() && s.len() <= MAX_SLUG && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        let color = self.color.len() == 7 && self.color.starts_with('#') && self.color[1..].bytes().all(|b| b.is_ascii_hexdigit());
+        let name = self.name.trim().chars().count();
+        if !(1..=MAX_NAME).contains(&name) {
+            bail!("a bot name has 1 to {MAX_NAME} characters");
+        }
+        if self.instructions.chars().count() > MAX_INSTRUCTIONS {
+            bail!("instructions have at most {MAX_INSTRUCTIONS} characters");
+        }
+        if !slug(&self.preset) || !slug(&self.shape) || !color {
+            bail!("invalid preset, shape or color");
+        }
+        Ok(())
+    }
+
+    /// What the CLI is told about its role here.
+    fn prompt(&self) -> String {
+        format!("Your name in this project is {}. {}", self.name.trim(), self.instructions.trim())
+    }
 }
 
 /// Bots answering right now, by id.
@@ -134,7 +176,11 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
 }
 
 /// Turns a bot on for one project (a folder under the home, never the home itself).
-pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str) -> Result<Bot> {
+/// Turning on an existing bot again only replaces its persona.
+pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, persona: Option<Persona>) -> Result<Bot> {
+    if let Some(p) = &persona {
+        p.validate()?;
+    }
     if !AGENTS.iter().any(|(a, _)| *a == agent) {
         bail!("unknown agent {agent}");
     }
@@ -150,11 +196,16 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str) -> Re
         name: dir.file_name().map_or_else(|| project.to_string(), |n| n.to_string_lossy().into_owned()),
         dir,
         session: None,
+        persona,
         created_ms: room::now_ms(),
     };
     let added = bot.clone();
     update(state_dir, |bots| {
-        Ok(if bots.iter().any(|b| b.id == added.id) { bots } else { bots.into_iter().chain([added]).collect() })
+        Ok(if bots.iter().any(|b| b.id == added.id) {
+            bots.into_iter().map(|b| if b.id == added.id { Bot { persona: added.persona.clone(), ..b } } else { b }).collect()
+        } else {
+            bots.into_iter().chain([added]).collect()
+        })
     })?;
     Ok(bot)
 }
@@ -227,7 +278,13 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
     let (state_dir, jobs, text) = (state_dir.to_path_buf(), jobs.clone(), text.to_string());
     std::thread::spawn(move || {
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
-        let outcome = bot_run::run(&bot.agent, &bot.dir, &bot.name, bot.session.as_deref(), mode, &text, &scratch);
+        let target = bot_run::Target {
+            agent: &bot.agent,
+            dir: &bot.dir,
+            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default()),
+            session: bot.session.as_deref(),
+        };
+        let outcome = bot_run::run(&target, mode, &text, &scratch);
         let message = match outcome {
             Ok(reply) => {
                 if reply.session.is_some() && reply.session != bot.session {
@@ -256,6 +313,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "name": bot.name,
                 "dir": bot.dir,
                 "has_session": bot.session.is_some(),
+                "persona": bot.persona,
                 "busy": jobs.is_busy(&bot.id),
                 "messages": messages,
             })
@@ -280,14 +338,14 @@ mod tests {
         let home = temp_dir("home");
         fs::create_dir_all(home.join("Projects/app")).unwrap();
         let state = home.join(".state");
-        assert!(activate(&state, &home, "", "claude").is_err());
-        assert!(activate(&state, &home, "../", "claude").is_err());
+        assert!(activate(&state, &home, "", "claude", None).is_err());
+        assert!(activate(&state, &home, "../", "claude", None).is_err());
         fs::create_dir_all(home.join(".claude/projects")).unwrap();
-        assert!(activate(&state, &home, ".claude/projects", "claude").is_err());
-        assert!(activate(&state, &home, "Projects/app", "gemini").is_err());
-        let bot = activate(&state, &home, "Projects/app", "claude").unwrap();
+        assert!(activate(&state, &home, ".claude/projects", "claude", None).is_err());
+        assert!(activate(&state, &home, "Projects/app", "gemini", None).is_err());
+        let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
         assert_eq!(bot.name, "app");
-        activate(&state, &home, "Projects/app", "claude").unwrap();
+        activate(&state, &home, "Projects/app", "claude", None).unwrap();
         assert_eq!(list(&state).len(), 1);
     }
 

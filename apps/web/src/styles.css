@@ -1313,6 +1313,24 @@ body {
   margin: -12px 20px 12px;
 }
 
+.lado-link {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  text-decoration: underline;
+  text-decoration-color: rgb(255 255 255 / 20%);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.lado-link:hover {
+  color: var(--giz);
+}
+
 /* Bots: activation list */
 
 .bots-lista {

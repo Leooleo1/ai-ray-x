@@ -44,16 +44,26 @@ pub struct Reply {
     pub duration_ms: u64,
 }
 
-/// What the bot is told on every turn: how raiox works and how to propose a change.
-pub fn guide(project: &str) -> String {
-    format!(
+/// Who runs a turn: the CLI, where, with which guide, continuing which session.
+pub struct Target<'a> {
+    pub agent: &'a str,
+    pub dir: &'a Path,
+    pub guide: String,
+    pub session: Option<&'a str>,
+}
+
+/// What the bot is told on every turn: how raiox works, how to propose a
+/// change, and the personality the person gave it (may be empty).
+pub fn guide(project: &str, persona: &str) -> String {
+    let base = format!(
         "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
          In this turn you can only read: do not edit files or run commands that change anything. \
          Answer in the person's language, briefly. \
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
          raiox then shows an Approve button; only after approval are you resumed with edit permission."
-    )
+    );
+    if persona.trim().is_empty() { base } else { format!("{base}\n\n{}", persona.trim()) }
 }
 
 fn edit_prompt(proposal: &str) -> String {
@@ -70,7 +80,7 @@ pub fn prompt_for(mode: Mode, text: &str) -> String {
     }
 }
 
-fn claude(dir: &Path, project: &str, session: Option<&str>, mode: Mode) -> Command {
+fn claude(dir: &Path, guide: &str, session: Option<&str>, mode: Mode) -> Command {
     let tools = match mode {
         Mode::Talk => "Read,Grep,Glob",
         Mode::Edit => "Read,Grep,Glob,Edit,Write",
@@ -79,7 +89,7 @@ fn claude(dir: &Path, project: &str, session: Option<&str>, mode: Mode) -> Comma
     command
         .current_dir(dir)
         .args(["-p", "--output-format", "json", "--tools", tools, "--strict-mcp-config"])
-        .args(["--append-system-prompt", &guide(project)]);
+        .args(["--append-system-prompt", guide]);
     if mode == Mode::Edit {
         command.args(["--permission-mode", "acceptEdits"]);
     }
@@ -104,11 +114,12 @@ fn codex(dir: &Path, session: Option<&str>, mode: Mode) -> Command {
 }
 
 /// Runs one turn and waits for it, up to the timeout.
-pub fn run(agent: &str, dir: &Path, project: &str, session: Option<&str>, mode: Mode, text: &str, scratch: &Path) -> Result<Reply> {
+pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Reply> {
+    let Target { agent, dir, session, .. } = *target;
     let (mut command, prompt) = match agent {
-        "claude" => (claude(dir, project, session, mode), prompt_for(mode, text)),
+        "claude" => (claude(dir, &target.guide, session, mode), prompt_for(mode, text)),
         // Codex has no system-prompt flag: the guide opens the first message of a thread.
-        "codex" if session.is_none() => (codex(dir, None, mode), format!("{}\n\n---\n\n{}", guide(project), prompt_for(mode, text))),
+        "codex" if session.is_none() => (codex(dir, None, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
         "codex" => (codex(dir, session, mode), prompt_for(mode, text)),
         other => bail!("unknown agent {other}"),
     };
@@ -227,6 +238,14 @@ pub fn split_proposal(text: &str) -> (String, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_persona_follows_the_raiox_guide() {
+        let plain = guide("app", "");
+        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.");
+        assert!(plain.contains(PROPOSAL_MARK) && !plain.contains("Reviewer"));
+        assert!(with_persona.starts_with(&plain) && with_persona.ends_with("Look for bugs."));
+    }
 
     #[test]
     fn the_proposal_line_becomes_a_card() {

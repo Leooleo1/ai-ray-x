@@ -1,0 +1,690 @@
+/* First-run setup. Stage on the left (the person's bot, live, on an engraved
+   light), the step on the right. Static screen: only the step body scrolls. */
+
+.boas-vindas {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 24px;
+  height: 100dvh;
+  padding: 24px 32px 32px;
+  overflow: hidden;
+}
+
+.bv-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.bv-trilho {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bv-trilho li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.55;
+}
+
+.bv-trilho i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.bv-trilho .feito {
+  opacity: 0.8;
+}
+
+.bv-trilho .feito i {
+  background: var(--nevoa);
+}
+
+.bv-trilho .atual {
+  color: var(--giz);
+  opacity: 1;
+}
+
+.bv-trilho .atual i {
+  background: var(--giz);
+}
+
+.bv-corpo {
+  display: grid;
+  grid-template-columns: minmax(320px, 5fr) minmax(0, 7fr);
+  gap: 32px;
+  width: 100%;
+  max-width: 1280px;
+  min-height: 0;
+  margin: 0 auto;
+}
+
+/* Stage */
+
+.bv-palco {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.bv-palco h1 {
+  max-width: 440px;
+  margin: 24px 0 12px;
+  font: 500 40px/44px var(--sans);
+  letter-spacing: -0.02em;
+}
+
+.bv-palco p {
+  max-width: 420px;
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.bv-luz {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 240px;
+  background: center / min(100%, 480px) no-repeat;
+}
+
+.bv-legenda {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Step card */
+
+.bv-cartao {
+  gap: 0;
+  padding: 0;
+}
+
+.bv-conteudo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* The body scrolls; its blocks keep their size instead of shrinking to fit. */
+.bv-conteudo > * {
+  flex: none;
+}
+
+.bv-conteudo::-webkit-scrollbar {
+  display: none;
+}
+
+.bv-acoes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 24px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.bv-acoes .bv-principal {
+  margin-left: auto;
+}
+
+.bv-btn {
+  flex: none;
+  height: 36px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 14px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bv-btn.cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.bv-btn.vidro {
+  background: rgb(255 255 255 / 8%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+}
+
+.bv-btn.link {
+  padding: 0 6px;
+  background: transparent;
+  color: var(--nevoa);
+}
+
+.bv-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.bv-erro {
+  margin: 0 24px 16px;
+  white-space: normal;
+}
+
+/* Shared rows */
+
+.bv-mono,
+.bv-selo,
+.bv-mais,
+.bv-espera,
+.bv-grupo,
+.bv-rotulo {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bv-lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-lista > li {
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.bv-lista > li:last-child {
+  box-shadow: none;
+}
+
+.bv-ia,
+.bv-repo,
+.bv-projeto {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.bv-ia b,
+.bv-repo b,
+.bv-projeto b {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A dot without a status (only on GitHub) stays quiet. */
+.bv-lista .ponto:not(.ok, .alerta) {
+  color: var(--nevoa);
+  opacity: 0.5;
+}
+
+.bv-direita {
+  justify-self: end;
+}
+
+.bv-ia {
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+  row-gap: 0;
+  padding: 6px 0;
+}
+
+.bv-ia .bv-comando {
+  grid-column: 2 / -1;
+  margin-bottom: 8px;
+}
+
+.bv-estado {
+  overflow: hidden;
+  color: var(--alerta);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-estado.ok {
+  color: var(--nevoa);
+}
+
+.bv-numero {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bv-numero span {
+  font: 400 44px/48px var(--pontos);
+  letter-spacing: -0.01em;
+}
+
+.bv-numero small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-comando {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 6px 6px 12px;
+  border-radius: 10px;
+  background: #16161c;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.bv-comando small {
+  flex: none;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.bv-comando code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 12.5px/18px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-comando button {
+  flex: none;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 8%);
+  color: var(--giz);
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.bv-instrucoes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bv-instrucoes p {
+  margin: 0;
+  color: var(--giz);
+}
+
+/* Welcome */
+
+.bv-passos {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bv-passos li {
+  display: grid;
+  grid-template-columns: 40px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 18px 0;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.bv-passos li:last-child {
+  box-shadow: none;
+}
+
+.bv-passos b {
+  font: 500 16px/22px var(--sans);
+  white-space: nowrap;
+}
+
+.bv-passos span:last-child {
+  overflow: hidden;
+  color: var(--nevoa);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-num {
+  color: var(--nevoa);
+  font: 20px/22px var(--pontos);
+}
+
+/* Projects */
+
+.bv-busca,
+.bv-texto {
+  width: 100%;
+  min-width: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  outline: 0;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+}
+
+.bv-busca {
+  height: 38px;
+}
+
+.bv-texto {
+  padding: 10px 14px;
+  resize: none;
+}
+
+.bv-busca:focus,
+.bv-texto:focus {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+.bv-busca::placeholder,
+.bv-texto::placeholder {
+  color: var(--nevoa);
+}
+
+.bv-projeto {
+  position: relative;
+  cursor: pointer;
+}
+
+.bv-projeto input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bv-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 24%);
+}
+
+.bv-projeto.marcado .bv-check {
+  background: var(--giz)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2 6.8 11 12 5.4' fill='none' stroke='%23060607' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 14px no-repeat;
+  box-shadow: none;
+}
+
+.bv-projeto input:focus-visible + .bv-check {
+  outline: 2px solid rgb(255 255 255 / 40%);
+  outline-offset: 2px;
+}
+
+.bv-projeto input:disabled + .bv-check {
+  opacity: 0.4;
+}
+
+.bv-grupo {
+  margin-top: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bv-repo .bv-btn {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+/* Bot */
+
+.bv-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bv-segmentos {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.bv-segmentos button {
+  height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 13px/16px var(--sans);
+  cursor: pointer;
+}
+
+.bv-segmentos button.ativo {
+  background: rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.bv-segmentos button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* One grouped panel, never loose chips: each option is a cell with an indicator. */
+.bv-presets {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--fio);
+  border-radius: 14px;
+  background: var(--fio);
+  gap: 1px;
+}
+
+.bv-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 0;
+  background: var(--carvao);
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bv-preset b {
+  font: 500 14px/18px var(--sans);
+}
+
+.bv-preset span:last-child {
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.bv-preset.ativo {
+  background: #18181f;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
+}
+
+.bv-mais-icone {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+  color: var(--nevoa);
+  font: 300 22px/1 var(--sans);
+}
+
+.bv-criar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.bv-criar .bv-campo:last-child {
+  grid-column: 1 / -1;
+}
+
+.bv-formas {
+  display: grid;
+  grid-template-columns: repeat(6, 40px);
+  gap: 4px;
+}
+
+.bv-formas button,
+.bv-cores button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  cursor: pointer;
+}
+
+.bv-formas button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.bv-formas button.ativo {
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
+}
+
+.bv-cores {
+  display: flex;
+  gap: 10px;
+}
+
+.bv-cores button {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+.bv-cores button.ativo {
+  box-shadow: 0 0 0 2px var(--carvao), 0 0 0 4px var(--giz);
+}
+
+.bv-destino {
+  min-width: 0;
+}
+
+/* Phone: one column, the stage shrinks to a header. */
+@media (max-width: 760px) {
+  .boas-vindas {
+    height: auto;
+    min-height: 100dvh;
+    padding: 16px 20px 24px;
+    overflow: visible;
+  }
+
+  .bv-trilho {
+    gap: 10px;
+  }
+
+  .bv-trilho li:not(.atual) span {
+    display: none;
+  }
+
+  .bv-corpo {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .bv-palco h1 {
+    margin-top: 8px;
+    font-size: 28px;
+    line-height: 32px;
+  }
+
+  .bv-luz {
+    min-height: 150px;
+    background-size: 280px;
+  }
+
+  .bv-cartao {
+    min-height: 0;
+  }
+
+  .bv-acoes {
+    flex-wrap: wrap;
+  }
+
+  .bv-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bv-preset:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .bv-criar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bv-passos li {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .bv-passos span:last-child {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .bv-ia,
+  .bv-repo,
+  .bv-projeto {
+    grid-template-columns: auto auto minmax(0, 1fr);
+  }
+
+  .bv-ia > .bv-direita,
+  .bv-repo > .bv-mono.bv-direita,
+  .bv-projeto > .bv-direita {
+    display: none;
+  }
+}

@@ -121,6 +121,7 @@ export interface SourceReport {
 }
 
 export interface Report {
+  setup: { done: boolean }
   bots: BotsState
   generated_at: number
   sources: SourceReport[]
@@ -168,9 +169,18 @@ export interface BotMessage {
   data: { text?: string; proposal?: string; mode?: 'talk' | 'edit'; reply?: BotReply; error?: string }
 }
 
+export interface Persona {
+  preset: string
+  name: string
+  instructions: string
+  color: string
+  shape: string
+}
+
 export interface Bot {
   id: string
   agent: BotAgent
+  persona: Persona | null
   name: string
   dir: string
   has_session: boolean
@@ -193,6 +203,54 @@ export interface BotsState {
 }
 
 export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset'
+
+export interface AiStatus {
+  id: BotAgent
+  name: string
+  installed: boolean
+  version: string | null
+  logged_in: boolean
+  method: string | null
+  plan: string | null
+  sessions: number
+  requests: number
+  install: string
+  login: string
+}
+
+export interface LocalProject {
+  project: string
+  name: string
+  github: string | null
+  claude: number
+  codex: number
+  last_ms: number | null
+}
+
+export interface SetupState {
+  done: boolean
+  ais: AiStatus[]
+  clone_to: string
+  clones: { running: string[]; failed: Record<string, string> }
+  projects: LocalProject[]
+}
+
+export interface GitHubRepo {
+  repo: string
+  name: string
+  private: boolean
+  pushed_at: string
+  description: string
+}
+
+export interface GitHubState {
+  installed: boolean
+  logged_in: boolean
+  login: string | null
+  repos: GitHubRepo[]
+  install: string
+  connect: string
+}
 
 export interface RoomMessage {
   ms: number
@@ -222,7 +280,7 @@ export async function fetchReport(token: string): Promise<Report> {
   return (await response.json()) as Report
 }
 
-async function request<T>(path: string, body?: Record<string, string>): Promise<T> {
+async function request<T>(path: string, body?: Record<string, unknown>): Promise<T> {
   const token = sessionToken()
   if (!token) throw new Error('no session token')
   const response = await fetch(path, {
@@ -235,12 +293,28 @@ async function request<T>(path: string, body?: Record<string, string>): Promise<
   return data
 }
 
+export function fetchSetup(): Promise<SetupState> {
+  return request<SetupState>('/api/setup')
+}
+
+export function fetchGitHub(): Promise<GitHubState> {
+  return request<GitHubState>('/api/setup/github')
+}
+
+export function cloneRepo(repo: string): Promise<SetupState> {
+  return request<SetupState>('/api/setup/clone', { repo })
+}
+
+export function finishSetup(): Promise<{ done: boolean }> {
+  return request<{ done: boolean }>('/api/setup/finish', {})
+}
+
 export function fetchBots(): Promise<BotsState> {
   return request<BotsState>('/api/bots')
 }
 
 /** Every bot action answers with the bots' state, so the panel redraws at once. */
-export function botAction(action: BotAction, body: Record<string, string>): Promise<BotsState> {
+export function botAction(action: BotAction, body: Record<string, unknown>): Promise<BotsState> {
   return request<BotsState>(`/api/bot/${action}`, body)
 }
 

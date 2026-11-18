@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import type { Bot, BotMessage } from '../api'
-import { AGENT_LABEL, BOT_FACES, type Bots } from '../bots'
+import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
+import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Markdown } from './Markdown'
@@ -18,6 +19,7 @@ export function BotChat({ bot, bots }: BotChatProps) {
   const end = useRef<HTMLDivElement>(null)
   const messages = bot.messages
   const label = AGENT_LABEL[bot.agent]
+  const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
 
   useEffect(() => {
@@ -39,14 +41,12 @@ export function BotChat({ bot, bots }: BotChatProps) {
       <section className="cartao chat-centro">
         <header className="chat-topo">
           <b>{bot.name}</b>
-          <small>
-            {label} · {t.botTalkHint}
-          </small>
+          <small>{`${bot.persona ? `${bot.persona.name} · ` : ''}${label} · ${t.botTalkHint}`}</small>
           <button className="voltar" disabled={bot.busy || !bot.has_session} onClick={() => void bots.act('reset', { id: bot.id })}>
             {t.newConversation}
           </button>
           <span className="pilha">
-            <Avatar agent={BOT_FACES[bot.agent]} size={22} state="still" />
+            <Avatar agent={faceForBot(bot)} size={22} state="still" />
           </span>
         </header>
 
@@ -80,8 +80,8 @@ export function BotChat({ bot, bots }: BotChatProps) {
             value={draft}
             maxLength={bots.state.max_text}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder={`${t.composeBot} ${label}`}
-            aria-label={`${t.composeBot} ${label}`}
+            placeholder={`${t.composeBot} ${speaker}`}
+            aria-label={`${t.composeBot} ${speaker}`}
             disabled={bot.busy}
           />
           <button className="enviar" type="submit" disabled={bot.busy || !draft.trim()} aria-label={t.send}>
@@ -118,7 +118,7 @@ interface LineProps {
 }
 
 function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
-  const face = BOT_FACES[bot.agent]
+  const face = faceForBot(bot)
   if (message.kind === 'reset') {
     return (
       <div className="dia">
@@ -143,7 +143,7 @@ function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
       <Avatar agent={face} size={32} state={isLatest ? 'idle' : 'still'} />
       <div className="corpo">
         <span className="quem">
-          <b style={{ color: face.color }}>{AGENT_LABEL[bot.agent]}</b>
+          <b style={{ color: face.color }}>{speakerOf(bot)}</b>
           <span className="hora">{clock(message.ms)}</span>
           {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
         </span>
@@ -183,13 +183,13 @@ function Waiting({ bot }: { bot: Bot }) {
     return () => window.clearInterval(timer)
   }, [])
   const doing = last?.kind === 'approve' ? t.botEditing : t.botReading
-  const face = BOT_FACES[bot.agent]
+  const face = faceForBot(bot)
   return (
     <div className="linha de-agente nova">
       <Avatar agent={face} size={32} state="thinking" />
       <div className="corpo">
         <span className="quem">
-          <b style={{ color: face.color }}>{AGENT_LABEL[bot.agent]}</b>
+          <b style={{ color: face.color }}>{speakerOf(bot)}</b>
         </span>
         <span className="espera">
           <span className="digitando" aria-hidden="true">

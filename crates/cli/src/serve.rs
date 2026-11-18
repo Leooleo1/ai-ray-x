@@ -12,7 +12,7 @@ use anyhow::{anyhow, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{actions, bots, data};
+use crate::{actions, bots, data, setup};
 use raiox_core::apply;
 use serde_json::{json, Value};
 use std::io::Read;
@@ -47,6 +47,7 @@ pub struct Panel {
     /// The project changes apply to: the folder `raiox open` started in.
     pub project_dir: PathBuf,
     pub jobs: bots::Jobs,
+    pub clones: setup::Clones,
 }
 
 pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
@@ -109,6 +110,16 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             )),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
+        (Method::Get, "/api/setup/github") => respond(Ok(setup::github())),
+        (Method::Post, "/api/setup/clone") => match body(request) {
+            Ok(input) => respond(
+                setup::clone(&panel.store, &panel.roots.home, &panel.clones, input.get("repo").and_then(Value::as_str).unwrap_or(""))
+                    .and_then(|()| setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
+            ),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
@@ -127,7 +138,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
     let field = |name: &str| input.get(name).and_then(Value::as_str).unwrap_or("");
     let (state_dir, jobs) = (&panel.state_dir, &panel.jobs);
     match action {
-        "activate" => bots::activate(state_dir, &panel.roots.home, field("project"), field("agent")).map(|_| ()),
+        "activate" => {
+            let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
+            bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona).map(|_| ())
+        }
         "deactivate" => bots::deactivate(state_dir, jobs, field("id")),
         "ask" => bots::ask(state_dir, jobs, field("id"), field("text")),
         "approve" => bots::approve(state_dir, jobs, field("id")),
@@ -219,6 +233,7 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("outcomes".into(), json!(measured.iter().map(|(_, o)| o).collect::<Vec<_>>()));
         object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
         object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
+        object.insert("setup".into(), json!({ "done": setup::is_done(&panel.state_dir) }));
         object.insert("bots".into(), bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)?);
         object.insert(
             "room".into(),

@@ -1,6 +1,6 @@
 import { AGENTS, type AgentId } from '../agents'
 import type { Bot } from '../api'
-import { AGENT_LABEL, BOT_FACES } from '../bots'
+import { AGENT_LABEL, faceForBot } from '../avatars'
 import { nowStamp, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
@@ -20,10 +20,11 @@ interface SidebarProps {
   updatedAt: Date
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
+  onSetup: () => void
 }
 
 /** The one navigation of the panel: sections, this project's channel and the agents' threads. */
-export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, onChat }: SidebarProps) {
+export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, onChat, onSetup }: SidebarProps) {
   const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
@@ -65,9 +66,9 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
         <span className="lado-titulo">{t.bots}</span>
         {bots.map((bot) => (
           <button key={bot.id} className={`lado-item ${inChat(`bot:${bot.id}`) ? 'ativo' : ''}`} onClick={() => onChat(`bot:${bot.id}`)}>
-            <Avatar agent={BOT_FACES[bot.agent]} size={22} state={bot.busy ? 'thinking' : 'idle'} />
+            <Avatar agent={faceForBot(bot)} size={22} state={bot.busy ? 'thinking' : 'idle'} />
             <span className="nome">{bot.name}</span>
-            <span className={`presenca ${bot.busy ? 'digitando' : ''}`}>{bot.busy ? t.typingShort : AGENT_LABEL[bot.agent].split(' ')[0]}</span>
+            <span className={`presenca ${bot.busy ? 'digitando' : ''}`}>{bot.busy ? t.typingShort : (bot.persona?.name ?? AGENT_LABEL[bot.agent].split(' ')[0])}</span>
           </button>
         ))}
         <button className={`lado-item ${inChat('bots') ? 'ativo' : ''}`} onClick={() => onChat('bots')}>
@@ -82,12 +83,15 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
           {t.updated}
         </span>
         <span className="lado-nota">{t.roomRule}</span>
+        <button className="lado-link" onClick={onSetup}>
+          {t.setupAgain}
+        </button>
       </footer>
     </aside>
   )
 }
 
-function Mark() {
+export function Mark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       {[

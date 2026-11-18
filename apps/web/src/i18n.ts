@@ -1,6 +1,7 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  setupAgain: 'Set up projects and bots',
   bots: 'Bots',
   addBot: 'Add a bot',
   botsTitle: 'Bots in your projects',
@@ -104,6 +105,7 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  setupAgain: 'Configurar projetos e bots',
   bots: 'Bots',
   addBot: 'Ativar bot',
   botsTitle: 'Bots nos seus projetos',

@@ -1,5 +1,6 @@
 import type { Bot, BotAgent, BotsState } from '../api'
-import { AGENT_LABEL, BOT_FACES, type Bots } from '../bots'
+import { AGENT_LABEL, faceForBot } from '../avatars'
+import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
 import { Avatar } from './Avatar'
 
@@ -55,7 +56,7 @@ export function BotPicker({ bots, onOpen }: BotPickerProps) {
         <ul className="bots-itens">
           {list.map((row) => (
             <li key={row.key} className="bot-linha">
-              <Avatar agent={BOT_FACES[row.agent]} size={28} state="still" />
+              <Avatar agent={faceForBot(row.bot ?? { agent: row.agent, persona: null })} size={28} state="still" />
               <span className="bot-nome">
                 <b>{row.name}</b>
                 <small>{row.project}</small>

@@ -9,6 +9,7 @@ mod room;
 mod mcp;
 mod print;
 mod serve;
+mod setup;
 
 use std::path::PathBuf;
 
@@ -121,7 +122,7 @@ fn main() -> Result<()> {
             raiox_core::refresh(&mut store, &roots)?;
             let state_dir = state_dir(&db);
             let project_dir = std::env::current_dir()?;
-            serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir, jobs: bots::Jobs::default() }, port, !no_open)
+            serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir, jobs: bots::Jobs::default(), clones: setup::Clones::default() }, port, !no_open)
         }
         Command::Mcp => mcp::run(store, roots),
         Command::Apply { suggestion, source } => {
