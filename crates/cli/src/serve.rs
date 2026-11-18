@@ -142,15 +142,18 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
 fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Value> {
     let field = |name: &str| input.get(name).and_then(Value::as_str).unwrap_or("");
     let (state_dir, jobs) = (&panel.state_dir, &panel.jobs);
+    let thread = input.get("thread").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or(crate::threads::MAIN);
     match action {
         "activate" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
             bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona).map(|_| ())
         }
         "deactivate" => bots::deactivate(state_dir, jobs, field("id")),
-        "ask" => bots::ask(state_dir, jobs, field("id"), field("text")),
-        "approve" => bots::approve(state_dir, jobs, field("id")),
-        "reset" => bots::reset(state_dir, jobs, field("id")),
+        "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
+        "approve" => bots::approve(state_dir, jobs, field("id"), thread),
+        "reset" => bots::reset(state_dir, jobs, field("id"), thread),
+        "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
+        "thread_delete" => crate::threads::delete(state_dir, field("id"), thread),
         "stop" => jobs.stop(field("id")),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;

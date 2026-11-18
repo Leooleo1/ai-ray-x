@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 
 pub const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 pub const TO_MARK: &str = "RAIOX-TO";
+pub const OPEN_MARK: &str = "RAIOX-OPEN:";
+/// Places in the panel a bot can point to with a card.
+pub const PLACES: [&str; 4] = ["model", "settings", "memories", "connections"];
 /// Longest message for another bot, in characters.
 const MAX_NOTE: usize = 1200;
 
@@ -21,6 +24,8 @@ pub struct Marked {
     pub text: String,
     pub proposal: Option<String>,
     pub notes: Vec<Note>,
+    /// Panel places to open, from RAIOX-OPEN lines (known places only, once each).
+    pub open: Vec<String>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -46,6 +51,11 @@ pub fn split(answer: &str) -> Marked {
         let trimmed = line.trim();
         if let Some(p) = trimmed.strip_prefix(PROPOSAL_MARK) {
             marked.proposal = Some(unquote(p)).filter(|p| !p.is_empty());
+        } else if let Some(place) = trimmed.strip_prefix(OPEN_MARK) {
+            let place = unquote(place).to_lowercase();
+            if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
+                marked.open.push(place);
+            }
         } else if let Some(n) = note(trimmed) {
             marked.notes.push(n);
         } else {
@@ -66,6 +76,12 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn open_lines_become_cards_for_known_places_only() {
+        let m = split("Troque o modelo.\nRAIOX-OPEN: model\nRAIOX-OPEN: shell\nRAIOX-OPEN: model");
+        assert_eq!((m.text.as_str(), m.open), ("Troque o modelo.", vec!["model".to_string()]));
     }
 
     #[test]

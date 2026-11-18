@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Bot, BotMessage } from '../../api'
+import type { Bot, BotMessage, Place } from '../../api'
 import { faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
@@ -8,6 +8,13 @@ import { Expandable } from './Expandable'
 /** After a pause this long, the time stands above the next message again. */
 const PAUSE_MS = 60 * 60_000
 const COPIED_MS = 1400
+
+const PLACE_ICONS: Record<Place, string> = {
+  model: 'M12 3l2.2 5.6L20 9.2l-4.4 3.9 1.3 5.9L12 16l-4.9 3 1.3-5.9L4 9.2l5.8-.6z',
+  settings: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+  memories: 'M6 4h12v16l-6-4-6 4z',
+  connections: 'M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8',
+}
 
 export const clock = (ms: number) => new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 
@@ -33,9 +40,10 @@ interface BotLineProps {
   sent: Set<string>
   onSend: (project: string) => void
   onOpenExchange: (a: string, b: string) => void
+  onOpenPlace: (place: Place) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -96,7 +104,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   const reply = message.data.reply
   const meta = reply && [
     `${t.readWord} ${compact(reply.read_tokens)} tokens`,
-    reply.steps ? `${reply.steps} ${t.steps}` : '',
+    reply.steps ? `${reply.steps} ${reply.steps === 1 ? t.stepOne : t.steps}` : '',
     `${Math.max(1, Math.round(reply.duration_ms / 1000))} s`,
   ]
   return (
@@ -117,6 +125,22 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               <CopyButton text={reply.text} />
             </span>
           )}
+          {reply?.open?.map((place) => (
+            <div key={place} className="cartao-acao">
+              <span className="cartao-acao-icone" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d={PLACE_ICONS[place]} />
+                </svg>
+              </span>
+              <span className="cartao-acao-texto">
+                <b>{t.places[place]}</b>
+                <small>{`${bot.name} › ${t.placeWhere[place]}`}</small>
+              </span>
+              <button type="button" className="vidro-btn" onClick={() => onOpenPlace(place)}>
+                {t.open}
+              </button>
+            </div>
+          ))}
           {reply?.proposal && (
             <div className="proposta" id={approvable ? 'esperando-aprovacao' : undefined}>
               <span className="proposta-rotulo">{t.proposal}</span>

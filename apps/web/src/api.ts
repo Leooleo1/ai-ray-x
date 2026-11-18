@@ -158,10 +158,20 @@ export interface BotNote {
   text: string
 }
 
+export interface BotThread {
+  id: string
+  title: string
+  has_session: boolean
+  messages: BotMessage[]
+}
+
+export type Place = 'model' | 'settings' | 'memories' | 'connections'
+
 export interface BotReply {
   text: string
   proposal: string | null
   to?: BotNote[]
+  open?: Place[]
   steps?: number | null
   read_tokens: number
   output_tokens: number
@@ -209,7 +219,11 @@ export interface Bot {
   dir: string
   has_session: boolean
   busy: boolean
+  /** The conversation the running turn belongs to. */
+  busy_thread: string | null
   messages: BotMessage[]
+  /** Parallel conversations besides the main one. */
+  threads: BotThread[]
 }
 
 export interface BotCandidate {
@@ -228,7 +242,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete'
 
 export interface InboxMessage {
   id: string

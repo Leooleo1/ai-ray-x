@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::bot_marks::{self, PROPOSAL_MARK, TO_MARK};
+use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, TO_MARK};
 
 /// A bot that thinks longer than this is stopped.
 const TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -38,6 +38,9 @@ pub struct Reply {
     /// Messages for other projects' bots, as the bot wrote them.
     #[serde(default)]
     pub to: Vec<crate::bot_marks::Note>,
+    /// Panel places the answer points to, drawn as cards with Open.
+    #[serde(default)]
+    pub open: Vec<String>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -86,8 +89,13 @@ pub fn guide(project: &str, persona: &str, others: &[String]) -> String {
             others.join(", ")
         )
     };
+    let places = format!(
+        "\n\nWhen the person asks about the model or effort you run on, your look, this project's ai-memory memories or \
+         which AI tools are connected, you can end with one line {OPEN_MARK} model | settings | memories | connections; \
+         raiox shows a card that opens that place."
+    );
     let persona = persona.trim();
-    format!("{base}{mail}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
+    format!("{base}{mail}{places}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
 
 fn edit_prompt(proposal: &str) -> String {
@@ -262,6 +270,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         text: marked.text,
         proposal: marked.proposal,
         to: marked.notes,
+        open: marked.open,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
@@ -301,6 +310,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         text: marked.text,
         proposal: marked.proposal,
         to: marked.notes,
+        open: marked.open,
         steps: Some(
             events
                 .iter()

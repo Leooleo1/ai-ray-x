@@ -15,6 +15,7 @@ mod print;
 mod serve;
 mod settings;
 mod setup;
+mod threads;
 
 use std::path::PathBuf;
 

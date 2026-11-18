@@ -175,7 +175,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} onConnections={() => go('settings')} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
         {tab === 'agents' && openExchange && (
           <ExchangeView exchange={openExchange} bots={bots} unread={unread} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />
         )}

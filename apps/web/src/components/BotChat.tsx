@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type BotMessage, type Inbox, botInbox } from '../api'
+import { type Bot, type BotMessage, type Inbox, type Place, botInbox } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -18,6 +18,8 @@ import './chat/chat.css'
 
 /** The project's ai-memory inbox is asked again this often while the chat is open. */
 const INBOX_MS = 30_000
+/** The conversation every bot has; the others are parallel ones. */
+const MAIN = 'main'
 const INBOX_ID = 'caixa-ai-memory'
 const PROPOSAL_ID = 'esperando-aprovacao'
 
@@ -27,17 +29,42 @@ interface BotChatProps {
   onOpen: (id: string) => void
   onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
+  onConnections: () => void
   unread: Set<string>
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: BotChatProps) {
+export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnections, unread }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [thread, setThread] = useState(MAIN)
+  const [modelSignal, setModelSignal] = useState(0)
+  const [memorySignal, setMemorySignal] = useState(0)
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
-  const messages = bot.messages
-  const mail = inbox.value?.messages ?? []
-  const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + (bot.busy ? 1 : 0), bot.id)
+  const side = bot.threads.find((x) => x.id === thread)
+  // A conversation closed elsewhere falls back to the main one.
+  const current = side ? thread : MAIN
+  const messages = side ? side.messages : bot.messages
+  // One turn at a time per bot: busy here, or busy in another conversation.
+  const busyHere = bot.busy && (bot.busy_thread ?? MAIN) === current
+  const busyElsewhere = bot.busy && !busyHere
+  // ai-memory mail always lands in the main conversation.
+  const mail = current === MAIN ? (inbox.value?.messages ?? []) : []
+  const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + (busyHere ? 1 : 0), `${bot.id}:${current}`)
+  const openPlace = (place: Place) => {
+    if (place === 'model') setModelSignal((n) => n + 1)
+    else if (place === 'settings') setSettingsOpen(true)
+    else if (place === 'memories') setMemorySignal((n) => n + 1)
+    else onConnections()
+  }
+  const newThread = async () => {
+    const next = await bots.act('thread_new', { id: bot.id })
+    const created = next?.bots.find((b) => b.id === bot.id)?.threads.at(-1)
+    if (created) setThread(created.id)
+  }
+  const closeThread = async (id: string) => {
+    if ((await bots.act('thread_delete', { id: bot.id, thread: id })) && id === current) setThread(MAIN)
+  }
   const face = faceForBot(bot)
   const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
@@ -47,7 +74,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
 
   const send = async (text: string) => {
     askToNotify()
-    return (await bots.act('ask', { id: bot.id, text })) !== null
+    return (await bots.act('ask', { id: bot.id, thread: current, text })) !== null
   }
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
@@ -57,16 +84,28 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
         <BotList bots={bots} current={bot.id} unread={unread} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
         <div className="conversa">
         <header className="chat-topo bot-topo">
-          <span className="bot-aba">
-            <Avatar agent={face} size={22} state={bot.busy ? 'thinking' : 'still'} />
-            <b>{bot.persona ? `${bot.name} · ${bot.persona.name}` : bot.name}</b>
-          </span>
-          <button type="button" className="icone-btn" title={t.newConversation} aria-label={t.newConversation} disabled={bot.busy || !bot.has_session} onClick={() => void bots.act('reset', { id: bot.id })}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-          <ModelPicker bot={bot} bots={bots} />
+          <div className="abas" role="tablist" aria-label={t.newThread}>
+            <button type="button" role="tab" aria-selected={current === MAIN} className={`bot-aba ${current === MAIN ? 'ativa' : ''}`} onClick={() => setThread(MAIN)}>
+              <Avatar agent={face} size={22} state={busyHere && current === MAIN ? 'thinking' : 'still'} />
+              <b>{bot.persona ? `${bot.name} · ${bot.persona.name}` : bot.name}</b>
+            </button>
+            {bot.threads.map((x) => (
+              <span key={x.id} role="tab" aria-selected={current === x.id} className={`bot-aba lateral-aba ${current === x.id ? 'ativa' : ''}`}>
+                <button type="button" onClick={() => setThread(x.id)}>
+                  {x.title}
+                </button>
+                <button type="button" className="fechar-aba" aria-label={t.closeThread} title={t.closeThread} disabled={bot.busy && bot.busy_thread === x.id} onClick={() => void closeThread(x.id)}>
+                  ×
+                </button>
+              </span>
+            ))}
+            <button type="button" className="icone-btn" title={t.newThread} aria-label={t.newThread} onClick={() => void newThread()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+          <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
           <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="4" y="5" width="16" height="14" rx="2.5" />
@@ -75,9 +114,9 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
           </button>
         </header>
 
-        <MemoriesLine bot={bot} />
+        <MemoriesLine bot={bot} openSignal={memorySignal} />
         <div className="chat-mensagens" ref={list}>
-          {messages.length === 0 && !bot.busy && mail.length === 0 && (
+          {messages.length === 0 && !busyHere && mail.length === 0 && (
             <div className="chat-vazio">
               <Avatar agent={face} size={72} state="idle" followPointer />
               <b>{speaker}</b>
@@ -99,10 +138,11 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
               message={message}
               previous={messages[index - 1]}
               approvable={index === pending}
-              onApprove={() => void bots.act('approve', { id: bot.id })}
+              onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
               onOpenExchange={onOpenExchange}
+              onOpenPlace={openPlace}
             />
           ))}
           {mail.length > 0 && !bot.busy && (
@@ -128,7 +168,8 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
             {t.newBelow}
           </button>
         )}
-        {bot.busy && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} since={lastAsk?.ms ?? Date.now()} />}
+        {busyElsewhere && <p className="linha-sistema">{t.busyElsewhere}</p>}
+        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} since={lastAsk?.ms ?? Date.now()} />}
         {!bot.busy && waiting > 0 && (
           <div className="esperando">
             <i className="ponto alerta" />
@@ -139,7 +180,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: Bo
           </div>
         )}
         <Composer
-          draftKey={bot.id}
+          draftKey={`${bot.id}:${current}`}
           placeholder={`${t.composeBot} ${speaker}`}
           maxLength={bots.state.max_text}
           busy={bot.busy}

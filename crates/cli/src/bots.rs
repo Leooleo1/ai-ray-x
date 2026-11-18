@@ -16,6 +16,10 @@ use serde_json::{json, Value};
 
 use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
+use crate::threads::{self, MAIN};
+
+/// What a new conversation is called until its first question names it.
+pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 
 /// Longest message the person can send to a bot, in characters.
 pub const MAX_TEXT: usize = 4000;
@@ -126,13 +130,18 @@ impl Persona {
     }
 }
 
-/// Bots answering right now, by id, and whether the person asked them to stop.
+/// Bots answering right now, by id: whether the person asked them to stop, and in which conversation.
 #[derive(Clone, Default)]
-pub struct Jobs(Arc<Mutex<HashMap<String, bool>>>);
+pub struct Jobs(Arc<Mutex<HashMap<String, (bool, String)>>>);
 
 impl Jobs {
-    fn start(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), false).is_none())
+    /// One turn at a time per bot, whichever conversation it is in.
+    fn start(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), (false, thread.to_string())).is_none())
+    }
+
+    fn thread_of(&self, id: &str) -> Option<String> {
+        self.0.lock().ok().and_then(|map| map.get(id).map(|(_, t)| t.clone()))
     }
 
     fn finish(&self, id: &str) {
@@ -146,14 +155,14 @@ impl Jobs {
     }
 
     fn should_stop(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.get(id).copied().unwrap_or(false))
+        self.0.lock().is_ok_and(|map| map.get(id).is_some_and(|(stop, _)| *stop))
     }
 
     /// Marks a running turn to stop; its thread kills the CLI on its next check.
     pub fn stop(&self, id: &str) -> Result<()> {
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
         match map.get_mut(id) {
-            Some(flag) => {
+            Some((flag, _)) => {
                 *flag = true;
                 Ok(())
             }
@@ -166,8 +175,9 @@ fn registry_file(state_dir: &Path) -> PathBuf {
     state_dir.join("bots.json")
 }
 
+/// The main conversation's file (ai-memory mail lands there).
 pub fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
-    state_dir.join("bots").join(format!("{id}.json"))
+    threads::chat_file(state_dir, id, MAIN)
 }
 
 pub fn list(state_dir: &Path) -> Vec<Bot> {
@@ -304,13 +314,28 @@ pub fn configure(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>, e
     })
 }
 
-/// Starts a new conversation: the next message opens a fresh session.
-pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
+/// Starts the conversation over: the next message opens a fresh session.
+pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
     if jobs.is_busy(id) {
         bail!("the bot is answering; wait for it to finish");
     }
-    set_session(state_dir, id, None)?;
-    room::append_messages(&chat_file(state_dir, id), vec![note("reset", json!({}))])
+    set_thread_session(state_dir, id, thread, None)?;
+    room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("reset", json!({}))])
+}
+
+/// The CLI session a conversation continues.
+fn thread_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<String>> {
+    if thread == MAIN { Ok(bot.session.clone()) } else { threads::session(state_dir, &bot.id, thread) }
+}
+
+fn set_thread_session(state_dir: &Path, id: &str, thread: &str, session: Option<String>) -> Result<()> {
+    if thread == MAIN { set_session(state_dir, id, session) } else { threads::set_session(state_dir, id, thread, session) }
+}
+
+/// Opens a parallel conversation with a bot, named after its first question.
+pub fn new_thread(state_dir: &Path, id: &str, default_title: &str) -> Result<threads::Thread> {
+    find(state_dir, id)?;
+    threads::create(state_dir, id, default_title)
 }
 
 fn set_session(state_dir: &Path, id: &str, session: Option<String>) -> Result<()> {
@@ -330,20 +355,23 @@ fn said(kind: &str, data: Value) -> Message {
 /// The person talks to a bot. The answer arrives later, on its own thread.
 /// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
 pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
-    start(state_dir, jobs, id, Mode::Talk, prompt, said("ask", shown))
+    start(state_dir, jobs, id, MAIN, Mode::Talk, prompt, said("ask", shown))
 }
 
-pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
+pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
     let text = text.trim();
     if text.is_empty() || text.chars().count() > MAX_TEXT {
         bail!("a message has 1 to {MAX_TEXT} characters");
     }
-    start(state_dir, jobs, id, Mode::Talk, text, said("ask", json!({ "text": text })))
+    if thread != MAIN {
+        threads::name_after(state_dir, id, thread, text, DEFAULT_THREAD_TITLE)?;
+    }
+    start(state_dir, jobs, id, thread, Mode::Talk, text, said("ask", json!({ "text": text })))
 }
 
 /// The person approves the proposal in the bot's latest answer.
-pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
-    let messages = room::read_messages(&chat_file(state_dir, id));
+pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent" | "stopped"));
     let proposal = last
@@ -355,23 +383,27 @@ pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     let agent = find(state_dir, id)?.agent;
     let answer = last.and_then(|m| m.data.pointer("/reply/text")).and_then(Value::as_str).unwrap_or("");
     let text = if agent == "cursor" { format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.") } else { proposal.clone() };
-    start(state_dir, jobs, id, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
+    start(state_dir, jobs, id, thread, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
 }
 
-fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
+fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
     let bot = find(state_dir, id)?;
-    if mode == Mode::Edit && bot.session.is_none() && bot.agent != "cursor" {
+    let session = thread_session(state_dir, &bot, thread)?;
+    if mode == Mode::Edit && session.is_none() && bot.agent != "cursor" {
         bail!("this conversation was reset; ask the bot again");
     }
-    if !jobs.start(id) {
+    if !jobs.start(id, thread) {
         bail!("the bot is still answering");
     }
-    let file = chat_file(state_dir, id);
+    let file = threads::chat_file(state_dir, id, thread);
     if let Err(error) = room::append_messages(&file, vec![asked]) {
         jobs.finish(id);
         return Err(error);
     }
-    let (state_dir, jobs, text) = (state_dir.to_path_buf(), jobs.clone(), text.to_string());
+    let (state_dir, jobs, text, thread) = (state_dir.to_path_buf(), jobs.clone(), text.to_string(), thread.to_string());
     std::thread::spawn(move || {
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
         let others: Vec<String> = list(&state_dir).into_iter().filter(|b| b.dir != bot.dir).map(|b| b.name).collect();
@@ -380,7 +412,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
             agent: &bot.agent,
             dir: &bot.dir,
             guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others),
-            session: bot.session.as_deref(),
+            session: session.as_deref(),
             model: bot.model.as_deref().or(defaults.model.as_deref()),
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
         };
@@ -396,8 +428,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
             Ok(reply) => {
                 // Messages for projects without a bot are dropped: nobody there would read them.
                 let reply = bot_run::Reply { to: reply.to.into_iter().filter(|n| others.contains(&n.project)).collect(), ..reply };
-                if reply.session.is_some() && reply.session != bot.session && bot_run::keeps_session(&bot.agent, mode) {
-                    let _ = set_session(&state_dir, &bot.id, reply.session.clone());
+                if reply.session.is_some() && reply.session != session && bot_run::keeps_session(&bot.agent, mode) {
+                    let _ = set_thread_session(&state_dir, &bot.id, &thread, reply.session.clone());
                 }
                 let mode_name = if mode == Mode::Edit { "edit" } else { "talk" };
                 note("answer", json!({ "mode": mode_name, "reply": reply }))
@@ -417,6 +449,10 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .into_iter()
         .map(|bot| {
             let messages = room::read_messages(&chat_file(state_dir, &bot.id));
+            let side: Vec<Value> = threads::list(state_dir, &bot.id)
+                .into_iter()
+                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
+                .collect();
             json!({
                 "id": bot.id,
                 "agent": bot.agent,
@@ -427,7 +463,9 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "model": bot.model,
                 "effort": bot.effort,
                 "busy": jobs.is_busy(&bot.id),
+                "busy_thread": jobs.thread_of(&bot.id),
                 "messages": messages,
+                "threads": side,
             })
         })
         .collect();
@@ -474,9 +512,9 @@ mod tests {
         let jobs = Jobs::default();
         let answer = |proposal: Value| note("answer", json!({ "mode": "talk", "reply": { "text": "t", "proposal": proposal } }));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(Value::Null)]).unwrap();
-        assert!(approve(&state, &jobs, "b1").unwrap_err().to_string().contains("no proposal"));
+        assert!(approve(&state, &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(json!("rename"))]).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
-        assert!(approve(&state, &jobs, "b1").unwrap_err().to_string().contains("no bot"));
+        assert!(approve(&state, &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
     }
 }

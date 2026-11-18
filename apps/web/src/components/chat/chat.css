@@ -757,3 +757,128 @@
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* Conversation tabs: the main one and parallel ones, + opens another. */
+.abas {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.abas .bot-aba {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/20px var(--sans);
+  cursor: pointer;
+}
+
+.abas .bot-aba.ativa {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.lateral-aba {
+  display: inline-flex;
+  gap: 2px;
+  max-width: 200px;
+  padding: 0 4px 0 12px;
+}
+
+.lateral-aba button {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lateral-aba .fechar-aba {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--nevoa);
+  opacity: 0;
+}
+
+.lateral-aba:hover .fechar-aba,
+.lateral-aba.ativa .fechar-aba,
+.fechar-aba:focus-visible {
+  opacity: 1;
+}
+
+.fechar-aba:hover {
+  background: rgb(255 255 255 / 8%);
+}
+
+/* An action card in an answer: what it opens, where, and Open. */
+.cartao-acao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 560px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #1c1c22;
+}
+
+.cartao-acao-icone {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--vidro-7);
+}
+
+.cartao-acao-icone svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--giz);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cartao-acao-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cartao-acao-texto b {
+  font: 500 14px/20px var(--sans);
+}
+
+.cartao-acao-texto small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cartao-acao .vidro-btn {
+  flex: none;
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 13px/16px var(--sans);
+  cursor: pointer;
+}

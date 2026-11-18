@@ -13,11 +13,16 @@ const nameOf = (model: string) => ALIAS_NAMES[model] ?? modelName(model)
 interface ModelPickerProps {
   bot: Bot
   bots: Bots
+  /** Changes when a card asks to open the menu. */
+  openSignal?: number
 }
 
 /** The model and effort in the header; a click opens the list with search and the effort below. */
-export function ModelPicker({ bot, bots }: ModelPickerProps) {
+export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true)
+  }, [openSignal])
   const [usage, setUsage] = useState<BotUsage | null>(null)
   const [query, setQuery] = useState('')
   const box = useRef<HTMLDivElement>(null)

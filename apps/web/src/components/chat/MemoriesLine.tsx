@@ -5,9 +5,12 @@ import { locale, t } from '../../i18n'
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : '')
 
 /** "Memories: N saved ›" over the chat: what ai-memory keeps for this project, which the bot's CLI can read. */
-export function MemoriesLine({ bot }: { bot: Bot }) {
+export function MemoriesLine({ bot, openSignal = 0 }: { bot: Bot; openSignal?: number }) {
   const [memories, setMemories] = useState<Memories | null>(null)
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true)
+  }, [openSignal])
   useEffect(() => {
     setMemories(null)
     setOpen(false)

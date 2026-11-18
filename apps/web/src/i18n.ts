@@ -1,6 +1,13 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  stepOne: 'step',
+  newThread: 'New conversation',
+  closeThread: 'Close conversation',
+  busyElsewhere: 'answering in another conversation',
+  open: 'Open',
+  places: { model: 'Agent model', settings: 'Look and manner', memories: 'Project memories', connections: 'Connected AIs' } as Record<string, string>,
+  placeWhere: { model: 'Model and effort', settings: 'Settings', memories: 'ai-memory', connections: 'raiox settings' } as Record<string, string>,
   memoriesSavedOne: 'Memories: 1 saved',
   memoriesSaved: 'Memories: {n} saved',
   memoriesNone: 'No memories yet',
@@ -202,6 +209,13 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  stepOne: 'passo',
+  newThread: 'Nova conversa',
+  closeThread: 'Fechar conversa',
+  busyElsewhere: 'respondendo em outra conversa',
+  open: 'Abrir',
+  places: { model: 'Modelo do agente', settings: 'Aparência e jeito', memories: 'Memórias do projeto', connections: 'IAs conectadas' } as Record<string, string>,
+  placeWhere: { model: 'Modelo e esforço', settings: 'Ajustes', memories: 'ai-memory', connections: 'Configurações do raiox' } as Record<string, string>,
   memoriesSavedOne: 'Memórias: 1 salva',
   memoriesSaved: 'Memórias: {n} salvas',
   memoriesNone: 'Nenhuma memória ainda',
