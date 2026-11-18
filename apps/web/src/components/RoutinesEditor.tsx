@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Bot, Routine } from '../api'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
+import './controls.css'
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6]
 const WORKDAYS = [0, 1, 2, 3, 4]

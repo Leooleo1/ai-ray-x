@@ -1,368 +1,798 @@
-/* Settings: one column of cards, each a list of rows with one action. */
+/* Settings: the setup at a glance on top (the onboarding's trail, the bot on
+   its light), then one part at a time behind segmented tabs. Three depths:
+   the hero and the lit cards float with a shadow and a baked glow; cards of
+   CLIs that are off or missing sit flat and recessed. */
 
-/* A sub-nav of sections at the left, the sections in one scrolling column. */
-.config {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+.cfg {
+  display: flex;
+  flex-direction: column;
   gap: var(--vao);
   min-height: 0;
 }
 
-.config-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  align-self: start;
-  position: sticky;
-  top: 0;
-}
-
-.config-secao {
+/* Buttons of this page: one solid white per view, the rest glass. */
+.cfg-btn {
+  flex: none;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 16px;
   border: 0;
-  border-radius: var(--raio-item);
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 14px/20px var(--sans);
-  text-align: left;
+  border-radius: 999px;
+  font: 500 14px/18px var(--sans);
   white-space: nowrap;
   cursor: pointer;
 }
 
-.config-secao:hover {
+.cfg-btn.cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.cfg-btn.vidro {
+  background: rgb(255 255 255 / 8%);
+  box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
 }
 
-.config-secao.ativo {
-  background: var(--vidro-7);
-  color: var(--giz);
+.cfg-btn.vidro:hover {
+  background: rgb(255 255 255 / 12%);
 }
 
-.config-conteudo {
+.cfg-btn.pequeno {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.cfg-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Hero: how far the setup is, the trail, the next step; the bot on its stage.
+   Doubled class: the global card rule loads after this file. */
+.cartao.cfg-heroi {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  padding: 24px 24px 24px 28px;
+}
+
+.cfg-heroi-corpo {
   display: flex;
   flex-direction: column;
-  gap: var(--vao);
-  min-height: 0;
-  overflow-y: auto;
-  scroll-padding-top: 0;
-  scrollbar-width: none;
-}
-
-.config-conteudo > * {
-  flex: none;
-}
-
-.config-bloco {
-  gap: 10px;
-}
-
-.config-topo {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+  justify-content: center;
+  gap: 20px;
   min-width: 0;
+}
+
+.cfg-heroi-topo {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+
+.cfg-progresso {
+  flex: none;
+  color: var(--giz);
+  font: 56px/1 var(--pontos);
+}
+
+.cfg-progresso small {
+  color: var(--nevoa);
+  font-size: 28px;
+}
+
+.cfg-heroi-titulo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cfg-heroi .cfg-heroi-titulo h2 {
+  display: block;
+  margin: 0;
+  font: 500 22px/28px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.cfg-heroi-titulo small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.config-topo b {
-  font: 500 14px/20px var(--sans);
-}
-
-.config-topo small {
-  overflow: hidden;
-  color: var(--nevoa);
-  font-size: 13px;
-  text-overflow: ellipsis;
-}
-
-.config-lista {
+/* Trail: the onboarding's steps, joined by a line that lights up behind each done one. */
+.cfg-trilha {
   display: flex;
-  flex-direction: column;
+  max-width: 520px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.config-lista > li {
-  box-shadow: inset 0 -1px 0 var(--fio);
+.cfg-trilha li {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--nevoa);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
-.config-lista > li:last-child {
+.cfg-trilha li:last-child {
+  flex: none;
+}
+
+.cfg-trilha li::before {
+  position: absolute;
+  top: 10px;
+  right: 6px;
+  left: 26px;
+  height: 1px;
+  background: rgb(255 255 255 / 14%);
+  content: '';
+}
+
+.cfg-trilha li:last-child::before {
+  display: none;
+}
+
+.cfg-trilha li.feito::before {
+  background: rgb(255 255 255 / 60%);
+}
+
+.cfg-trilha i {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 22%);
+}
+
+.cfg-trilha .feito,
+.cfg-trilha .proximo {
+  color: var(--giz);
+}
+
+.cfg-trilha .feito i {
+  background: var(--giz);
   box-shadow: none;
 }
 
-.config-conexao {
-  display: grid;
-  grid-template-columns: auto 200px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 14px;
-  min-height: 60px;
-  padding: 8px 0;
+.cfg-trilha .proximo i {
+  box-shadow:
+    inset 0 0 0 1.5px var(--giz),
+    0 0 0 4px rgb(255 255 255 / 8%);
 }
 
-/* Label over detail: the name (or state) and a quiet mono line under it. */
-.config-rotulo {
+.cfg-trilha svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--noite);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cfg-heroi-acoes {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cfg-heroi-acoes .lado-link {
+  align-self: center;
+  margin: 0 0 0 6px;
+}
+
+.cfg-palco {
+  display: grid;
+  min-height: 176px;
+  place-items: center;
+  border-radius: 16px;
+  background: #08080b center 78% / cover no-repeat;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+/* Tabs: icon, short label and how many, in one grouped control. */
+.cfg-abas {
+  display: inline-flex;
+  flex: none;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.cfg-abas button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cfg-abas button:hover {
+  color: var(--giz);
+}
+
+.cfg-abas button.ativa {
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+  color: var(--giz);
+}
+
+.cfg-abas svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cfg-abas small {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+/* The panel scrolls on its own; the hero and the tabs stay. */
+.cfg-painel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--vao);
+  min-height: 0;
+  padding: 1px 1px 4px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.cfg-painel::-webkit-scrollbar {
+  display: none;
+}
+
+.cfg-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--vao);
+}
+
+.cfg-vazio {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 14px;
+}
+
+/* An AI CLI: a lit card with its color's glow when on, flat when off or missing. */
+.cfg-ia {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px 20px 16px;
+  border-radius: 18px;
+  background:
+    var(--brilho, none) right top / cover no-repeat,
+    var(--carvao);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 0 0 1px var(--fio),
+    0 18px 40px -24px rgb(0 0 0 / 80%);
+}
+
+/* Two columns per card: the monogram, then everything else on the name's line. */
+.cfg-ia > p {
+  margin-left: 52px;
+}
+
+.cfg-ia.apagada {
+  background: rgb(255 255 255 / 2%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.cfg-ia header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cfg-monograma {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 6%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 0 0 1px var(--fio);
+  color: var(--nevoa);
+  font: 17px/1 var(--pontos);
+}
+
+.cfg-nome {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.config-rotulo b {
-  font-weight: 500;
-}
-
-.config-rotulo small {
+.cfg-nome b,
+.cfg-nome small,
+.cfg-estado span,
+.cfg-numero small {
   overflow: hidden;
-  color: var(--nevoa);
-  font: 11px/14px var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.config-como {
-  justify-self: end;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--giz);
-  font: 500 13px/16px var(--sans);
-  text-decoration: underline;
-  text-decoration-color: rgb(255 255 255 / 25%);
-  text-underline-offset: 3px;
-  cursor: pointer;
+.cfg-nome b {
+  font: 500 15px/20px var(--sans);
 }
 
-.config-conexao b,
-.config-bot b {
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.config-conexao .bv-comando {
-  grid-column: 2 / -1;
-}
-
-.config-mono {
-  overflow: hidden;
+.cfg-nome small,
+.cfg-numero small,
+.cfg-faz {
   color: var(--nevoa);
   font: 11px/14px var(--mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* A CLI that is not here: a quiet dot, no status color. */
-.config-lista .ponto:not(.ok, .alerta) {
-  color: var(--nevoa);
-  opacity: 0.5;
-}
-
-.config-estado {
-  overflow: hidden;
+.cfg-estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
   color: var(--nevoa);
   font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.config-estado.alerta {
+.cfg-estado.ok span {
+  color: var(--giz);
+}
+
+.cfg-estado.alerta span {
   color: var(--alerta);
 }
 
-/* On/off switch with its state written next to it. */
-.config-chave {
+.cfg-numero {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.cfg-numero b {
+  flex: none;
+  font: 300 30px/34px var(--sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.cfg-faz {
+  display: flex;
+  align-items: flex-end;
+  min-height: 34px;
+  margin: 0;
+}
+
+.cfg-ia footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 12px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.cfg-ia footer:empty {
+  display: none;
+}
+
+.cfg-ia footer .bv-comando {
+  flex: 1;
+}
+
+.cfg-ia footer.cfg-comandos {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cfg-rotulo {
+  margin-right: auto;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* The default picker: a chip that opens one grouped panel, upward over its own card. */
+.cfg-escolha {
+  position: relative;
+}
+
+.cfg-escolha-botao {
   display: inline-flex;
   align-items: center;
-  justify-self: end;
-  gap: 8px;
-  padding: 0;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px 0 10px;
   border: 0;
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 13px/16px var(--sans);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 7%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.config-chave i {
-  position: relative;
-  width: 30px;
-  height: 18px;
-  border-radius: 999px;
+.cfg-escolha-botao:hover,
+.cfg-escolha-botao.aberto {
   background: rgb(255 255 255 / 12%);
-  transition: background 160ms ease;
 }
 
-.config-chave i::after {
+.cfg-escolha-botao small {
+  color: var(--nevoa);
+  font-weight: 400;
+}
+
+.cfg-escolha-botao b {
+  font-weight: 500;
+}
+
+.cfg-escolha-botao svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms;
+}
+
+.cfg-escolha-botao.aberto svg {
+  transform: rotate(180deg);
+}
+
+.cfg-escolha-painel {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--nevoa);
-  content: '';
-  transition: transform 160ms ease, background 160ms ease;
-}
-
-.config-chave.ligada {
-  color: var(--giz);
-}
-
-.config-chave.ligada i {
-  background: var(--ok);
-}
-
-.config-chave.ligada i::after {
-  background: var(--noite);
-  transform: translateX(12px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .config-chave i,
-  .config-chave i::after {
-    transition: none;
-  }
-}
-
-.config-padrao {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  align-items: start;
-  gap: 16px;
-  padding: 8px 0;
-  box-shadow: inset 0 -1px 0 var(--fio);
-}
-
-.config-padrao:last-child {
-  box-shadow: none;
-}
-
-.config-controles {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-
-.config-linha {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  color: var(--giz);
-}
-
-.config-comandos {
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 248px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #15151b;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 0 0 1px rgb(255 255 255 / 10%),
+    0 24px 48px -12px rgb(0 0 0 / 80%);
+  animation: cfg-abre 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.config-bot {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
+@keyframes cfg-abre {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
-.config-bot-abrir {
+.cfg-escolha-titulo {
+  padding: 0 4px;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.cfg-escolha-grade {
   display: grid;
-  grid-template-columns: 28px auto minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cfg-escolha-grade button {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 0;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
   border: 0;
+  border-radius: 9px;
   background: transparent;
-  color: var(--giz);
-  font: 14px/20px var(--sans);
+  color: var(--nevoa);
+  font: 500 13px/16px var(--sans);
   text-align: left;
   cursor: pointer;
 }
 
-.config-bot-abrir:hover b {
-  text-decoration: underline;
-  text-decoration-color: rgb(255 255 255 / 25%);
-  text-underline-offset: 3px;
+.cfg-escolha-grade button:hover {
+  background: rgb(255 255 255 / 5%);
 }
 
-.config-bot .acao {
-  margin-top: 0;
-  flex-wrap: nowrap;
+.cfg-escolha-grade button.ativo {
+  background: rgb(255 255 255 / 9%);
+  color: var(--giz);
 }
 
-.config-refazer {
-  margin: 12px 0 0 12px;
+.cfg-marca {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 25%);
 }
 
-@media (max-width: 760px) {
-  .config {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .config-nav {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-  }
-
-  .config-conexao {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-
-  .config-conexao > .config-rotulo + .config-rotulo {
-    display: none;
-  }
-
-  .config-padrao {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.cfg-escolha-grade .ativo .cfg-marca {
+  box-shadow: inset 0 0 0 4px var(--giz);
 }
 
-/* Wires: one switch per pair of projects. */
-.fio {
+.cfg-escolha-livre {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0;
+  gap: 6px;
 }
 
-.fio-par {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.cfg-escolha-livre input {
+  flex: 1;
   min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  outline: 0;
+  background: rgb(255 255 255 / 6%);
+  color: var(--giz);
+  font: 13px/16px var(--mono);
 }
 
-.fio-par b {
+.cfg-escolha-livre button {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+/* Bots: each on its own light, with the way into its chat. */
+.cfg-bot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   overflow: hidden;
-  font-weight: 500;
+  border-radius: 18px;
+  background: var(--carvao);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 0 0 1px var(--fio),
+    0 18px 40px -24px rgb(0 0 0 / 80%);
+}
+
+.cfg-bot-palco {
+  display: grid;
+  height: 120px;
+  place-items: center;
+  background: #08080b center 80% / cover no-repeat;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.cfg-bot-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 20px 0;
+}
+
+.cfg-bot-texto b,
+.cfg-bot-texto small {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fio-linha {
-  flex: none;
-  width: 32px;
-  border-top: 1px dashed rgb(255 255 255 / 24%);
+.cfg-bot-texto b {
+  font: 500 16px/22px var(--sans);
 }
 
-.fio-linha.ligado {
-  border-top: 1px solid var(--ok);
+.cfg-bot-texto small {
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+}
+
+.cfg-bot footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding: 16px 20px 20px;
+}
+
+.cfg-bot footer .lado-link {
+  align-self: center;
+  margin: 0 0 0 auto;
+}
+
+.cfg-bot-novo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 248px;
+  border: 0;
+  border-radius: 18px;
+  outline: 1px dashed rgb(255 255 255 / 16%);
+  outline-offset: -1px;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+}
+
+.cfg-bot-novo:hover {
+  background: rgb(255 255 255 / 3%);
+}
+
+.cfg-bot-novo i {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 7%);
+}
+
+.cfg-bot-novo svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--giz);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.cfg-bot-novo b {
+  color: var(--giz);
+  font: 500 15px/20px var(--sans);
+}
+
+.cfg-bot-novo small {
+  font-size: 12px;
+}
+
+/* Wires: the map beside the switches. */
+.cfg-fios {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--vao);
+}
+
+.cfg-fios .bv-mapa {
+  min-height: 340px;
+}
+
+.cartao.cfg-fios-lista {
+  gap: 4px;
+  padding: 18px 20px;
+}
+
+.cfg-fios-lista > small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
 }
 
 @media (max-width: 760px) {
-  /* The two names stack instead of cutting each other short. */
-  .fio-par {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+  .cartao.cfg-heroi {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px;
   }
 
-  .fio-linha {
+  .cfg-palco {
     display: none;
+  }
+
+  .cfg-progresso {
+    font-size: 38px;
+  }
+
+  .cfg-progresso small {
+    font-size: 19px;
+  }
+
+  .cfg-heroi-titulo small {
+    font-size: 11px;
+  }
+
+  /* The two pickers share the card's width; "Starts on" gives way. */
+  .cfg-rotulo {
+    display: none;
+  }
+
+  .cfg-escolha {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cfg-escolha-botao {
+    width: 100%;
+  }
+
+  .cfg-escolha-botao b {
+    flex: 1;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
+
+  .cfg-heroi .cfg-heroi-titulo h2 {
+    font-size: 19px;
+    line-height: 24px;
+  }
+
+  .cfg-heroi-acoes .lado-link {
+    margin-left: 0;
+  }
+
+  /* On a card the switch speaks for itself; its words would push the version out. */
+  .cfg-ia .config-chave {
+    gap: 0;
+    font-size: 0;
+  }
+
+  .cfg-bot-novo {
+    min-height: 160px;
+  }
+
+  .cfg-abas {
+    align-self: stretch;
+  }
+
+  .cfg-abas button {
+    flex: 1;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .cfg-grade,
+  .cfg-fios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-escolha-painel {
+    animation: none;
   }
 }

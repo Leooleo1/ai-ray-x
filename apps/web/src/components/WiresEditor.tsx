@@ -1,5 +1,6 @@
 import type { Bots } from '../bots'
 import { t } from '../i18n'
+import './controls.css'
 
 interface WiresEditorProps {
   bots: Bots
