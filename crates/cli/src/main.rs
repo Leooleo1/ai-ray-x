@@ -1,6 +1,7 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
 mod data;
+mod mcp;
 mod print;
 mod serve;
 
@@ -50,6 +51,8 @@ enum Command {
         #[arg(long)]
         web_dir: Option<PathBuf>,
     },
+    /// Run the read-only MCP server over stdio (for Claude Code, Codex, OpenBot, agentes.chat).
+    Mcp,
     /// Print the report in the terminal.
     Report {
         /// Print JSON instead of text.
@@ -79,6 +82,7 @@ fn main() -> Result<()> {
             raiox_core::refresh(&mut store, &roots)?;
             serve::run(serve::Panel { store, roots, web_dir }, port, !no_open)
         }
+        Command::Mcp => mcp::run(store, roots),
         Command::Report { json: true } => {
             println!("{}", serde_json::to_string_pretty(&data::refresh_and_collect(&mut store, &roots)?)?);
             Ok(())

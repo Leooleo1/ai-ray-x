@@ -2,6 +2,7 @@
 //! and answers where the tokens went. It keeps numbers and names only: no
 //! conversation text, command text or file contents leave the parser.
 
+pub mod advice;
 pub mod efficiency;
 pub mod model;
 pub mod report;
