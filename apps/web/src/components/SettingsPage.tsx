@@ -170,15 +170,14 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
         <ul className="config-lista">
           {bots.state.bots.map((bot) => (
             <li key={bot.id} className="config-bot">
+              <button type="button" className="config-bot-abrir" onClick={() => onOpenBot(bot.id)}>
               <Avatar agent={faceForBot(bot)} size={28} state="still" />
               <b>{bot.name}</b>
               <span className="config-mono">
                 {[bot.persona?.name, AGENT_LABEL[bot.agent], bot.model ? modelName(bot.model) : '', bot.effort ?? ''].filter(Boolean).join(' · ')}
               </span>
+              </button>
               <span className="acao">
-                <button type="button" className="vidro-btn" onClick={() => onOpenBot(bot.id)}>
-                  {t.talk}
-                </button>
                 <button type="button" className="link" disabled={bot.busy} onClick={() => void bots.act('deactivate', { id: bot.id })}>
                   {t.deactivate}
                 </button>

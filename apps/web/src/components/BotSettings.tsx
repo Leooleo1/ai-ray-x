@@ -164,23 +164,29 @@ export function Choice({ label, current, fallback, options, free = false, busy, 
 function LongChoice({ label, current, fallback, options, busy, onPick }: ChoiceProps) {
   const [draft, setDraft] = useState(current ?? '')
   const listId = `modelos-${label}`
+  // One field: empty means the CLI's default; Enter or leaving the field applies what was typed.
+  const apply = () => {
+    const next = draft.trim() || null
+    if (next !== current) onPick(next)
+  }
   return (
-    <div className="ajustes-campo">
+    <label className="ajustes-campo">
       <span>{label}</span>
-      <div className="ajustes-livre">
-        <button type="button" className={`vidro-btn ${current === null ? 'ativo' : ''}`} disabled={busy} onClick={() => onPick(null)}>
-          {fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
-        </button>
-        <input list={listId} value={draft} placeholder={t.otherModel} onChange={(event) => setDraft(event.target.value)} />
-        <datalist id={listId}>
-          {options.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
-        <button type="button" className="vidro-btn" disabled={busy || !draft.trim() || draft.trim() === current} onClick={() => onPick(draft.trim())}>
-          {t.use}
-        </button>
-      </div>
-    </div>
+      <input
+        className="ajustes-modelo"
+        list={listId}
+        value={draft}
+        disabled={busy}
+        placeholder={fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={apply}
+        onKeyDown={(event) => event.key === 'Enter' && apply()}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+    </label>
   )
 }
