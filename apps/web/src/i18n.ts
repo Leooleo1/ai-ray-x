@@ -3,7 +3,7 @@
 const en = {
   stepWords: { read: 'reading', search: 'searching', list: 'listing', edit: 'editing', run: 'running', web: 'on the web', think: 'thinking', tool: 'using' } as Record<string, string>,
   wires: 'Wires between projects',
-  wiresHint: 'only wired projects know of each other and can message through ai-memory',
+  wiresHint: 'only wired ones message each other',
   noWires: 'Turn on two or more projects with bots to wire them.',
   askMany: 'Ask several',
   askManyTitle: 'One question, several bots',
@@ -248,7 +248,7 @@ type Texts = typeof en
 const pt: Texts = {
   stepWords: { read: 'lendo', search: 'buscando', list: 'listando', edit: 'editando', run: 'rodando', web: 'na web', think: 'pensando', tool: 'usando' } as Record<string, string>,
   wires: 'Fios entre projetos',
-  wiresHint: 'só projetos ligados se conhecem e se mandam mensagens pelo ai-memory',
+  wiresHint: 'só os ligados trocam mensagens',
   noWires: 'Ative bots em dois ou mais projetos para ligá-los.',
   askMany: 'Perguntar a vários',
   askManyTitle: 'Uma pergunta, vários bots',

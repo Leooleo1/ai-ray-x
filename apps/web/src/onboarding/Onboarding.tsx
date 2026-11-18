@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { type Bot, type BotAgent, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup } from '../api'
+import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup } from '../api'
+import type { Bots } from '../bots'
 import { AGENT_LABEL, faceOf, stageLight } from '../avatars'
 import { Avatar, type AvatarState } from '../components/Avatar'
 import { Mark } from '../components/Sidebar'
@@ -10,11 +11,14 @@ import { StepBot } from './StepBot'
 import { StepDone } from './StepDone'
 import { StepGitHub } from './StepGitHub'
 import { StepProjects } from './StepProjects'
+import { StepWires } from './StepWires'
 import { StepWelcome } from './StepWelcome'
 import { o } from './texts'
 
-type Step = 'welcome' | 'ais' | 'github' | 'projects' | 'bot' | 'done'
-const ORDER: Step[] = ['welcome', 'ais', 'github', 'projects', 'bot', 'done']
+type Step = 'welcome' | 'ais' | 'github' | 'projects' | 'bot' | 'wires' | 'done'
+const ORDER: Step[] = ['welcome', 'ais', 'github', 'projects', 'bot', 'wires', 'done']
+/** Wires only make sense between two projects or more. */
+const MIN_WIRED = 2
 /** While a clone runs, the setup is asked again this often. */
 const CLONE_POLL_MS = 1500
 const STAGE_SIZE = 168
@@ -35,6 +39,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const [selected, setSelected] = useState<string[]>([])
   const [design, setDesign] = useState<BotDesign>(() => designFrom(PRESETS[0], 'claude'))
   const [created, setCreated] = useState<Bot[]>([])
+  const [botsState, setBotsState] = useState<BotsState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,12 +106,14 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     setError(null)
     try {
       const persona = personaOf(design, o.defaultName)
-      let bots: Bot[] = []
+      let state: BotsState | null = null
       for (const project of selected) {
-        bots = (await botAction('activate', { project, agent: design.agent, persona })).bots
+        state = await botAction('activate', { project, agent: design.agent, persona })
       }
-      setCreated(bots.filter((bot) => bot.agent === design.agent && selected.some((project) => bot.dir.endsWith(`/${project}`))))
-      go('done')
+      const made = (state?.bots ?? []).filter((bot) => bot.agent === design.agent && selected.some((project) => bot.dir.endsWith(`/${project}`)))
+      setBotsState(state)
+      setCreated(made)
+      go(new Set(made.map((bot) => bot.name)).size >= MIN_WIRED ? 'wires' : 'done')
     } catch (failure: unknown) {
       setError(errorText(failure))
     } finally {
@@ -124,6 +131,22 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   }
 
   const face = faceOf(design.shape, design.color, design.name, design.finish)
+  // The wires step edits the same state the panel will read, through the same editor.
+  const wiring: Bots | null = botsState && {
+    state: botsState,
+    error,
+    act: async (action: BotAction, body: Record<string, unknown>) => {
+      try {
+        const next = await botAction(action, body)
+        setBotsState(next)
+        return next
+      } catch (failure: unknown) {
+        setError(errorText(failure))
+        return null
+      }
+    },
+    refresh: () => undefined,
+  }
   const mood: AvatarState = loading ? 'thinking' : step === 'done' ? 'happy' : 'idle'
   const titles: Record<Step, [string, string]> = {
     welcome: [o.welcomeTitle, o.welcomeText],
@@ -131,6 +154,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     github: [o.githubTitle, o.githubText],
     projects: [o.projectsTitle, o.projectsText],
     bot: [o.botTitle, o.botText],
+    wires: [o.wiresTitle, o.wiresText],
     done: [o.doneTitle, created.length > 0 ? o.doneText.replace('{name}', personaOf(design, o.defaultName).name) : o.doneEmpty],
   }
   const [title, text] = titles[step]
@@ -208,7 +232,8 @@ export function Onboarding({ onFinish }: OnboardingProps) {
               onCreate={() => void createBots()}
             />
           )}
-          {step === 'done' && <StepDone bots={created} onFinish={(id) => void finish(id)} />}
+          {step === 'wires' && wiring && <StepWires bots={wiring} onNext={() => go('done')} />}
+          {step === 'done' && <StepDone bots={created} face={face} agent={design.agent} onFinish={(id) => void finish(id)} />}
           {error && <p className="nota failed bv-erro">{error}</p>}
         </section>
       </div>

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { type BotAgent, type Connection, type GitHubState, type SettingsState, fetchGitHub, fetchSettings, saveSettings } from '../api'
-import { AGENT_LABEL, faceForBot } from '../avatars'
+import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, t } from '../i18n'
 import { Command } from '../onboarding/parts'
 import { Avatar } from './Avatar'
 import { Choice, modelName } from './BotSettings'
 import { WiresEditor } from './WiresEditor'
+import { TourDialog } from '../tour/TourDialog'
+import { tt } from '../tour/texts'
+import { PRESETS } from '../onboarding/presets'
 import './settings-page.css'
 
 /** Model choices per CLI when no bot is open to ask: Claude Code's own aliases. */
@@ -30,6 +33,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
   const [settings, setSettings] = useState<SettingsState | null>(null)
   const [github, setGithub] = useState<GitHubState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [touring, setTouring] = useState(false)
 
   const loadGithub = useCallback(() => {
     setGithub(null)
@@ -74,6 +78,9 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
         ))}
         <button type="button" className="lado-link config-refazer" onClick={onRedoSetup}>
           {t.redoSetup}
+        </button>
+        <button type="button" className="lado-link" onClick={() => setTouring(true)}>
+          {tt.label}
         </button>
       </nav>
       <div className="config-conteudo">
@@ -199,6 +206,13 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
         </section>
       )}
 
+      {touring && (
+        <TourDialog
+          face={bots.state.bots[0] ? faceForBot(bots.state.bots[0]) : faceOf(PRESETS[0].shape, PRESETS[0].color, PRESETS[0].name)}
+          agent={AGENT_LABEL[bots.state.bots[0]?.agent ?? 'claude']}
+          onClose={() => setTouring(false)}
+        />
+      )}
       {(error ?? bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
       </div>
     </main>

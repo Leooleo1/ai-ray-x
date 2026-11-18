@@ -1,0 +1,533 @@
+/* The mini tutorial: five scenes over the bot's own light, a story-like trail
+   on top, the scene's number in dot matrix under it. Nothing is blurred live:
+   the light is the same baked WebP the onboarding stage uses. */
+
+.tour {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+/* Trail: one thin segment per scene, the current one filling over its length. */
+.tour-trilho {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.tour-trilho button {
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tour-trilho i {
+  position: relative;
+  display: block;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 12%);
+}
+
+.tour-trilho i::after {
+  position: absolute;
+  inset: 0;
+  background: var(--giz);
+  content: '';
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.tour-trilho .visto i::after {
+  transform: scaleX(1);
+}
+
+.tour-trilho .agora i::after {
+  animation: tour-enche var(--dura) linear forwards;
+}
+
+@keyframes tour-enche {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Stage: the bot's light, baked, under a miniature of the panel. */
+.tour-palco {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 340px;
+  padding: 24px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #08080b;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.tour-palco::before {
+  position: absolute;
+  inset: -10% -10% -30%;
+  background: var(--luz) center 80% / cover no-repeat;
+  content: '';
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.tour-cena {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  min-height: 300px;
+  max-width: 540px;
+  max-height: 380px;
+}
+
+.tour-cena.tour-varios {
+  max-height: 320px;
+}
+
+.tour-cena code,
+.tour-proposta code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 8%);
+  font: 11px/18px var(--mono);
+}
+
+/* Things that arrive rise into place; until then they keep their room. */
+.tour-surge {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 320ms ease,
+    transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tour-surge.dentro {
+  opacity: 1;
+  transform: none;
+}
+
+/* The miniature chat window. */
+.tour-janela {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgb(13 13 17 / 90%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 0 0 1px var(--fio),
+    0 24px 48px -16px rgb(0 0 0 / 70%);
+}
+
+.tour-janela header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+  font-size: 13px;
+}
+
+.tour-janela header b,
+.tour-coluna header b,
+.tour-no b,
+.tour-rotina b {
+  font-weight: 500;
+}
+
+.tour-janela header small {
+  margin-left: auto;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.tour-msgs {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 14px 34px;
+  overflow: hidden;
+}
+
+.tour-minha {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 14px 14px 4px;
+  background: var(--brasa);
+  color: #1d0f08;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.tour-resposta {
+  align-self: flex-start;
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgb(255 255 255 / 6%);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.tour-resposta p {
+  margin: 0;
+}
+
+.tour-resposta > small {
+  display: block;
+  margin-top: 6px;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+/* What the bot does now: one bare line over the composer, as in the panel. */
+.tour-atividade {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tour-atividade b {
+  font-weight: 500;
+}
+
+.tour-compor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 12px 12px;
+  padding: 0 5px 0 14px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.tour-compor span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tour-compor i {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 14%);
+}
+
+/* Buttons the cursor presses: white until done, then the green of done. */
+.tour-proposta button,
+.tour-pergunta button,
+.tour-nota button {
+  flex: none;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  transition:
+    background 200ms,
+    color 200ms;
+}
+
+.tour-proposta button.feito,
+.tour-pergunta button.feito,
+.tour-nota button.feito {
+  background: rgb(95 208 138 / 16%);
+  color: var(--ok);
+}
+
+.tour-proposta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.tour-proposta small {
+  width: 100%;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.tour-proposta button {
+  margin-left: auto;
+}
+
+/* The pointer: glides to what it presses, rings when it does. */
+.tour-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+  margin: -3px 0 0 -4px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 700ms cubic-bezier(0.45, 0, 0.2, 1),
+    opacity 250ms;
+}
+
+.tour-cursor.visivel {
+  opacity: 1;
+}
+
+.tour-cursor svg {
+  width: 100%;
+  height: 100%;
+  fill: var(--giz);
+  stroke: var(--noite);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  transition: transform 120ms;
+}
+
+.tour-cursor.apertado svg {
+  transform: scale(0.88);
+}
+
+.tour-cursor::before {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 60%);
+  content: '';
+  opacity: 0;
+}
+
+.tour-cursor.apertado::before {
+  animation: tour-clique 460ms ease-out;
+}
+
+@keyframes tour-clique {
+  from {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+
+/* Caption: the scene's number in dot matrix, what it shows, and the arrows. */
+.tour-legenda {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tour-num {
+  flex: none;
+  color: var(--giz);
+  font: 30px/1 var(--pontos);
+}
+
+.tour-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tour-texto b {
+  font: 500 17px/22px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.tour-texto small {
+  color: var(--nevoa);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.tour-setas {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.tour-setas button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 7%);
+  color: var(--giz);
+  cursor: pointer;
+}
+
+.tour-setas button:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.tour-setas button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tour-setas svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The tutorial opened later, from Settings. */
+.tour-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(4 4 6 / 78%);
+}
+
+.tour-dialogo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(760px, 100%);
+  max-height: 100%;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+
+.tour-dialogo > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tour-dialogo > header b {
+  font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  .tour-palco {
+    min-height: 300px;
+    padding: 14px;
+  }
+
+  .tour-cena {
+    min-height: 272px;
+    max-height: 320px;
+  }
+
+  .tour-colunas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tour-coluna:nth-child(3) {
+    display: none;
+  }
+
+  .tour-num {
+    font-size: 24px;
+  }
+
+  /* Number and arrows on one line, the words under them at full width. */
+  .tour-legenda {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .tour-setas {
+    margin-left: auto;
+  }
+
+  .tour-texto {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .tour-rostos {
+    display: none;
+  }
+
+  .tour-pergunta {
+    flex-wrap: wrap;
+    border-radius: 14px;
+  }
+
+  .tour-pergunta b {
+    flex-basis: 100%;
+  }
+
+  .tour-pergunta button {
+    margin-left: auto;
+  }
+
+  .tour-fundo {
+    padding: 12px;
+  }
+
+  .tour-dialogo {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-trilho .agora i::after {
+    animation: none;
+    transform: scaleX(1);
+  }
+
+  .tour-surge,
+  .tour-envelope,
+  .tour-fio,
+  .tour-chave,
+  .tour-chave::after {
+    transition: none;
+  }
+}

@@ -640,3 +640,95 @@
     display: none;
   }
 }
+
+/* Done: the bots just made, as faces and names next to the way in. */
+.bv-feitos {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bv-rostos {
+  display: inline-flex;
+  flex: none;
+}
+
+.bv-rostos > * + * {
+  margin-left: -6px;
+}
+
+.bv-feitos .bv-mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The tutorial fills the last step's card. */
+.bv-conteudo > .tour {
+  flex: 1;
+}
+
+/* Wires: the person's projects as a map over the switches. */
+.bv-conteudo > .bv-mapa {
+  flex: 1;
+}
+
+.bv-mapa {
+  position: relative;
+  min-height: 260px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 3%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.bv-mapa svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.bv-mapa line {
+  stroke: rgb(255 255 255 / 18%);
+  stroke-dasharray: 4 5;
+  stroke-width: 1.5;
+  transition: stroke 300ms;
+}
+
+.bv-mapa line.ligado {
+  stroke: var(--ok);
+  stroke-dasharray: none;
+}
+
+.bv-no {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -32%);
+}
+
+.bv-no b {
+  max-width: 160px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #141418;
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .bv-conteudo > .bv-mapa {
+    flex: none;
+    min-height: 200px;
+  }
+
+  .bv-no b {
+    max-width: 110px;
+  }
+}
