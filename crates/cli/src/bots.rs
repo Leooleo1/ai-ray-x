@@ -4,7 +4,7 @@
 //! hooks are installed). It only reads while talking; it edits only after the
 //! person approves its proposal. Nothing runs unless the person asks.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -126,23 +126,39 @@ impl Persona {
     }
 }
 
-/// Bots answering right now, by id.
+/// Bots answering right now, by id, and whether the person asked them to stop.
 #[derive(Clone, Default)]
-pub struct Jobs(Arc<Mutex<HashSet<String>>>);
+pub struct Jobs(Arc<Mutex<HashMap<String, bool>>>);
 
 impl Jobs {
     fn start(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|mut set| set.insert(id.to_string()))
+        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), false).is_none())
     }
 
     fn finish(&self, id: &str) {
-        if let Ok(mut set) = self.0.lock() {
-            set.remove(id);
+        if let Ok(mut map) = self.0.lock() {
+            map.remove(id);
         }
     }
 
     pub fn is_busy(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|set| set.contains(id))
+        self.0.lock().is_ok_and(|map| map.contains_key(id))
+    }
+
+    fn should_stop(&self, id: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.get(id).copied().unwrap_or(false))
+    }
+
+    /// Marks a running turn to stop; its thread kills the CLI on its next check.
+    pub fn stop(&self, id: &str) -> Result<()> {
+        let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
+        match map.get_mut(id) {
+            Some(flag) => {
+                *flag = true;
+                Ok(())
+            }
+            None => bail!("the bot is not answering"),
+        }
     }
 }
 
@@ -329,7 +345,7 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
 pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     let messages = room::read_messages(&chat_file(state_dir, id));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
-    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent"));
+    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent" | "stopped"));
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
@@ -368,7 +384,14 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
             model: bot.model.as_deref().or(defaults.model.as_deref()),
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
         };
-        let outcome = bot_run::run(&target, mode, &text, &scratch);
+        let stop = || jobs.should_stop(&bot.id);
+        let outcome = match bot_run::run(&target, mode, &text, &scratch, &stop) {
+            // The CLI lost the session (its history was cleared): the talk goes on in a fresh one.
+            Err(error) if target.session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
+                bot_run::run(&bot_run::Target { session: None, ..target }, mode, &text, &scratch, &stop)
+            }
+            other => other,
+        };
         let message = match outcome {
             Ok(reply) => {
                 // Messages for projects without a bot are dropped: nobody there would read them.
@@ -379,6 +402,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
                 let mode_name = if mode == Mode::Edit { "edit" } else { "talk" };
                 note("answer", json!({ "mode": mode_name, "reply": reply }))
             }
+            Err(error) if error.to_string() == bot_run::STOPPED => note("stopped", json!({})),
             Err(error) => note("failed", json!({ "error": format!("{error:#}") })),
         };
         let _ = room::append_messages(&file, vec![message]);

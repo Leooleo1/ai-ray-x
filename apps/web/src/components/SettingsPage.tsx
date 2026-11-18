@@ -51,9 +51,31 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
   }
 
   const botClis = (settings?.connections ?? []).filter((c) => c.bots && c.enabled)
+  const sections = [
+    { id: 'conexoes', label: t.connectionsTitle },
+    ...(botClis.length > 0 ? [{ id: 'padroes', label: t.defaultsTitle }] : []),
+    { id: 'github', label: t.githubTitle },
+    { id: 'bots', label: t.botsTitle2 },
+  ]
+  const [current, setCurrent] = useState('conexoes')
+  const go = (id: string) => {
+    setCurrent(id)
+    document.getElementById(`config-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   return (
     <main className="config">
-      <section className="cartao config-bloco">
+      <nav className="config-nav" aria-label={t.settingsTitle}>
+        {sections.map((s) => (
+          <button key={s.id} type="button" className={`config-secao ${current === s.id ? 'ativo' : ''}`} aria-current={current === s.id ? 'true' : undefined} onClick={() => go(s.id)}>
+            {s.label}
+          </button>
+        ))}
+        <button type="button" className="lado-link config-refazer" onClick={onRedoSetup}>
+          {t.redoSetup}
+        </button>
+      </nav>
+      <div className="config-conteudo">
+      <section className="cartao config-bloco" id="config-conexoes">
         <header className="config-topo">
           <b>{t.connectionsTitle}</b>
           <small>{t.connectionsHint}</small>
@@ -67,7 +89,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
       </section>
 
       {botClis.length > 0 && (
-        <section className="cartao config-bloco">
+        <section className="cartao config-bloco" id="config-padroes">
           <header className="config-topo">
             <b>{t.defaultsTitle}</b>
             <small>{t.defaultsHint}</small>
@@ -78,7 +100,11 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
             const efforts = EFFORTS[agent] ?? []
             return (
               <div key={c.id} className="config-padrao">
-                <span className="config-cli">{AGENT_LABEL[agent] ?? c.name}</span>
+                <span className="config-rotulo">
+                  <b>{AGENT_LABEL[agent] ?? c.name}</b>
+                  <small>{chosen.model || chosen.effort ? [chosen.model, chosen.effort].filter(Boolean).join(' · ') : t.cliDefault}</small>
+                </span>
+                <div className="config-controles">
                 <Choice
                   label={t.modelLabel}
                   current={chosen.model}
@@ -100,13 +126,14 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
                     onPick={(effort) => void save({ defaults: { [c.id]: { model: chosen.model ?? '', effort: effort ?? '' } } })}
                   />
                 )}
+                </div>
               </div>
             )
           })}
         </section>
       )}
 
-      <section className="cartao config-bloco">
+      <section className="cartao config-bloco" id="config-github">
         <header className="config-topo">
           <b>{t.githubTitle}</b>
           <button type="button" className="voltar" onClick={loadGithub}>
@@ -132,7 +159,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
         )}
       </section>
 
-      <section className="cartao config-bloco">
+      <section className="cartao config-bloco" id="config-bots">
         <header className="config-topo">
           <b>{t.botsTitle2}</b>
           <button type="button" className="voltar" onClick={onAddBot}>
@@ -162,9 +189,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
       </section>
 
       {(error ?? bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
-      <button type="button" className="lado-link config-refazer" onClick={onRedoSetup}>
-        {t.redoSetup}
-      </button>
+      </div>
     </main>
   )
 }
@@ -182,30 +207,36 @@ interface ConnectionRowProps {
 }
 
 function ConnectionRow({ connection: c, onToggle }: ConnectionRowProps) {
+  const [howOpen, setHowOpen] = useState(false)
   const status = statusOf(c)
   const what = [c.xray ? t.canXray : '', c.bots ? t.canBots : ''].filter(Boolean)
   const usable = c.installed && c.logged_in !== false && (c.bots || c.xray)
+  const how = !c.installed ? { label: t.installLabel, command: c.install, open: t.howInstall } : c.logged_in === false ? { label: t.signInLabel, command: c.login, open: t.howSignIn } : null
+  const notes = [what.length > 0 ? what.join(' · ') : t.botsLater, c.installed && !c.xray && c.bots ? t.xrayLater : '', c.requests > 0 ? `${compact(c.requests)} ${t.requestsShort}` : '']
   return (
     <li className="config-conexao">
       <i className={`ponto ${status.tone}`} />
-      <b>{c.name}</b>
-      <span className="config-mono">{c.version ?? ''}</span>
-      <span className={`config-estado ${status.tone}`}>{status.text}</span>
-      <span className="config-mono config-pode">
-        {what.length > 0 ? what.join(' · ') : t.botsLater}
-        {c.installed && !c.xray && c.bots ? ` · ${t.xrayLater}` : ''}
-        {c.requests > 0 ? ` · ${compact(c.requests)}` : ''}
+      <span className="config-rotulo">
+        <b>{c.name}</b>
+        <small>{c.version ?? '—'}</small>
+      </span>
+      <span className="config-rotulo">
+        <span className={`config-estado ${status.tone}`}>{status.text}</span>
+        <small>{notes.filter(Boolean).join(' · ')}</small>
       </span>
       {usable ? (
         <button type="button" className={`config-chave ${c.enabled ? 'ligada' : ''}`} role="switch" aria-checked={c.enabled} aria-label={c.name} onClick={() => onToggle(!c.enabled)}>
           <i />
           {c.enabled ? t.turnedOn : t.turnOn}
         </button>
+      ) : how ? (
+        <button type="button" className="config-como" aria-expanded={howOpen} onClick={() => setHowOpen(!howOpen)}>
+          {how.open}
+        </button>
       ) : (
         <span />
       )}
-      {!c.installed && <Command label={t.installLabel} command={c.install} />}
-      {c.installed && c.logged_in === false && <Command label={t.signInLabel} command={c.login} />}
+      {how && howOpen && <Command label={how.label} command={how.command} />}
     </li>
   )
 }

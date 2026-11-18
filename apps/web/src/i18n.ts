@@ -1,6 +1,21 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  cliDefault: 'the CLI default',
+  howInstall: 'How to install',
+  howSignIn: 'How to sign in',
+  stop: 'Stop',
+  escToStop: 'Esc stops',
+  stoppedNote: 'You stopped this answer.',
+  steps: 'steps',
+  copy: 'Copy',
+  copiedShort: 'Copied',
+  showMore: 'Show more',
+  botEmpty: 'Ask about this project. It reads the code to answer and only edits after you approve.',
+  newBelow: 'New messages below',
+  waitingApproval: 'a change waits for your approval',
+  waitingMail: '{n} from ai-memory',
+  see: 'See',
   mailTo: 'For the {p} bot',
   sendMail: 'Send through ai-memory',
   sentMail: 'sent through ai-memory',
@@ -169,6 +184,21 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  cliDefault: 'o padrão do CLI',
+  howInstall: 'Como instalar',
+  howSignIn: 'Como entrar',
+  stop: 'Parar',
+  escToStop: 'Esc interrompe',
+  stoppedNote: 'Você parou esta resposta.',
+  steps: 'passos',
+  copy: 'Copiar',
+  copiedShort: 'Copiado',
+  showMore: 'Ver mais',
+  botEmpty: 'Pergunte sobre este projeto. Ele lê o código para responder e só edita depois que você aprova.',
+  newBelow: 'Mensagens novas abaixo',
+  waitingApproval: 'uma mudança espera sua aprovação',
+  waitingMail: '{n} do ai-memory',
+  see: 'Ver',
   mailTo: 'Para o bot do {p}',
   sendMail: 'Enviar pelo ai-memory',
   sentMail: 'enviado pelo ai-memory',

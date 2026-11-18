@@ -40,6 +40,9 @@ pub struct Reply {
     pub to: Vec<crate::bot_marks::Note>,
     #[serde(skip)]
     pub session: Option<String>,
+    /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
+    #[serde(default)]
+    pub steps: Option<u64>,
     /// Tokens the CLI read to answer (fresh input, cache reads and writes).
     pub read_tokens: u64,
     pub output_tokens: u64,
@@ -166,13 +169,23 @@ fn cursor(target: &Target, mode: Mode) -> Command {
     command
 }
 
+/// The CLI could not find the session to resume (its history was cleared or expired).
+pub fn session_lost(error: &anyhow::Error) -> bool {
+    let said = format!("{error:#}");
+    said.contains("No conversation found") || (said.contains("session") && said.contains("not found"))
+}
+
 /// Whether a turn's session becomes the bot's conversation (Cursor's edit sessions do not).
 pub fn keeps_session(agent: &str, mode: Mode) -> bool {
     !(agent == "cursor" && mode == Mode::Edit)
 }
 
 /// Runs one turn and waits for it, up to the timeout.
-pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Reply> {
+/// The error a turn ends with when the person pressed Stop.
+pub const STOPPED: &str = "stopped by the person";
+
+/// Runs one turn and waits for it, up to the timeout or until `stop` says so.
+pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool) -> Result<Reply> {
     let agent = target.agent;
     let (mut command, prompt) = match agent {
         "claude" => (claude(target, mode), prompt_for(mode, text)),
@@ -200,6 +213,11 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Re
     let status = loop {
         if let Some(status) = child.try_wait()? {
             break status;
+        }
+        if stop() {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!(STOPPED);
         }
         if started.elapsed() > TIMEOUT {
             let _ = child.kill();
@@ -244,6 +262,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         text: marked.text,
         proposal: marked.proposal,
         to: marked.notes,
+        steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
             + either("cache_read_input_tokens", "cacheReadTokens")
@@ -282,6 +301,13 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         text: marked.text,
         proposal: marked.proposal,
         to: marked.notes,
+        steps: Some(
+            events
+                .iter()
+                .filter(|e| e.get("type").and_then(Value::as_str) == Some("item.completed"))
+                .filter(|e| matches!(e.pointer("/item/type").and_then(Value::as_str), Some("command_execution" | "file_change" | "mcp_tool_call" | "web_search")))
+                .count() as u64,
+        ),
         session: events.iter().find_map(|e| e.get("thread_id").and_then(Value::as_str)).map(str::to_string),
         read_tokens: usage.0,
         output_tokens: usage.1,

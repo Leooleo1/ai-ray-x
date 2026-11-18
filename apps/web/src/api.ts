@@ -162,6 +162,7 @@ export interface BotReply {
   text: string
   proposal: string | null
   to?: BotNote[]
+  steps?: number | null
   read_tokens: number
   output_tokens: number
   cost_usd: number | null
@@ -171,7 +172,7 @@ export interface BotReply {
 export interface BotMessage {
   ms: number
   author: 'you' | 'bot'
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped'
   data: {
     text?: string
     proposal?: string
@@ -227,7 +228,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop'
 
 export interface InboxMessage {
   id: string
