@@ -165,6 +165,19 @@ export interface BotThread {
   messages: BotMessage[]
 }
 
+export interface Routine {
+  id: string
+  bot: string
+  text: string
+  /** 0 = Monday … 6 = Sunday. */
+  days: number[]
+  hour: number
+  minute: number
+  enabled: boolean
+  thread: string | null
+  last_ms: number | null
+}
+
 export type Place = 'model' | 'settings' | 'memories' | 'connections'
 
 export interface BotReply {
@@ -224,6 +237,8 @@ export interface Bot {
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]
+  pins: { thread: string; ms: number }[]
+  routines: Routine[]
 }
 
 export interface BotCandidate {
@@ -242,7 +257,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete'
 
 export interface InboxMessage {
   id: string

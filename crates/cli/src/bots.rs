@@ -466,6 +466,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "busy_thread": jobs.thread_of(&bot.id),
                 "messages": messages,
                 "threads": side,
+                "pins": crate::pins::list(state_dir, &bot.id),
+                "routines": crate::routines::list(state_dir).into_iter().filter(|r| r.bot == bot.id).collect::<Vec<_>>(),
             })
         })
         .collect();

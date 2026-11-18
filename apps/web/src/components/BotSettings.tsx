@@ -5,6 +5,7 @@ import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { type Look, AvatarEditor } from './AvatarEditor'
 import { Bars } from './Bars'
+import { RoutinesEditor } from './RoutinesEditor'
 import './settings.css'
 
 const MAX_NAME = 32
@@ -102,6 +103,9 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
             <p className="ajustes-nota">{t.nextMessages}</p>
           </>
         )}
+
+        <span className="ajustes-grupo">{t.routines}</span>
+        <RoutinesEditor bot={bot} bots={bots} />
 
         <span className="ajustes-grupo">{t.appearance}</span>
         <AvatarEditor value={look} onChange={setLook} />

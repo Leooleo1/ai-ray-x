@@ -61,6 +61,7 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
         eprintln!("could not open the browser ({error}); open the link above");
     }
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
+    crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
     for mut request in server.incoming_requests() {
         let reply = route(&mut panel, &mut request, &token, &hosts);
         // The browser may have gone away; nothing to do about it.
@@ -152,6 +153,14 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
         "approve" => bots::approve(state_dir, jobs, field("id"), thread),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
+        "pin" => crate::pins::toggle(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0)),
+        "routine_new" => {
+            let days: Vec<u8> = input.get("days").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).map(|d| d.min(255) as u8).collect();
+            let number = |name: &str| input.get(name).and_then(Value::as_u64).unwrap_or(99).min(255) as u8;
+            crate::routines::create(state_dir, field("id"), field("text"), &days, number("hour"), number("minute"))
+        }
+        "routine_toggle" => crate::routines::set_enabled(state_dir, field("routine"), input.get("enabled").and_then(Value::as_bool).unwrap_or(false)),
+        "routine_delete" => crate::routines::delete(state_dir, field("routine")),
         "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
         "thread_delete" => crate::threads::delete(state_dir, field("id"), thread),
         "stop" => jobs.stop(field("id")),

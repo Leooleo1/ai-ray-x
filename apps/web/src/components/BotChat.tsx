@@ -13,6 +13,7 @@ import { Composer } from './chat/Composer'
 import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
+import { PinsLine } from './chat/PinsLine'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
 
@@ -114,7 +115,13 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
           </button>
         </header>
 
-        <MemoriesLine bot={bot} openSignal={memorySignal} />
+        <div className="linhas-topo">
+          <MemoriesLine bot={bot} openSignal={memorySignal} />
+          <PinsLine bot={bot} onGo={(pin) => {
+            setThread(pin.thread)
+            window.setTimeout(() => document.getElementById(`msg-${pin.ms}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
+          }} />
+        </div>
         <div className="chat-mensagens" ref={list}>
           {messages.length === 0 && !busyHere && mail.length === 0 && (
             <div className="chat-vazio">
@@ -143,6 +150,8 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
               onOpenExchange={onOpenExchange}
               onOpenPlace={openPlace}
+              pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
+              onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
             />
           ))}
           {mail.length > 0 && !bot.busy && (

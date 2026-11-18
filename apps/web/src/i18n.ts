@@ -1,6 +1,21 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  pin: 'Pin',
+  pinned: 'Pinned',
+  pinnedCount: 'Pinned: {n}',
+  routines: 'Routines',
+  routinesRule: 'A question on a schedule, in its own conversation. It runs only while raiox is open, and each run counts against your plan.',
+  routineAsk: 'Ask',
+  routineHint: 'E.g. what changed in this project since yesterday?',
+  routineDays: 'Days',
+  routineTime: 'Time',
+  createRoutine: 'Create routine',
+  deleteRoutine: 'Delete routine',
+  everyDay: 'every day',
+  workdays: 'weekdays',
+  lastRun: 'last',
+  neverRan: 'never ran',
   stepOne: 'step',
   newThread: 'New conversation',
   closeThread: 'Close conversation',
@@ -209,6 +224,21 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  pin: 'Fixar',
+  pinned: 'Fixada',
+  pinnedCount: 'Fixadas: {n}',
+  routines: 'Rotinas',
+  routinesRule: 'Uma pergunta agendada, numa conversa própria. Roda só enquanto o raiox estiver aberto, e cada execução conta no seu plano.',
+  routineAsk: 'Perguntar',
+  routineHint: 'Ex.: o que mudou neste projeto desde ontem?',
+  routineDays: 'Dias',
+  routineTime: 'Hora',
+  createRoutine: 'Criar rotina',
+  deleteRoutine: 'Apagar rotina',
+  everyDay: 'todo dia',
+  workdays: 'dias úteis',
+  lastRun: 'última',
+  neverRan: 'ainda não rodou',
   stepOne: 'passo',
   newThread: 'Nova conversa',
   closeThread: 'Fechar conversa',

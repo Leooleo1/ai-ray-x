@@ -41,9 +41,11 @@ interface BotLineProps {
   onSend: (project: string) => void
   onOpenExchange: (a: string, b: string) => void
   onOpenPlace: (place: Place) => void
+  pinned: boolean
+  onPin: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -110,7 +112,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   return (
     <>
       {head}
-      <div className="linha de-agente bolha-linha">
+      <div className="linha de-agente bolha-linha" id={`msg-${message.ms}`}>
         <div className="corpo">
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
           {reply && (
@@ -123,6 +125,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
               {[clock(message.ms), ...meta].filter(Boolean).join(' · ')}
               <CopyButton text={reply.text} />
+              <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
+                {pinned ? t.pinned : t.pin}
+              </button>
             </span>
           )}
           {reply?.open?.map((place) => (
