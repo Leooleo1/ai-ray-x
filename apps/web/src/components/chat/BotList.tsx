@@ -72,7 +72,7 @@ export function BotList({ bots, current, onOpen, onOpenExchange, onAdd }: BotLis
               )
             })}
           </ul>
-          <span className="conversas-grupo">{t.bots}</span>
+          <span className="conversas-grupo">{t.projects}</span>
         </>
       )}
       <ul>

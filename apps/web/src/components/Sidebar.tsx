@@ -63,18 +63,18 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
         ))}
       </div>
       <div className="lado-grupo">
-        <span className="lado-titulo">{t.bots}</span>
-        {/* The bots themselves are listed in the chat, as conversations; here, one way in. */}
-        <button
-          className={`lado-item ${chat === 'bots' || chat.startsWith('bot:') ? (tab === 'agents' ? 'ativo' : '') : ''}`}
-          onClick={() => {
-            const latest = [...bots].sort((a, b) => (b.messages.at(-1)?.ms ?? 0) - (a.messages.at(-1)?.ms ?? 0))[0]
-            onChat(latest ? `bot:${latest.id}` : 'bots')
-          }}
-        >
-          <Avatar agent={latestFace(bots)} size={22} state={bots.some((b) => b.busy) ? 'thinking' : 'idle'} />
-          <span className="nome">{t.yourBots}</span>
-          <span className={`presenca ${bots.some((b) => b.busy) ? 'digitando' : ''}`}>{bots.some((b) => b.busy) ? t.typingShort : bots.length || ''}</span>
+        <span className="lado-titulo">{t.projects}</span>
+        {/* One row per project; a project can have bots on several CLIs, the newest one opens. */}
+        {projectsOf(bots).map(({ name, latest, busy, agents }) => (
+          <button key={name} className={`lado-item ${tab === 'agents' && bots.some((b) => b.name === name && chat === `bot:${b.id}`) ? 'ativo' : ''}`} onClick={() => onChat(`bot:${latest.id}`)}>
+            <Avatar agent={faceForBot(latest)} size={22} state={busy ? 'thinking' : 'idle'} />
+            <span className="nome">{name}</span>
+            <span className={`presenca ${busy ? 'digitando' : ''}`}>{busy ? t.typingShort : agents}</span>
+          </button>
+        ))}
+        <button className={`lado-item ${tab === 'agents' && chat === 'bots' ? 'ativo' : ''}`} onClick={() => onChat('bots')}>
+          <Icon name="plus" />
+          <span className="nome">{t.addProject}</span>
         </button>
       </div>
       <footer className="lado-rodape">
@@ -92,9 +92,16 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
   )
 }
 
-function latestFace(bots: Bot[]) {
-  const latest = [...bots].sort((a, b) => (b.messages.at(-1)?.ms ?? 0) - (a.messages.at(-1)?.ms ?? 0))[0]
-  return faceForBot(latest ?? { agent: 'claude', persona: null })
+const SHORT: Record<string, string> = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' }
+
+/** The bots grouped by project, newest activity first. */
+function projectsOf(bots: Bot[]) {
+  const lastMs = (b: Bot) => b.messages.at(-1)?.ms ?? 0
+  const names = [...new Set([...bots].sort((a, b) => lastMs(b) - lastMs(a)).map((b) => b.name))]
+  return names.map((name) => {
+    const own = bots.filter((b) => b.name === name).sort((a, b) => lastMs(b) - lastMs(a))
+    return { name, latest: own[0], busy: own.some((b) => b.busy), agents: `${SHORT[own[0].agent] ?? own[0].agent}${own.length > 1 ? ` +${own.length - 1}` : ''}` }
+  })
 }
 
 export function Mark() {

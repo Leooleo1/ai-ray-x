@@ -1,6 +1,7 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  addProject: 'Add a project',
   exchanges: 'Exchanges',
   throughMemory: 'through ai-memory',
   steps2: 'steps',
@@ -10,7 +11,6 @@ const en = {
   handedTo: 'received',
   answered: 'answered',
   seeExchange: 'See the exchange',
-  yourBots: 'Your bots',
   searchModels: 'Search models',
   search2: 'Search',
   noMessagesYet: 'no messages yet',
@@ -197,6 +197,7 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  addProject: 'Adicionar projeto',
   exchanges: 'Trocas',
   throughMemory: 'pelo ai-memory',
   steps2: 'passos',
@@ -206,7 +207,6 @@ const pt: Texts = {
   handedTo: 'recebeu',
   answered: 'respondeu',
   seeExchange: 'Ver a troca',
-  yourBots: 'Seus bots',
   searchModels: 'Buscar modelos',
   search2: 'Buscar',
   noMessagesYet: 'sem mensagens ainda',
