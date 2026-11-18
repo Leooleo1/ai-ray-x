@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { AgentId } from './agents'
 import { fetchReport, sessionToken, type Report } from './api'
 import { useBots } from './bots'
+import { exchanges } from './exchanges'
+import { ExchangeView } from './components/chat/Exchange'
 import { BotChat } from './components/BotChat'
 import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
@@ -33,11 +35,13 @@ const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
 }
 
 const BOTS_PATH = '/bots'
+const EXCHANGE_PATH = '/trocas'
 const SETUP_PATHS = ['/boas-vindas', '/welcome']
 
 function chatFromPath(): ChatView {
   const path = window.location.pathname
   if (path === BOTS_PATH) return 'bots'
+  if (path.startsWith(`${EXCHANGE_PATH}/`)) return `troca:${decodeURIComponent(path.slice(EXCHANGE_PATH.length + 1))}`
   if (path.startsWith(`${BOTS_PATH}/`)) return `bot:${path.slice(BOTS_PATH.length + 1)}`
   return 'channel'
 }
@@ -45,12 +49,13 @@ function chatFromPath(): ChatView {
 function chatPath(view: ChatView): string {
   if (view === 'bots') return BOTS_PATH
   if (view.startsWith('bot:')) return `${BOTS_PATH}/${view.slice(4)}`
+  if (view.startsWith('troca:')) return `${EXCHANGE_PATH}/${encodeURIComponent(view.slice(6))}`
   return PATHS.agents[0]
 }
 
 function tabFromPath(): Tab {
   const path = window.location.pathname
-  if (path.startsWith(BOTS_PATH)) return 'agents'
+  if (path.startsWith(BOTS_PATH) || path.startsWith(EXCHANGE_PATH)) return 'agents'
   return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
 }
 
@@ -143,7 +148,11 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const activeDays = days.filter((d) => d.tokens > 0).length
   const projects = projectRows(report, LIST_ROWS).map((row) => ({ ...row, share: row.value / total }))
   const openBot = chat.startsWith('bot:') ? bots.state.bots.find((b) => `bot:${b.id}` === chat) : undefined
-  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:'))
+  const openExchange = chat.startsWith('troca:')
+    ? exchanges(bots.state.bots).find((x) => [x.a, x.b].sort().join('|') === chat.slice(6).split('|').sort().join('|'))
+    : undefined
+  const showExchange = (a: string, b: string) => openChat(`troca:${a}|${b}`)
+  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:') || chat.startsWith('troca:'))
   const heading = inBots ? { title: t.botsTitle, subtitle: t.botsHint } : HEADINGS[tab]
   return (
     <div className="app">
@@ -163,8 +172,11 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAdd={() => openChat('bots')} />}
-        {tab === 'agents' && !openBot && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
+        {tab === 'agents' && openExchange && (
+          <ExchangeView exchange={openExchange} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />
+        )}
+        {tab === 'agents' && !openBot && !openExchange && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'agents' && !inBots && (
           <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />
         )}

@@ -575,3 +575,79 @@
     display: none;
   }
 }
+
+/* Exchanges between two projects' bots. */
+.conversas-grupo {
+  padding: 6px 10px 0;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.troca-rostos {
+  display: inline-flex;
+  flex: none;
+  width: 36px;
+}
+
+.troca-rostos .avatar + .avatar {
+  margin-left: -12px;
+}
+
+.troca-topo {
+  gap: 8px;
+}
+
+.troca-ponta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.troca-topo .bot-aba {
+  border: 0;
+  color: var(--giz);
+  font: 500 14px/20px var(--sans);
+  cursor: pointer;
+}
+
+.troca-seta {
+  color: var(--nevoa);
+}
+
+.troca-topo small {
+  margin-left: auto;
+}
+
+/* The one that started speaks from the left, the other from the right. */
+.troca-linha {
+  display: flex;
+  gap: 10px;
+  max-width: 78%;
+  margin-top: 14px;
+}
+
+.troca-linha.direita {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+}
+
+.troca-linha.direita .quem {
+  justify-content: flex-end;
+}
+
+.troca-linha .corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bolha.recebida {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--fio), inset 3px 0 0 var(--cobalto);
+}
+
+.chat-topo.troca-topo,
+.chat-topo.bot-topo {
+  align-items: center;
+}

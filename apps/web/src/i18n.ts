@@ -1,6 +1,15 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  exchanges: 'Exchanges',
+  throughMemory: 'through ai-memory',
+  steps2: 'steps',
+  waitingToHandle: 'waiting to be handled',
+  youSentFromTo: 'You sent it from {a} to {b} through ai-memory',
+  suggestedFor: 'suggested',
+  handedTo: 'received',
+  answered: 'answered',
+  seeExchange: 'See the exchange',
   yourBots: 'Your bots',
   searchModels: 'Search models',
   search2: 'Search',
@@ -188,6 +197,15 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  exchanges: 'Trocas',
+  throughMemory: 'pelo ai-memory',
+  steps2: 'passos',
+  waitingToHandle: 'esperando tratar',
+  youSentFromTo: 'Você enviou de {a} para {b} pelo ai-memory',
+  suggestedFor: 'sugeriu',
+  handedTo: 'recebeu',
+  answered: 'respondeu',
+  seeExchange: 'Ver a troca',
   yourBots: 'Seus bots',
   searchModels: 'Buscar modelos',
   search2: 'Buscar',

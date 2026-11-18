@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Bot, BotMessage } from '../../api'
 import { faceForBot } from '../../avatars'
 import type { Bots } from '../../bots'
+import { exchanges } from '../../exchanges'
 import { locale, t } from '../../i18n'
 import { Avatar } from '../Avatar'
 
@@ -23,11 +24,13 @@ interface BotListProps {
   bots: Bots
   current: string
   onOpen: (id: string) => void
+  onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
 }
 
 /** Every bot as a conversation: face, name, when and the last line, newest first, with search. */
-export function BotList({ bots, current, onOpen, onAdd }: BotListProps) {
+export function BotList({ bots, current, onOpen, onOpenExchange, onAdd }: BotListProps) {
+  const pairs = exchanges(bots.state.bots)
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const rows = [...bots.state.bots]
@@ -43,6 +46,35 @@ export function BotList({ bots, current, onOpen, onAdd }: BotListProps) {
           </svg>
         </button>
       </div>
+      {pairs.length > 0 && !needle && (
+        <>
+          <span className="conversas-grupo">{t.exchanges}</span>
+          <ul className="conversas-trocas">
+            {pairs.map((pair) => {
+              const [a, b] = [pair.a, pair.b].map((name) => bots.state.bots.find((bot) => bot.name === name))
+              const key = `${pair.a}|${pair.b}`
+              return (
+                <li key={key}>
+                  <button type="button" className={current === key ? 'ativo' : ''} onClick={() => onOpenExchange(pair.a, pair.b)}>
+                    <span className="troca-rostos">
+                      {a && <Avatar agent={faceForBot(a)} size={24} state="still" />}
+                      {b && <Avatar agent={faceForBot(b)} size={24} state="still" />}
+                    </span>
+                    <span className="conversa-texto">
+                      <span className="conversa-linha">
+                        <b>{`${pair.a} ⇄ ${pair.b}`}</b>
+                        <small>{when(pair.lastMs)}</small>
+                      </span>
+                      <span className="conversa-previa">{pair.waiting > 0 ? `${pair.waiting} ${t.waitingToHandle}` : `${pair.items.length} ${t.steps2}`}</span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          <span className="conversas-grupo">{t.bots}</span>
+        </>
+      )}
       <ul>
         {rows.map((bot) => {
           const last = bot.messages.at(-1)

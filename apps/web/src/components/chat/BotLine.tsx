@@ -32,9 +32,10 @@ interface BotLineProps {
   /** "answer ms|project" of the suggestions already sent. */
   sent: Set<string>
   onSend: (project: string) => void
+  onOpenExchange: (a: string, b: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -58,7 +59,15 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
     )
   }
   if (message.author === 'you' && message.kind === 'sent') {
-    return <p className="linha-sistema">{t.youSent.replace('{p}', message.data.project ?? '')}</p>
+    const project = message.data.project ?? ''
+    return (
+      <p className="linha-sistema">
+        {t.youSent.replace('{p}', project)}{' '}
+        <button type="button" className="ver-mais" onClick={() => onOpenExchange(bot.name, project)}>
+          {t.seeExchange}
+        </button>
+      </p>
+    )
   }
   if (message.author === 'you') {
     const fromMail = message.data.via === 'ai-memory'

@@ -23,11 +23,12 @@ interface BotChatProps {
   bot: Bot
   bots: Bots
   onOpen: (id: string) => void
+  onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, onOpen, onAdd }: BotChatProps) {
+export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
@@ -47,7 +48,7 @@ export function BotChat({ bot, bots, onOpen, onAdd }: BotChatProps) {
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={bot.id} onOpen={onOpen} onAdd={onAdd} />
+        <BotList bots={bots} current={bot.id} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
         <div className="conversa">
         <header className="chat-topo bot-topo">
           <span className="bot-aba">
@@ -94,6 +95,7 @@ export function BotChat({ bot, bots, onOpen, onAdd }: BotChatProps) {
               onApprove={() => void bots.act('approve', { id: bot.id })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
+              onOpenExchange={onOpenExchange}
             />
           ))}
           {mail.length > 0 && !bot.busy && (
