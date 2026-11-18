@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use raiox_core::model::{CLAUDE, CODEX};
-use raiox_core::{efficiency, report, Roots, ScanStats, Store};
+use raiox_core::{advice, efficiency, report, Roots, ScanStats, Store};
 use serde_json::{json, Value};
 
 pub fn refresh_and_collect(store: &mut Store, roots: &Roots) -> Result<Value> {
@@ -20,7 +20,12 @@ pub fn collect(store: &Store, stats: &ScanStats) -> Result<Value> {
         }
         let efficiency = efficiency::efficiency(conn, source)?;
         let secrets = report::secret_touches(conn, source)?;
-        sources.push(json!({ "overview": overview, "efficiency": efficiency, "secrets": secrets }));
+        let listed = efficiency
+            .snapshots
+            .get("skill_listing_items")
+            .and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
+        let suggestions = advice::suggestions(&efficiency, listed);
+        sources.push(json!({ "overview": overview, "efficiency": efficiency, "secrets": secrets, "suggestions": suggestions }));
     }
     Ok(json!({
         "generated_at": chrono_now(),
@@ -33,6 +38,7 @@ pub fn collect(store: &Store, stats: &ScanStats) -> Result<Value> {
         },
         "sources": sources,
         "platforms": report::platforms(conn)?,
+        "context_status": advice::context_status(conn, None)?,
     }))
 }
 

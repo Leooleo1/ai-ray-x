@@ -50,7 +50,32 @@ export interface Carried {
   share_of_context: number
 }
 
+export interface Suggestion {
+  id: string
+  source: Source
+  title: string
+  evidence: string
+  saving_tokens: number
+  saving_share: number
+  how: string
+  confidence: 'upper bound' | 'estimate'
+}
+
+export interface ContextStatus {
+  source: Source
+  session: string
+  project: string
+  context_tokens: number
+  requests_since_compaction: number
+  startup_tokens: number
+  loaded_since_compaction: { name: string; tokens: number }[]
+  usual_compaction_at: number
+}
+
 export interface Efficiency {
+  fixed: { kind: string; median_first_request: number; share_of_context: number }[]
+  skills_used: [string, number][]
+  snapshots: Record<string, unknown>
   cost_shares: [string, number][]
   context: { calls: number; total: number; mean: number; median: number; p90: number }
   buckets: { up_to: number | null; share_of_calls: number; share_of_tokens: number }[]
@@ -62,11 +87,13 @@ export interface SourceReport {
   overview: Overview
   efficiency: Efficiency
   secrets: [string, number][]
+  suggestions: Suggestion[]
 }
 
 export interface Report {
   generated_at: number
   sources: SourceReport[]
+  context_status: ContextStatus | null
 }
 
 const TOKEN_KEY = 'raiox.session'

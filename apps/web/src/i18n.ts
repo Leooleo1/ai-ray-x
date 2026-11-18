@@ -1,6 +1,21 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  tabXray: 'X-ray',
+  tabEfficiency: 'Efficiency',
+  dietTitleMain: 'Token diet',
+  dietSubtitle: 'what Raio, Dieta and Memo found',
+  raioLine: 'context in the current session',
+  dietaLine: 'less context re-read',
+  suggestions: 'suggestions',
+  memoLine: 'lessons kept · when you accept a suggestion',
+  dietaTitle: 'Suggestions',
+  dietaHint: 'saving over the period · suggestions only',
+  upTo: 'up to ',
+  sessionTitle: 'Current session',
+  requests: 'requests since compaction',
+  now: 'now',
+  startup: 'loaded at startup',
   title: 'Your AI agents',
   subtitle: 'Claude Code and Codex, read from this machine',
   days: 'days',
@@ -37,6 +52,21 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  tabXray: 'Raio-X',
+  tabEfficiency: 'Eficiência',
+  dietTitleMain: 'Dieta de tokens',
+  dietSubtitle: 'o que o Raio, a Dieta e o Memo acharam',
+  raioLine: 'de contexto na sessão atual',
+  dietaLine: 'menos contexto relido',
+  suggestions: 'sugestões',
+  memoLine: 'lições guardadas · quando você aceitar uma sugestão',
+  dietaTitle: 'Sugestões',
+  dietaHint: 'economia no período · só sugestões',
+  upTo: 'até ',
+  sessionTitle: 'Sessão atual',
+  requests: 'pedidos desde a compactação',
+  now: 'agora',
+  startup: 'carregado na partida',
   title: 'Seus agentes de IA',
   subtitle: 'Claude Code e Codex, lidos desta máquina',
   days: 'dias',

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchReport, sessionToken, type Report } from './api'
 import { Clock } from './components/Clock'
+import { EfficiencyView } from './components/Efficiency'
 import { ContextRuler } from './components/ContextRuler'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
@@ -19,6 +20,14 @@ import {
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
+
+type Tab = 'xray' | 'efficiency'
+
+const EFFICIENCY_PATHS = ['/eficiencia', '/efficiency']
+
+function tabFromPath(): Tab {
+  return EFFICIENCY_PATHS.includes(window.location.pathname) ? 'efficiency' : 'xray'
+}
 
 type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; report: Report; at: Date }
 
@@ -61,6 +70,16 @@ interface DashboardProps {
 }
 
 function Dashboard({ report, at }: DashboardProps) {
+  const [tab, setTab] = useState<Tab>(tabFromPath)
+  useEffect(() => {
+    const onBack = () => setTab(tabFromPath())
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [])
+  const go = (next: Tab) => {
+    history.pushState(null, '', next === 'efficiency' ? EFFICIENCY_PATHS[0] : '/')
+    setTab(next)
+  }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
   if (!main) return <div className="tela-estado">{t.noLogs}</div>
@@ -75,6 +94,13 @@ function Dashboard({ report, at }: DashboardProps) {
           <Mark />
           raiox
         </span>
+        <nav className="abas" aria-label="raiox">
+          {(['xray', 'efficiency'] as const).map((id) => (
+            <button key={id} className={tab === id ? 'ativo' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
+              {id === 'xray' ? t.tabXray : t.tabEfficiency}
+            </button>
+          ))}
+        </nav>
         <span className="meta">
           <span>{nowStamp(at)}</span>
           <span className="estado">
@@ -84,10 +110,13 @@ function Dashboard({ report, at }: DashboardProps) {
         </span>
       </header>
       <div className="titulo">
-        <h1>{t.title}</h1>
-        <p>{t.subtitle}</p>
+        <h1>{tab === 'xray' ? t.title : t.dietTitleMain}</h1>
+        <p>{tab === 'xray' ? t.subtitle : t.dietSubtitle}</p>
         {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
       </div>
+      {tab === 'efficiency' ? (
+        <EfficiencyView report={report} />
+      ) : (
       <main className="grade">
         <Hero
           total={total}
@@ -102,6 +131,7 @@ function Dashboard({ report, at }: DashboardProps) {
         <RowsCard className="projetos" title={t.projects} rows={projects} />
         <SecretsCard totals={secretTotals(report)} />
       </main>
+      )}
     </div>
   )
 }
