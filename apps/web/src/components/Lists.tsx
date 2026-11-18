@@ -23,16 +23,18 @@ interface RowsCardProps {
 
 /** Plain rows: source dot, name, value and share, without a card around each item. */
 export function RowsCard({ title, hint, rows, className }: RowsCardProps) {
+  // A dot that is the same on every row says nothing: it shows only when Claude Code and Codex mix.
+  const mixed = new Set(rows.map((row) => row.source)).size > 1
   return (
     <section className={`cartao ${className}`}>
       <h2>
         {title}
         {hint && <small>{hint}</small>}
       </h2>
-      <ul className="lista">
+      <ul className={`lista ${mixed ? '' : 'sem-ponto'}`}>
         {rows.map((row) => (
           <li key={`${row.source}-${row.name}`}>
-            <i className={`ponto ${row.source}`} />
+            {mixed && <i className={`ponto ${row.source}`} />}
             <span className="nome">{displayName(row.name)}</span>
             <span className="num">{compact(row.value)}</span>
             <span className="apoio">{row.share !== undefined ? percent(row.share) : ''}</span>
