@@ -59,12 +59,14 @@ enum Command {
 }
 
 fn main() -> Result<()> {
+    restore_default_sigpipe();
     let cli = Cli::parse();
     let detected = Roots::detect()?;
     let roots = Roots {
         claude: cli.common.claude_dir.unwrap_or(detected.claude),
         codex: cli.common.codex_dir.unwrap_or(detected.codex),
         home: detected.home,
+        openbot: detected.openbot,
     };
     let db = cli.common.db.or_else(raiox_core::default_index_path).context("no cache folder found; pass --db")?;
     let mut store = Store::open(&db)?;
@@ -98,5 +100,16 @@ fn print_report(store: &mut Store, roots: &Roots, db: &std::path::Path) -> Resul
         print::efficiency(&efficiency::efficiency(conn, source)?);
         print::secrets(&report::secret_touches(conn, source)?);
     }
+    print::platforms(&report::platforms(conn)?);
     Ok(())
+}
+
+/// Rust ignores SIGPIPE, so `raiox report | head` would panic on the closed pipe.
+/// Restoring the default makes it exit quietly, like other command-line tools.
+fn restore_default_sigpipe() {
+    #[cfg(unix)]
+    // SAFETY: called once at startup, before any thread is spawned.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
 }

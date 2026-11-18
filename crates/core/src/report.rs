@@ -7,6 +7,8 @@ use chrono::NaiveDate;
 use rusqlite::{Connection, Params, Row};
 use serde::Serialize;
 
+use crate::sources::openbot::{Agent, SkillLoad};
+
 const ACTIVE_GAP_MS: i64 = 300_000;
 const TOP_PROJECTS: usize = 12;
 const TOP_TOOLS: usize = 15;
@@ -180,6 +182,54 @@ fn daily(conn: &Connection, source: &str) -> Result<Vec<DayPoint>> {
         [source],
         |r| Ok(DayPoint { date: r.get(0)?, requests: r.get::<_, i64>(1)? as u64, tokens: r.get::<_, i64>(2)? as u64 }),
     )
+}
+
+#[derive(Debug, Serialize)]
+pub struct Platform {
+    pub source: String,
+    pub agents: Vec<Agent>,
+    pub skill_loads: Vec<SkillLoad>,
+}
+
+/// Agent platforms that run Claude Code or Codex underneath (today: OpenBot).
+/// Their tokens are already in those logs; this is attribution, not extra usage.
+pub fn platforms(conn: &Connection) -> Result<Vec<Platform>> {
+    let agents = rows(
+        conn,
+        "SELECT source, id, name, model, records, tokens, cost_usd FROM platform_agents ORDER BY tokens DESC",
+        [],
+        |r| {
+            let agent = Agent {
+                id: r.get(1)?,
+                name: r.get(2)?,
+                model: r.get(3)?,
+                records: r.get::<_, i64>(4)? as u64,
+                tokens: r.get::<_, i64>(5)? as u64,
+                cost_usd: r.get(6)?,
+            };
+            Ok((r.get::<_, String>(0)?, agent))
+        },
+    )?;
+    let skills = rows(conn, "SELECT source, skill, loads, tokens, cost_usd FROM skill_loads ORDER BY tokens DESC", [], |r| {
+        let load = SkillLoad {
+            skill: r.get(1)?,
+            loads: r.get::<_, i64>(2)? as u64,
+            tokens: r.get::<_, i64>(3)? as u64,
+            cost_usd: r.get(4)?,
+        };
+        Ok((r.get::<_, String>(0)?, load))
+    })?;
+    let mut sources: Vec<String> = agents.iter().map(|(s, _)| s.clone()).chain(skills.iter().map(|(s, _)| s.clone())).collect();
+    sources.sort();
+    sources.dedup();
+    Ok(sources
+        .into_iter()
+        .map(|source| Platform {
+            agents: agents.iter().filter(|(s, _)| *s == source).map(|(_, a)| a.clone()).collect(),
+            skill_loads: skills.iter().filter(|(s, _)| *s == source).map(|(_, k)| k.clone()).collect(),
+            source,
+        })
+        .collect())
 }
 
 fn top(items: Vec<(String, u64)>, limit: usize) -> Vec<(String, u64)> {

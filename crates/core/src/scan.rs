@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use rusqlite::Transaction;
 
 use crate::model::{Batch, CLAUDE, CODEX, FileState};
-use crate::sources::{claude, codex, history};
+use crate::sources::{claude, codex, history, openbot};
 use crate::store::{self, FileUpdate, Store, StoredFile};
 
 /// Where each agent keeps its data.
@@ -20,6 +20,8 @@ pub struct Roots {
     pub home: PathBuf,
     pub claude: PathBuf,
     pub codex: PathBuf,
+    /// OpenBot's app data (`<config dir>/OpenBot`, or `$OPENBOT_HOME`).
+    pub openbot: PathBuf,
 }
 
 impl Roots {
@@ -29,7 +31,11 @@ impl Roots {
         let from_env =
             |key: &str, fallback: &str| std::env::var_os(key).map(PathBuf::from).unwrap_or_else(|| home.join(fallback));
         let (claude, codex) = (from_env("CLAUDE_CONFIG_DIR", ".claude"), from_env("CODEX_HOME", ".codex"));
-        Ok(Self { home, claude, codex })
+        let openbot = std::env::var_os("OPENBOT_HOME")
+            .map(PathBuf::from)
+            .or_else(|| dirs::config_dir().map(|dir| dir.join("OpenBot")))
+            .unwrap_or_else(|| home.join(".openbot"));
+        Ok(Self { home, claude, codex, openbot })
     }
 }
 
@@ -214,6 +220,11 @@ fn refresh_side_sources(tx: &Transaction, roots: &Roots) -> Vec<String> {
         if let Err(error) = threads {
             warnings.push(format!("Codex thread index: {error:#}"));
         }
+    }
+    let openbot = openbot::read(&roots.openbot.join("openbot.db"))
+        .and_then(|usage| store::replace_platform(tx, "openbot", &usage));
+    if let Err(error) = openbot {
+        warnings.push(format!("OpenBot: {error:#}"));
     }
     warnings
 }

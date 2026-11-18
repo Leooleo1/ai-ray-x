@@ -10,8 +10,9 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use crate::model::{Batch, FileState};
 use crate::sources::history::{StatsCache, Thread};
+use crate::sources::openbot;
 
-const SCHEMA_VERSION: &str = "1";
+const SCHEMA_VERSION: &str = "2";
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS files(path TEXT PRIMARY KEY, source TEXT NOT NULL, size INTEGER NOT NULL,
@@ -43,11 +44,15 @@ CREATE TABLE IF NOT EXISTS history_tokens(source TEXT NOT NULL, date TEXT NOT NU
   tokens INTEGER NOT NULL, PRIMARY KEY(source, date, model));
 CREATE TABLE IF NOT EXISTS history_days(source TEXT NOT NULL, date TEXT NOT NULL, messages INTEGER NOT NULL,
   sessions INTEGER NOT NULL, tool_calls INTEGER NOT NULL, PRIMARY KEY(source, date));
+CREATE TABLE IF NOT EXISTS platform_agents(source TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,
+  model TEXT NOT NULL, records INTEGER NOT NULL, tokens INTEGER NOT NULL, cost_usd REAL NOT NULL, PRIMARY KEY(source, id));
+CREATE TABLE IF NOT EXISTS skill_loads(source TEXT NOT NULL, skill TEXT NOT NULL, loads INTEGER NOT NULL,
+  tokens INTEGER NOT NULL, cost_usd REAL NOT NULL, PRIMARY KEY(source, skill));
 CREATE TABLE IF NOT EXISTS threads(source TEXT NOT NULL, id TEXT NOT NULL, model TEXT NOT NULL,
   tokens INTEGER NOT NULL, created_ms INTEGER, updated_ms INTEGER, PRIMARY KEY(source, id));
 ";
 
-const DATA_TABLES: [&str; 12] = [
+const DATA_TABLES: [&str; 14] = [
     "files",
     "calls",
     "tool_calls",
@@ -60,6 +65,8 @@ const DATA_TABLES: [&str; 12] = [
     "history_tokens",
     "history_days",
     "threads",
+    "platform_agents",
+    "skill_loads",
 ];
 const FILE_TABLES: [&str; 7] = ["calls", "tool_calls", "tool_results", "prompts", "compactions", "costs", "counters"];
 
@@ -329,6 +336,25 @@ pub fn replace_threads(tx: &Transaction, source: &str, threads: &[Thread]) -> Re
     )?;
     for t in threads {
         insert.execute(params![source, t.id, t.model, n(t.tokens), t.created_ms, t.updated_ms])?;
+    }
+    Ok(())
+}
+
+/// Attribution from an agent platform; replaced on every refresh.
+pub fn replace_platform(tx: &Transaction, source: &str, usage: &openbot::Usage) -> Result<()> {
+    tx.execute("DELETE FROM platform_agents WHERE source = ?1", [source])?;
+    tx.execute("DELETE FROM skill_loads WHERE source = ?1", [source])?;
+    let mut agents = tx.prepare_cached(
+        "INSERT OR REPLACE INTO platform_agents(source, id, name, model, records, tokens, cost_usd) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )?;
+    for a in &usage.agents {
+        agents.execute(params![source, a.id, a.name, a.model, n(a.records), n(a.tokens), a.cost_usd])?;
+    }
+    let mut skills = tx.prepare_cached(
+        "INSERT OR REPLACE INTO skill_loads(source, skill, loads, tokens, cost_usd) VALUES(?1, ?2, ?3, ?4, ?5)",
+    )?;
+    for s in &usage.skill_loads {
+        skills.execute(params![source, s.skill, n(s.loads), n(s.tokens), s.cost_usd])?;
     }
     Ok(())
 }

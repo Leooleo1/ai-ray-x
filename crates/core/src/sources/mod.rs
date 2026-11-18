@@ -3,6 +3,7 @@
 pub mod claude;
 pub mod codex;
 pub mod history;
+pub mod openbot;
 
 use crate::model::{Batch, Call, FileState};
 use crate::util;

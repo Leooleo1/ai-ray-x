@@ -178,3 +178,15 @@ pub fn secrets(found: &[(String, u64)]) {
         println!("secrets files touched (counts only): {}", join(found));
     }
 }
+
+pub fn platforms(platforms: &[raiox_core::report::Platform]) {
+    for p in platforms {
+        println!("\n━━ {} (already counted in Claude Code / Codex) ━━", p.source.to_uppercase());
+        for a in &p.agents {
+            println!("  {:28} {:22} {:>7} tokens · {} turns · ${:.2}", a.name, a.model, n(a.tokens), a.records, a.cost_usd);
+        }
+        for s in &p.skill_loads {
+            println!("  skill {:22} {} loads · {} tokens · ${:.2}", s.skill, s.loads, n(s.tokens), s.cost_usd);
+        }
+    }
+}

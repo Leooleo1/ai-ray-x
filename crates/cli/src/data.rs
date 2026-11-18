@@ -32,6 +32,7 @@ pub fn collect(store: &Store, stats: &ScanStats) -> Result<Value> {
             "warnings": stats.warnings,
         },
         "sources": sources,
+        "platforms": report::platforms(conn)?,
     }))
 }
 
