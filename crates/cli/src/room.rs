@@ -22,9 +22,10 @@ const MAX_TEXT: usize = 280;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub ms: i64,
-    /// "you", "raio", "dieta" or "memo".
+    /// "you", "raio", "dieta", "memo" or "bot".
     pub author: String,
-    /// What happened: "ask", "answer", "applied", "undone", "kept", "kept_failed".
+    /// What happened: "ask", "answer", "applied", "undone", "kept", "kept_failed";
+    /// in a bot chat also "approve", "failed" and "reset".
     pub kind: String,
     pub data: Value,
 }
@@ -47,17 +48,25 @@ fn room_file(state_dir: &Path, project_dir: &Path) -> PathBuf {
 }
 
 pub fn messages(state_dir: &Path, project_dir: &Path) -> Vec<Message> {
-    fs::read_to_string(room_file(state_dir, project_dir))
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+    read_messages(&room_file(state_dir, project_dir))
 }
 
 pub fn append(state_dir: &Path, project_dir: &Path, new: Vec<Message>) -> Result<()> {
-    let all: Vec<Message> = messages(state_dir, project_dir).into_iter().chain(new).collect();
+    append_messages(&room_file(state_dir, project_dir), new)
+}
+
+/// One conversation file: the agents room of a project, or a bot's chat.
+pub fn read_messages(file: &Path) -> Vec<Message> {
+    fs::read_to_string(file).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+}
+
+/// Appends and keeps the latest messages; written to a temporary file first, then renamed.
+pub fn append_messages(file: &Path, new: Vec<Message>) -> Result<()> {
+    let all: Vec<Message> = read_messages(file).into_iter().chain(new).collect();
     let kept = &all[all.len().saturating_sub(MAX_MESSAGES)..];
-    let file = room_file(state_dir, project_dir);
-    fs::create_dir_all(file.parent().unwrap_or(state_dir))?;
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let temp = file.with_extension("tmp");
     fs::write(&temp, serde_json::to_string_pretty(kept)? + "\n")?;
     fs::rename(temp, file)?;

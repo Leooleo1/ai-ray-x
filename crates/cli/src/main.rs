@@ -1,6 +1,8 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
 mod actions;
+mod bot_run;
+mod bots;
 mod data;
 mod memo;
 mod room;
@@ -119,7 +121,7 @@ fn main() -> Result<()> {
             raiox_core::refresh(&mut store, &roots)?;
             let state_dir = state_dir(&db);
             let project_dir = std::env::current_dir()?;
-            serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir }, port, !no_open)
+            serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir, jobs: bots::Jobs::default() }, port, !no_open)
         }
         Command::Mcp => mcp::run(store, roots),
         Command::Apply { suggestion, source } => {

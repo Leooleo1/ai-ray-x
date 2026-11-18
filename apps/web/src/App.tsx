@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { AgentId } from './agents'
 import { fetchReport, sessionToken, type Report } from './api'
+import { useBots } from './bots'
+import { BotChat } from './components/BotChat'
+import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
 import { ContextRuler } from './components/ContextRuler'
 import { EfficiencyView } from './components/Efficiency'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
 import { Room } from './components/Room'
-import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
+import { type ChatView, type RoomView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 
@@ -21,8 +24,24 @@ const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   agents: { title: t.roomTitle, subtitle: t.roomSubtitle },
 }
 
+const BOTS_PATH = '/bots'
+
+function chatFromPath(): ChatView {
+  const path = window.location.pathname
+  if (path === BOTS_PATH) return 'bots'
+  if (path.startsWith(`${BOTS_PATH}/`)) return `bot:${path.slice(BOTS_PATH.length + 1)}`
+  return 'channel'
+}
+
+function chatPath(view: ChatView): string {
+  if (view === 'bots') return BOTS_PATH
+  if (view.startsWith('bot:')) return `${BOTS_PATH}/${view.slice(4)}`
+  return PATHS.agents[0]
+}
+
 function tabFromPath(): Tab {
   const path = window.location.pathname
+  if (path.startsWith(BOTS_PATH)) return 'agents'
   return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
 }
 
@@ -70,10 +89,14 @@ interface DashboardProps {
 
 function Dashboard({ report, at, onChanged }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
-  const [chat, setChat] = useState<ChatView>('channel')
+  const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [typing, setTyping] = useState<AgentId | null>(null)
+  const bots = useBots(report.bots)
   useEffect(() => {
-    const onBack = () => setTab(tabFromPath())
+    const onBack = () => {
+      setTab(tabFromPath())
+      setChat(chatFromPath())
+    }
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
   }, [])
@@ -82,8 +105,10 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
     setTab(next)
   }
   const openChat = (view: ChatView) => {
+    const path = chatPath(view)
+    if (path !== window.location.pathname) history.pushState(null, '', path)
     setChat(view)
-    go('agents')
+    setTab('agents')
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
@@ -92,7 +117,9 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
   const days = plateDays(report)
   const activeDays = days.filter((d) => d.tokens > 0).length
   const projects = projectRows(report, LIST_ROWS).map((row) => ({ ...row, share: row.value / total }))
-  const heading = HEADINGS[tab]
+  const openBot = chat.startsWith('bot:') ? bots.state.bots.find((b) => `bot:${b.id}` === chat) : undefined
+  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:'))
+  const heading = inBots ? { title: t.botsTitle, subtitle: t.botsHint } : HEADINGS[tab]
   return (
     <div className="app">
       <Sidebar
@@ -100,6 +127,7 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
         chat={chat}
         project={report.project_dir.split('/').pop() ?? ''}
         typing={typing}
+        bots={bots.state.bots}
         updatedAt={at}
         onTab={go}
         onChat={openChat}
@@ -110,7 +138,11 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && <Room report={report} view={chat} onView={setChat} onTyping={setTyping} onChanged={onChanged} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} />}
+        {tab === 'agents' && !openBot && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
+        {tab === 'agents' && !inBots && (
+          <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />
+        )}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'xray' && (
           <main className="grade">

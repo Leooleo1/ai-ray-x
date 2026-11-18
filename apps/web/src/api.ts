@@ -121,6 +121,7 @@ export interface SourceReport {
 }
 
 export interface Report {
+  bots: BotsState
   generated_at: number
   sources: SourceReport[]
   context_status: ContextStatus | null
@@ -149,6 +150,50 @@ export interface Outcome {
 
 export type AgentAuthor = 'raio' | 'dieta' | 'memo'
 
+export type BotAgent = 'claude' | 'codex'
+
+export interface BotReply {
+  text: string
+  proposal: string | null
+  read_tokens: number
+  output_tokens: number
+  cost_usd: number | null
+  duration_ms: number
+}
+
+export interface BotMessage {
+  ms: number
+  author: 'you' | 'bot'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset'
+  data: { text?: string; proposal?: string; mode?: 'talk' | 'edit'; reply?: BotReply; error?: string }
+}
+
+export interface Bot {
+  id: string
+  agent: BotAgent
+  name: string
+  dir: string
+  has_session: boolean
+  busy: boolean
+  messages: BotMessage[]
+}
+
+export interface BotCandidate {
+  project: string
+  name: string
+  agent: BotAgent
+  requests: number
+  last_ms: number
+}
+
+export interface BotsState {
+  bots: Bot[]
+  candidates: BotCandidate[]
+  max_text: number
+}
+
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset'
+
 export interface RoomMessage {
   ms: number
   author: AgentAuthor | 'you'
@@ -175,6 +220,28 @@ export async function fetchReport(token: string): Promise<Report> {
     throw new Error(`${response.status} ${await response.text()}`)
   }
   return (await response.json()) as Report
+}
+
+async function request<T>(path: string, body?: Record<string, string>): Promise<T> {
+  const token = sessionToken()
+  if (!token) throw new Error('no session token')
+  const response = await fetch(path, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const data = (await response.json()) as T & { error?: string }
+  if (!response.ok) throw new Error(data.error ?? `${response.status}`)
+  return data
+}
+
+export function fetchBots(): Promise<BotsState> {
+  return request<BotsState>('/api/bots')
+}
+
+/** Every bot action answers with the bots' state, so the panel redraws at once. */
+export function botAction(action: BotAction, body: Record<string, string>): Promise<BotsState> {
+  return request<BotsState>(`/api/bot/${action}`, body)
 }
 
 async function post(path: string, body: Record<string, string>): Promise<{ error?: string; memo?: { kept?: string; error?: string } }> {

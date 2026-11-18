@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { AvatarDefinition } from 'open-bot-avatar'
 import { mountAvatar, type MountedAvatar } from 'open-bot-avatar/dom'
-import type { Agent } from '../agents'
+import type { Face } from '../bots'
 
 /** Live avatar from the open-bot-avatar engine (MIT, Dominik Scholz): volume,
  *  gaze, blinks and moods. `still` draws one static frame, for history rows.
@@ -12,7 +12,7 @@ const EYE_COLOR = '#16161c'
 const DEPTH = 5
 
 interface AvatarProps {
-  agent: Agent
+  agent: Face
   size: number
   state?: AvatarState
   followPointer?: boolean

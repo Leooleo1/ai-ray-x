@@ -7,7 +7,7 @@ import { askLabel, speak } from '../voices'
 import { Action } from './Action'
 import { Avatar } from './Avatar'
 import { CompactionBreakdown } from './Breakdown'
-import type { ChatView } from './Sidebar'
+import type { RoomView } from './Sidebar'
 
 const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
 const GROUP_MS = 5 * 60_000
@@ -25,8 +25,8 @@ interface Pending {
 
 interface RoomProps {
   report: Report
-  view: ChatView
-  onView: (view: ChatView) => void
+  view: RoomView
+  onView: (view: RoomView) => void
   onTyping: (agent: AgentId | null) => void
   onChanged: () => void
 }

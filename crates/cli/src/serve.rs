@@ -12,12 +12,13 @@ use anyhow::{anyhow, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::{actions, data};
+use crate::{actions, bots, data};
 use raiox_core::apply;
 use serde_json::{json, Value};
 use std::io::Read;
 
-const MAX_BODY: u64 = 4096;
+/// Bot messages can reach 4000 characters of any script.
+const MAX_BODY: u64 = 32 * 1024;
 
 type Reply = Response<Cursor<Vec<u8>>>;
 
@@ -45,6 +46,7 @@ pub struct Panel {
     pub state_dir: PathBuf,
     /// The project changes apply to: the folder `raiox open` started in.
     pub project_dir: PathBuf,
+    pub jobs: bots::Jobs,
 }
 
 pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
@@ -107,9 +109,32 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             )),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)),
+        (Method::Post, p) if p.starts_with("/api/bot/") => {
+            let action = p["/api/bot/".len()..].to_string();
+            match body(request) {
+                Ok(input) => respond(bot_action(panel, &action, &input)),
+                Err(reply) => reply,
+            }
+        }
         (Method::Get, _) => static_file(&panel.web_dir, path),
         _ => text(405, "method not allowed"),
     }
+}
+
+/// Bot actions; each answers with the bots' state so the panel redraws at once.
+fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Value> {
+    let field = |name: &str| input.get(name).and_then(Value::as_str).unwrap_or("");
+    let (state_dir, jobs) = (&panel.state_dir, &panel.jobs);
+    match action {
+        "activate" => bots::activate(state_dir, &panel.roots.home, field("project"), field("agent")).map(|_| ()),
+        "deactivate" => bots::deactivate(state_dir, jobs, field("id")),
+        "ask" => bots::ask(state_dir, jobs, field("id"), field("text")),
+        "approve" => bots::approve(state_dir, jobs, field("id")),
+        "reset" => bots::reset(state_dir, jobs, field("id")),
+        other => Err(anyhow!("unknown bot action {other}")),
+    }?;
+    bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
 }
 
 fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {
@@ -194,6 +219,7 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("outcomes".into(), json!(measured.iter().map(|(_, o)| o).collect::<Vec<_>>()));
         object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
         object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
+        object.insert("bots".into(), bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)?);
         object.insert(
             "room".into(),
             json!({
