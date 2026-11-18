@@ -163,7 +163,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAdd={() => openChat('bots')} />}
         {tab === 'agents' && !openBot && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'agents' && !inBots && (
           <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />

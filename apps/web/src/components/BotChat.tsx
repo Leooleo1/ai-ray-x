@@ -4,9 +4,11 @@ import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
-import { BotSettings, modelName } from './BotSettings'
+import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
 import { BotLine } from './chat/BotLine'
+import { BotList } from './chat/BotList'
+import { ModelPicker } from './chat/ModelPicker'
 import { Composer } from './chat/Composer'
 import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
@@ -20,10 +22,12 @@ const PROPOSAL_ID = 'esperando-aprovacao'
 interface BotChatProps {
   bot: Bot
   bots: Bots
+  onOpen: (id: string) => void
+  onAdd: () => void
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots }: BotChatProps) {
+export function BotChat({ bot, bots, onOpen, onAdd }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
@@ -42,16 +46,25 @@ export function BotChat({ bot, bots }: BotChatProps) {
 
   return (
     <main className="chat">
-      <section className="cartao chat-centro">
+      <section className="cartao chat-centro bot-chat">
+        <BotList bots={bots} current={bot.id} onOpen={onOpen} onAdd={onAdd} />
+        <div className="conversa">
         <header className="chat-topo bot-topo">
-          <Avatar agent={face} size={26} state={bot.busy ? 'thinking' : 'still'} />
-          <b>{bot.name}</b>
-          <small>{[bot.persona?.name, AGENT_LABEL[bot.agent], t.botTalkHint].filter(Boolean).join(' · ')}</small>
-          <button type="button" className={`modelo ${settingsOpen ? 'ativo' : ''}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
-            {[bot.model ? modelName(bot.model) : '', bot.effort ?? ''].filter(Boolean).join(' · ') || t.settings}
+          <span className="bot-aba">
+            <Avatar agent={face} size={22} state={bot.busy ? 'thinking' : 'still'} />
+            <b>{bot.persona ? `${bot.name} · ${bot.persona.name}` : bot.name}</b>
+          </span>
+          <button type="button" className="icone-btn" title={t.newConversation} aria-label={t.newConversation} disabled={bot.busy || !bot.has_session} onClick={() => void bots.act('reset', { id: bot.id })}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
           </button>
-          <button className="voltar" disabled={bot.busy || !bot.has_session} onClick={() => void bots.act('reset', { id: bot.id })}>
-            {t.newConversation}
+          <ModelPicker bot={bot} bots={bots} />
+          <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="14" rx="2.5" />
+              <path d="M14 5v14" />
+            </svg>
           </button>
         </header>
 
@@ -77,7 +90,6 @@ export function BotChat({ bot, bots }: BotChatProps) {
               bot={bot}
               message={message}
               previous={messages[index - 1]}
-              isLatest={index === messages.length - 1}
               approvable={index === pending}
               onApprove={() => void bots.act('approve', { id: bot.id })}
               sent={sent}
@@ -127,6 +139,7 @@ export function BotChat({ bot, bots }: BotChatProps) {
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}
+        </div>
       </section>
     </main>
   )

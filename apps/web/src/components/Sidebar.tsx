@@ -1,6 +1,6 @@
 import { AGENTS, type AgentId } from '../agents'
 import type { Bot } from '../api'
-import { AGENT_LABEL, faceForBot } from '../avatars'
+import { faceForBot } from '../avatars'
 import { nowStamp, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
@@ -64,16 +64,17 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
       </div>
       <div className="lado-grupo">
         <span className="lado-titulo">{t.bots}</span>
-        {bots.map((bot) => (
-          <button key={bot.id} className={`lado-item ${inChat(`bot:${bot.id}`) ? 'ativo' : ''}`} onClick={() => onChat(`bot:${bot.id}`)}>
-            <Avatar agent={faceForBot(bot)} size={22} state={bot.busy ? 'thinking' : 'idle'} />
-            <span className="nome">{bot.name}</span>
-            <span className={`presenca ${bot.busy ? 'digitando' : ''}`}>{bot.busy ? t.typingShort : (bot.persona?.name ?? AGENT_LABEL[bot.agent].split(' ')[0])}</span>
-          </button>
-        ))}
-        <button className={`lado-item ${inChat('bots') ? 'ativo' : ''}`} onClick={() => onChat('bots')}>
-          <Icon name="plus" />
-          <span className="nome">{t.addBot}</span>
+        {/* The bots themselves are listed in the chat, as conversations; here, one way in. */}
+        <button
+          className={`lado-item ${chat === 'bots' || chat.startsWith('bot:') ? (tab === 'agents' ? 'ativo' : '') : ''}`}
+          onClick={() => {
+            const latest = [...bots].sort((a, b) => (b.messages.at(-1)?.ms ?? 0) - (a.messages.at(-1)?.ms ?? 0))[0]
+            onChat(latest ? `bot:${latest.id}` : 'bots')
+          }}
+        >
+          <Avatar agent={latestFace(bots)} size={22} state={bots.some((b) => b.busy) ? 'thinking' : 'idle'} />
+          <span className="nome">{t.yourBots}</span>
+          <span className={`presenca ${bots.some((b) => b.busy) ? 'digitando' : ''}`}>{bots.some((b) => b.busy) ? t.typingShort : bots.length || ''}</span>
         </button>
       </div>
       <footer className="lado-rodape">
@@ -89,6 +90,11 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
       </footer>
     </aside>
   )
+}
+
+function latestFace(bots: Bot[]) {
+  const latest = [...bots].sort((a, b) => (b.messages.at(-1)?.ms ?? 0) - (a.messages.at(-1)?.ms ?? 0))[0]
+  return faceForBot(latest ?? { agent: 'claude', persona: null })
 }
 
 export function Mark() {

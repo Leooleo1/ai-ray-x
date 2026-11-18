@@ -1,6 +1,10 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  yourBots: 'Your bots',
+  searchModels: 'Search models',
+  search2: 'Search',
+  noMessagesYet: 'no messages yet',
   cliDefault: 'the CLI default',
   howInstall: 'How to install',
   howSignIn: 'How to sign in',
@@ -184,6 +188,10 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  yourBots: 'Seus bots',
+  searchModels: 'Buscar modelos',
+  search2: 'Buscar',
+  noMessagesYet: 'sem mensagens ainda',
   cliDefault: 'o padrão do CLI',
   howInstall: 'Como instalar',
   howSignIn: 'Como entrar',

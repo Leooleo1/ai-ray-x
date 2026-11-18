@@ -1,13 +1,10 @@
 import { useState } from 'react'
 import type { Bot, BotMessage } from '../../api'
-import { faceForBot, speakerOf } from '../../avatars'
+import { faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
-import { Avatar } from '../Avatar'
 import { Markdown } from '../Markdown'
 import { Expandable } from './Expandable'
 
-/** Answers from the bot this close together read as one block. */
-const GROUP_MS = 5 * 60_000
 /** After a pause this long, the time stands above the next message again. */
 const PAUSE_MS = 60 * 60_000
 const COPIED_MS = 1400
@@ -26,13 +23,10 @@ export function separator(previous: BotMessage | undefined, message: BotMessage)
   return message.ms - previous.ms > PAUSE_MS ? clock(message.ms) : null
 }
 
-const answerLike = (m: BotMessage | undefined) => m?.author === 'bot' && (m.kind === 'answer' || m.kind === 'failed' || m.kind === 'stopped')
-
 interface BotLineProps {
   bot: Bot
   message: BotMessage
   previous: BotMessage | undefined
-  isLatest: boolean
   approvable: boolean
   onApprove: () => void
   /** "answer ms|project" of the suggestions already sent. */
@@ -40,7 +34,7 @@ interface BotLineProps {
   onSend: (project: string) => void
 }
 
-export function BotLine({ bot, message, previous, isLatest, approvable, onApprove, sent, onSend }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -72,7 +66,7 @@ export function BotLine({ bot, message, previous, isLatest, approvable, onApprov
       <>
         {head}
         <div className="linha minha">
-          <span className={`balao ${fromMail ? 'via-memoria' : ''}`}>
+          <span className={`balao ${fromMail ? 'via-memoria' : 'na-cor'}`} style={fromMail ? undefined : { background: face.color }}>
             {fromMail ? (
               <>
                 <small>{`${t.fromMemory} · ${message.data.text ?? ''}`}</small>
@@ -90,7 +84,6 @@ export function BotLine({ bot, message, previous, isLatest, approvable, onApprov
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
-  const grouped = !mark && answerLike(previous) && message.ms - (previous?.ms ?? 0) < GROUP_MS
   const reply = message.data.reply
   const meta = reply && [
     `${t.readWord} ${compact(reply.read_tokens)} tokens`,
@@ -100,21 +93,18 @@ export function BotLine({ bot, message, previous, isLatest, approvable, onApprov
   return (
     <>
       {head}
-      <div className={`linha de-agente ${grouped ? 'agrupada' : ''}`}>
-        {grouped ? <span className="recuo" /> : <Avatar agent={face} size={32} state={isLatest ? 'idle' : 'still'} />}
+      <div className="linha de-agente bolha-linha">
         <div className="corpo">
-          {!grouped && (
-            <span className="quem">
-              <b style={{ color: face.color }}>{speakerOf(bot)}</b>
-              <span className="hora">{clock(message.ms)}</span>
-              {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
-            </span>
-          )}
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
-          {reply && <Markdown text={reply.text} color={face.color} />}
+          {reply && (
+            <div className="bolha">
+              <Markdown text={reply.text} color={face.color} />
+            </div>
+          )}
           {meta && (
             <span className="bot-meta">
-              {meta.filter(Boolean).join(' · ')}
+              {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
+              {[clock(message.ms), ...meta].filter(Boolean).join(' · ')}
               <CopyButton text={reply.text} />
             </span>
           )}
