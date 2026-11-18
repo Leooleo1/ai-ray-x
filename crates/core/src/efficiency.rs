@@ -292,6 +292,7 @@ mod tests {
         let result = buckets(&sizes, sizes.iter().sum());
         assert_eq!(result.len(), BUCKET_EDGES.len() + 1);
         assert!((result[0].share_of_calls - 1.0 / 3.0).abs() < 1e-9);
-        assert!(result.last().unwrap().share_of_tokens > 0.9);
+        // 900K of the 1M tokens sit above the last edge.
+        assert!((result.last().unwrap().share_of_tokens - 0.9).abs() < 1e-9);
     }
 }
