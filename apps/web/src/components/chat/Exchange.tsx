@@ -16,10 +16,11 @@ interface ExchangeProps {
   onOpen: (id: string) => void
   onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
+  unread: Set<string>
 }
 
 /** One project's bot and another's, side by side: left the one that started, right the other; the person's steps in the middle. */
-export function ExchangeView({ exchange, bots, onOpen, onOpenExchange, onAdd }: ExchangeProps) {
+export function ExchangeView({ exchange, bots, onOpen, onOpenExchange, onAdd, unread }: ExchangeProps) {
   const list = useRef<HTMLDivElement>(null)
   useFollowBottom(list, exchange.items.length, `${exchange.a}|${exchange.b}`)
   const botOf = (project: string) => bots.state.bots.find((b) => b.name === project)
@@ -27,7 +28,7 @@ export function ExchangeView({ exchange, bots, onOpen, onOpenExchange, onAdd }: 
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={`${exchange.a}|${exchange.b}`} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
+        <BotList bots={bots} current={`${exchange.a}|${exchange.b}`} unread={unread} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
         <div className="conversa">
           <header className="chat-topo bot-topo troca-topo">
             {ends.map(({ project, bot }, i) => (

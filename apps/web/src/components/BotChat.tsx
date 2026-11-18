@@ -12,6 +12,8 @@ import { ModelPicker } from './chat/ModelPicker'
 import { Composer } from './chat/Composer'
 import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
+import { MemoriesLine } from './chat/MemoriesLine'
+import { askToNotify } from '../unread'
 import './chat/chat.css'
 
 /** The project's ai-memory inbox is asked again this often while the chat is open. */
@@ -25,10 +27,11 @@ interface BotChatProps {
   onOpen: (id: string) => void
   onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
+  unread: Set<string>
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd }: BotChatProps) {
+export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, unread }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
@@ -42,13 +45,16 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd }: BotChatPro
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
   const waiting = (pending >= 0 ? 1 : 0) + mail.length
 
-  const send = async (text: string) => (await bots.act('ask', { id: bot.id, text })) !== null
+  const send = async (text: string) => {
+    askToNotify()
+    return (await bots.act('ask', { id: bot.id, text })) !== null
+  }
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={bot.id} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
+        <BotList bots={bots} current={bot.id} unread={unread} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
         <div className="conversa">
         <header className="chat-topo bot-topo">
           <span className="bot-aba">
@@ -69,6 +75,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd }: BotChatPro
           </button>
         </header>
 
+        <MemoriesLine bot={bot} />
         <div className="chat-mensagens" ref={list}>
           {messages.length === 0 && !bot.busy && mail.length === 0 && (
             <div className="chat-vazio">

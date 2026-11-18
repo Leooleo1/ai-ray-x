@@ -3,6 +3,7 @@ import type { AgentId } from './agents'
 import { fetchReport, sessionToken, type Report } from './api'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
+import { useUnread } from './unread'
 import { ExchangeView } from './components/chat/Exchange'
 import { BotChat } from './components/BotChat'
 import { BotPicker } from './components/BotPicker'
@@ -152,6 +153,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     ? exchanges(bots.state.bots).find((x) => [x.a, x.b].sort().join('|') === chat.slice(6).split('|').sort().join('|'))
     : undefined
   const showExchange = (a: string, b: string) => openChat(`troca:${a}|${b}`)
+  const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
   const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:') || chat.startsWith('troca:'))
   const heading = inBots ? { title: t.botsTitle, subtitle: t.botsHint } : HEADINGS[tab]
   return (
@@ -162,6 +164,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         project={report.project_dir.split('/').pop() ?? ''}
         typing={typing}
         bots={bots.state.bots}
+        unread={unread}
         updatedAt={at}
         onTab={go}
         onChat={openChat}
@@ -172,9 +175,9 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
         {tab === 'agents' && openExchange && (
-          <ExchangeView exchange={openExchange} bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />
+          <ExchangeView exchange={openExchange} bots={bots} unread={unread} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />
         )}
         {tab === 'agents' && !openBot && !openExchange && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'agents' && !inBots && (

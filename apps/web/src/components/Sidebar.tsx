@@ -17,13 +17,15 @@ interface SidebarProps {
   project: string
   typing: AgentId | null
   bots: Bot[]
+  /** Bots with an answer not seen yet. */
+  unread: Set<string>
   updatedAt: Date
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
 }
 
 /** The one navigation of the panel: sections, this project's channel and the agents' threads. */
-export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, onChat }: SidebarProps) {
+export function Sidebar({ tab, chat, project, typing, bots, unread, updatedAt, onTab, onChat }: SidebarProps) {
   const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
@@ -69,7 +71,11 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
           <button key={name} className={`lado-item ${tab === 'agents' && bots.some((b) => b.name === name && chat === `bot:${b.id}`) ? 'ativo' : ''}`} onClick={() => onChat(`bot:${latest.id}`)}>
             <Avatar agent={faceForBot(latest)} size={22} state={busy ? 'thinking' : 'idle'} />
             <span className="nome">{name}</span>
-            <span className={`presenca ${busy ? 'digitando' : ''}`}>{busy ? t.typingShort : agents}</span>
+            {bots.some((b) => b.name === name && unread.has(b.id)) ? (
+              <i className="nao-lida" aria-label={t.unreadAnswer} />
+            ) : (
+              <span className={`presenca ${busy ? 'digitando' : ''}`}>{busy ? t.typingShort : agents}</span>
+            )}
           </button>
         ))}
         <button className={`lado-item ${tab === 'agents' && chat === 'bots' ? 'ativo' : ''}`} onClick={() => onChat('bots')}>

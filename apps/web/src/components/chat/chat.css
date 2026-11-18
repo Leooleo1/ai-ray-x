@@ -651,3 +651,109 @@
 .chat-topo.bot-topo {
   align-items: center;
 }
+
+/* Memories over the chat, and the unread mark. */
+.memorias {
+  position: relative;
+  padding: 10px 20px 0;
+}
+
+.memorias-linha {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--giz);
+  font: 500 13px/18px var(--sans);
+  cursor: pointer;
+}
+
+.memorias-linha:disabled {
+  color: var(--nevoa);
+  cursor: default;
+}
+
+.memorias-linha svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.memorias-lista {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 20px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(460px, calc(100% - 40px));
+  max-height: 320px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #16161c;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 10%), 0 24px 48px rgb(0 0 0 / 55%);
+}
+
+.memorias-lista ul {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.memorias-lista li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 6px;
+  border-radius: 8px;
+}
+
+.memorias-tipo,
+.memorias-data {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.memorias-titulo {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memorias-lista a {
+  padding: 0 6px 2px;
+  color: var(--giz);
+  font: 500 12px/16px var(--sans);
+  text-underline-offset: 3px;
+}
+
+.nao-lida {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--cobalto);
+}
+
+/* Unread: the last line in full white instead of gray, no extra weight. */
+.conversas li button.nao-lido .conversa-previa {
+  color: var(--giz);
+}
+
+.conversa-previa .nao-lida {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}

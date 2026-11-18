@@ -380,6 +380,24 @@ export function botInbox(id: string): Promise<Inbox> {
   return request<Inbox>('/api/bot/inbox', { id })
 }
 
+export interface MemoryPage {
+  title: string | null
+  path: string
+  kind: string | null
+  updated_at: string | null
+}
+
+export interface Memories {
+  known: boolean
+  count?: number
+  pages: MemoryPage[]
+  web?: string
+}
+
+export function botMemories(id: string): Promise<Memories> {
+  return request<Memories>('/api/bot/memories', { id })
+}
+
 export function fetchSettings(): Promise<SettingsState> {
   return request<SettingsState>('/api/settings')
 }

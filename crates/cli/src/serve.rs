@@ -158,6 +158,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
         "inbox" => return crate::bot_mail::inbox(state_dir, field("id")),
+        "memories" => return crate::bot_mail::memories(state_dir, field("id")),
         "send" => crate::bot_mail::send(state_dir, field("id"), input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("project")),
         "handle" => crate::bot_mail::handle(state_dir, jobs, field("id"), field("message")),
         other => Err(anyhow!("unknown bot action {other}")),

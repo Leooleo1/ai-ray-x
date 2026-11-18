@@ -5,7 +5,9 @@
 //! handed to the bot only when the person asks, fenced as untrusted input.
 
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::time::Duration;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -18,6 +20,8 @@ use crate::room;
 /// Characters of a received message shown in the panel and handed to the bot.
 const MAX_BODY: usize = 3000;
 const DEFAULT_WORKSPACE: &str = "default";
+/// Pages listed in the panel; the count says how many there are in all.
+const MAX_PAGES: usize = 30;
 
 fn ai_memory(dir: &Path, args: &[&str], stdin: Option<&str>) -> Result<Value> {
     let mut child = Command::new("ai-memory")
@@ -135,6 +139,63 @@ pub fn handle(state_dir: &Path, jobs: &Jobs, id: &str, message_id: &str) -> Resu
     bots::ask_with(state_dir, jobs, id, &prompt, json!({ "text": subject, "via": "ai-memory", "body": body }))
 }
 
+/// Where ai-memory's server listens, as its own `status` says; else its default.
+fn server_address(dir: &Path) -> String {
+    Command::new("ai-memory")
+        .arg("status")
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .output()
+        .ok()
+        .and_then(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .find_map(|l| l.trim().strip_prefix("server:").map(|s| s.trim().trim_start_matches("http://").trim_end_matches('/').to_string()))
+        })
+        .filter(|a| a.starts_with("127.0.0.1:") || a.starts_with("localhost:"))
+        .unwrap_or_else(|| "127.0.0.1:49374".into())
+}
+
+/// One GET on ai-memory's loopback read-only API (HTTP/1.0, so no chunked body).
+fn api_get(address: &str, path: &str) -> Result<Value> {
+    let mut stream = TcpStream::connect(address).context("ai-memory's server is not running")?;
+    stream.set_read_timeout(Some(Duration::from_secs(4)))?;
+    write!(stream, "GET {path} HTTP/1.0\r\nHost: {address}\r\nAccept: application/json\r\n\r\n")?;
+    let mut raw = String::new();
+    stream.read_to_string(&mut raw)?;
+    let (head, body) = raw.split_once("\r\n\r\n").context("ai-memory sent no body")?;
+    if !head.starts_with("HTTP/1.1 200") && !head.starts_with("HTTP/1.0 200") {
+        bail!("ai-memory answered {}", head.lines().next().unwrap_or(""));
+    }
+    serde_json::from_str(body).context("ai-memory did not answer in JSON")
+}
+
+/// Path segments go out percent-encoded (names are folder names).
+fn segment(text: &str) -> String {
+    text.bytes()
+        .map(|b| if b.is_ascii_alphanumeric() || b"-_.".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+        .collect()
+}
+
+/// The durable pages ai-memory keeps for a bot's project, newest first.
+pub fn memories(state_dir: &Path, id: &str) -> Result<Value> {
+    let bot = bot(state_dir, id)?;
+    let Ok((workspace, project)) = scope_of(&bot.dir) else {
+        return Ok(json!({ "known": false, "pages": [] }));
+    };
+    let address = server_address(&bot.dir);
+    let listed = api_get(&address, &format!("/api/v1/workspaces/{}/projects/{}/pages", segment(&workspace), segment(&project)))?;
+    let pages = listed.get("pages").cloned().or_else(|| listed.as_array().map(|a| Value::Array(a.clone()))).unwrap_or(json!([]));
+    let mut pages: Vec<Value> = pages.as_array().cloned().unwrap_or_default();
+    pages.sort_by(|a, b| b["updated_at"].as_str().cmp(&a["updated_at"].as_str()));
+    let shown: Vec<Value> = pages
+        .iter()
+        .take(MAX_PAGES)
+        .map(|p| json!({ "title": p["title"], "path": p["path"], "kind": p["kind"], "updated_at": p["updated_at"] }))
+        .collect();
+    Ok(json!({ "known": true, "count": pages.len(), "pages": shown, "web": format!("http://{address}/web") }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,6 +206,12 @@ mod tests {
         assert_eq!(marker_value(text, "workspace").as_deref(), Some("team"));
         assert_eq!(marker_value(text, "project").as_deref(), Some("api"));
         assert_eq!(marker_value("workspace = \"\"", "workspace"), None);
+    }
+
+    #[test]
+    fn path_segments_are_encoded() {
+        assert_eq!(segment("raio-x-ia"), "raio-x-ia");
+        assert_eq!(segment("a b/c"), "a%20b%2Fc");
     }
 
     #[test]

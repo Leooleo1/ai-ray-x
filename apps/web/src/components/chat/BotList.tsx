@@ -23,13 +23,14 @@ function when(ms: number | undefined): string {
 interface BotListProps {
   bots: Bots
   current: string
+  unread: Set<string>
   onOpen: (id: string) => void
   onOpenExchange: (a: string, b: string) => void
   onAdd: () => void
 }
 
 /** Every bot as a conversation: face, name, when and the last line, newest first, with search. */
-export function BotList({ bots, current, onOpen, onOpenExchange, onAdd }: BotListProps) {
+export function BotList({ bots, current, unread, onOpen, onOpenExchange, onAdd }: BotListProps) {
   const pairs = exchanges(bots.state.bots)
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
@@ -80,14 +81,17 @@ export function BotList({ bots, current, onOpen, onOpenExchange, onAdd }: BotLis
           const last = bot.messages.at(-1)
           return (
             <li key={bot.id}>
-              <button type="button" className={bot.id === current ? 'ativo' : ''} onClick={() => onOpen(bot.id)}>
+              <button type="button" className={`${bot.id === current ? 'ativo' : ''} ${unread.has(bot.id) ? 'nao-lido' : ''}`} onClick={() => onOpen(bot.id)}>
                 <Avatar agent={faceForBot(bot)} size={36} state={bot.busy ? 'thinking' : 'still'} />
                 <span className="conversa-texto">
                   <span className="conversa-linha">
                     <b>{bot.persona ? `${bot.name} · ${bot.persona.name}` : bot.name}</b>
                     <small>{when(last?.ms)}</small>
                   </span>
-                  <span className="conversa-previa">{bot.busy ? t.typingShort : preview(last)}</span>
+                  <span className="conversa-previa">
+                    {bot.busy ? t.typingShort : preview(last)}
+                    {unread.has(bot.id) && <i className="nao-lida" aria-label={t.unreadAnswer} />}
+                  </span>
                 </span>
               </button>
             </li>

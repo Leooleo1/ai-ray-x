@@ -1,6 +1,11 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  memoriesSavedOne: 'Memories: 1 saved',
+  memoriesSaved: 'Memories: {n} saved',
+  memoriesNone: 'No memories yet',
+  openInMemory: 'Open in ai-memory',
+  unreadAnswer: 'new answer',
   addProject: 'Add a project',
   exchanges: 'Exchanges',
   throughMemory: 'through ai-memory',
@@ -197,6 +202,11 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  memoriesSavedOne: 'Memórias: 1 salva',
+  memoriesSaved: 'Memórias: {n} salvas',
+  memoriesNone: 'Nenhuma memória ainda',
+  openInMemory: 'Abrir no ai-memory',
+  unreadAnswer: 'resposta nova',
   addProject: 'Adicionar projeto',
   exchanges: 'Trocas',
   throughMemory: 'pelo ai-memory',
