@@ -2,6 +2,7 @@
 
 mod actions;
 mod bot_run;
+mod bot_usage;
 mod bots;
 mod data;
 mod memo;

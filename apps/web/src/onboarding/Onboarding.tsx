@@ -122,7 +122,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     }
   }
 
-  const face = faceOf(design.shape, design.color, design.name)
+  const face = faceOf(design.shape, design.color, design.name, design.finish)
   const mood: AvatarState = loading ? 'thinking' : step === 'done' ? 'happy' : 'idle'
   const titles: Record<Step, [string, string]> = {
     welcome: [o.welcomeTitle, o.welcomeText],

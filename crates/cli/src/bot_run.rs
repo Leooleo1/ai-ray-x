@@ -50,6 +50,9 @@ pub struct Target<'a> {
     pub dir: &'a Path,
     pub guide: String,
     pub session: Option<&'a str>,
+    /// None keeps the CLI's own default.
+    pub model: Option<&'a str>,
+    pub effort: Option<&'a str>,
 }
 
 /// What the bot is told on every turn: how raiox works, how to propose a
@@ -61,7 +64,10 @@ pub fn guide(project: &str, persona: &str) -> String {
          Answer in the person's language, briefly. \
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
-         raiox then shows an Approve button; only after approval are you resumed with edit permission."
+         raiox then shows an Approve button; only after approval are you resumed with edit permission. \
+         When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
+         holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
+         \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
     );
     if persona.trim().is_empty() { base } else { format!("{base}\n\n{}", persona.trim()) }
 }
@@ -80,47 +86,61 @@ pub fn prompt_for(mode: Mode, text: &str) -> String {
     }
 }
 
-fn claude(dir: &Path, guide: &str, session: Option<&str>, mode: Mode) -> Command {
+fn claude(target: &Target, mode: Mode) -> Command {
     let tools = match mode {
         Mode::Talk => "Read,Grep,Glob",
         Mode::Edit => "Read,Grep,Glob,Edit,Write",
     };
     let mut command = Command::new("claude");
     command
-        .current_dir(dir)
+        .current_dir(target.dir)
         .args(["-p", "--output-format", "json", "--tools", tools, "--strict-mcp-config"])
-        .args(["--append-system-prompt", guide]);
+        .args(["--append-system-prompt", &target.guide]);
+    if let Some(model) = target.model {
+        command.args(["--model", model]);
+    }
+    if let Some(effort) = target.effort {
+        command.args(["--effort", effort]);
+    }
     if mode == Mode::Edit {
         command.args(["--permission-mode", "acceptEdits"]);
     }
-    if let Some(id) = session {
+    if let Some(id) = target.session {
         command.args(["--resume", id]);
     }
     command
 }
 
-fn codex(dir: &Path, session: Option<&str>, mode: Mode) -> Command {
+fn codex(target: &Target, mode: Mode) -> Command {
     let sandbox = match mode {
         Mode::Talk => "sandbox_mode=\"read-only\"",
         Mode::Edit => "sandbox_mode=\"workspace-write\"",
     };
     let mut command = Command::new("codex");
-    command.current_dir(dir).arg("exec");
-    if let Some(id) = session {
+    command.current_dir(target.dir).arg("exec");
+    if let Some(id) = target.session {
         command.args(["resume", id]);
     }
-    command.args(["--json", "--skip-git-repo-check", "-c", sandbox, "-"]);
+    command.args(["--json", "--skip-git-repo-check", "-c", sandbox]);
+    // Values are checked by the caller (letters, digits, dots and dashes), so quoting is safe.
+    if let Some(model) = target.model {
+        command.args(["-c", &format!("model=\"{model}\"")]);
+    }
+    if let Some(effort) = target.effort {
+        command.args(["-c", &format!("model_reasoning_effort=\"{effort}\"")]);
+    }
+    command.arg("-");
     command
 }
 
 /// Runs one turn and waits for it, up to the timeout.
 pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Reply> {
-    let Target { agent, dir, session, .. } = *target;
+    let agent = target.agent;
     let (mut command, prompt) = match agent {
-        "claude" => (claude(dir, &target.guide, session, mode), prompt_for(mode, text)),
+        "claude" => (claude(target, mode), prompt_for(mode, text)),
         // Codex has no system-prompt flag: the guide opens the first message of a thread.
-        "codex" if session.is_none() => (codex(dir, None, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
-        "codex" => (codex(dir, session, mode), prompt_for(mode, text)),
+        "codex" if target.session.is_none() => (codex(target, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
+        "codex" => (codex(target, mode), prompt_for(mode, text)),
         other => bail!("unknown agent {other}"),
     };
     fs::create_dir_all(scratch)?;

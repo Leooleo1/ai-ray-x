@@ -146,6 +146,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "ask" => bots::ask(state_dir, jobs, field("id"), field("text")),
         "approve" => bots::approve(state_dir, jobs, field("id")),
         "reset" => bots::reset(state_dir, jobs, field("id")),
+        "configure" => {
+            let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
+            bots::configure(state_dir, jobs, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)
+        }
+        "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)

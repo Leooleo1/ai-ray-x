@@ -38,6 +38,11 @@ pub struct Bot {
     pub session: Option<String>,
     #[serde(default)]
     pub persona: Option<Persona>,
+    /// The model and effort the bot runs with; None keeps the CLI's default.
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub effort: Option<String>,
     pub created_ms: i64,
 }
 
@@ -52,7 +57,19 @@ pub struct Persona {
     pub color: String,
     /// An avatar shape id from the panel's gallery.
     pub shape: String,
+    /// "solid", "flat" or "pixel".
+    #[serde(default = "solid")]
+    pub finish: String,
 }
+
+fn solid() -> String {
+    "solid".into()
+}
+
+pub const FINISHES: [&str; 3] = ["solid", "flat", "pixel"];
+pub const CLAUDE_EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
+pub const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
+const MAX_MODEL: usize = 64;
 
 const MAX_NAME: usize = 32;
 const MAX_INSTRUCTIONS: usize = 1200;
@@ -69,8 +86,8 @@ impl Persona {
         if self.instructions.chars().count() > MAX_INSTRUCTIONS {
             bail!("instructions have at most {MAX_INSTRUCTIONS} characters");
         }
-        if !slug(&self.preset) || !slug(&self.shape) || !color {
-            bail!("invalid preset, shape or color");
+        if !slug(&self.preset) || !slug(&self.shape) || !color || !FINISHES.contains(&self.finish.as_str()) {
+            bail!("invalid preset, shape, color or finish");
         }
         Ok(())
     }
@@ -197,6 +214,8 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         dir,
         session: None,
         persona,
+        model: None,
+        effort: None,
         created_ms: room::now_ms(),
     };
     let added = bot.clone();
@@ -215,6 +234,40 @@ pub fn deactivate(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
         bail!("the bot is answering; wait for it to finish");
     }
     update(state_dir, |bots| Ok(bots.into_iter().filter(|b| b.id != id).collect()))
+}
+
+/// Changes how a bot runs and looks. Empty model or effort means the CLI's default.
+pub fn configure(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>, effort: Option<&str>, persona: Option<Persona>) -> Result<()> {
+    if jobs.is_busy(id) {
+        bail!("the bot is answering; wait for it to finish");
+    }
+    let bot = find(state_dir, id)?;
+    let clean = |value: Option<&str>| value.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+    let (model, effort) = (clean(model), clean(effort));
+    if let Some(m) = &model
+        && (m.len() > MAX_MODEL || !m.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b)))
+    {
+        bail!("invalid model name");
+    }
+    let efforts: &[&str] = if bot.agent == "codex" { &CODEX_EFFORTS } else { &CLAUDE_EFFORTS };
+    if effort.as_deref().is_some_and(|e| !efforts.contains(&e)) {
+        bail!("effort must be one of {}", efforts.join(", "));
+    }
+    if let Some(p) = &persona {
+        p.validate()?;
+    }
+    update(state_dir, |bots| {
+        Ok(bots
+            .into_iter()
+            .map(|b| {
+                if b.id != id {
+                    return b;
+                }
+                let persona = persona.clone().or(b.persona.clone());
+                Bot { model: model.clone(), effort: effort.clone(), persona, ..b }
+            })
+            .collect())
+    })
 }
 
 /// Starts a new conversation: the next message opens a fresh session.
@@ -283,6 +336,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
             dir: &bot.dir,
             guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default()),
             session: bot.session.as_deref(),
+            model: bot.model.as_deref(),
+            effort: bot.effort.as_deref(),
         };
         let outcome = bot_run::run(&target, mode, &text, &scratch);
         let message = match outcome {
@@ -314,6 +369,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "dir": bot.dir,
                 "has_session": bot.session.is_some(),
                 "persona": bot.persona,
+                "model": bot.model,
+                "effort": bot.effort,
                 "busy": jobs.is_busy(&bot.id),
                 "messages": messages,
             })

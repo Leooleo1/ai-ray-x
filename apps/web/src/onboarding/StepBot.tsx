@@ -1,6 +1,7 @@
 import type { SetupState } from '../api'
-import { AGENT_LABEL, COLORS, SHAPE_IDS, faceOf } from '../avatars'
+import { AGENT_LABEL, faceOf } from '../avatars'
 import { Avatar } from '../components/Avatar'
+import { AvatarEditor } from '../components/AvatarEditor'
 import { CUSTOM, PRESETS, type BotDesign, designFrom } from './presets'
 import { Frame } from './parts'
 import { o } from './texts'
@@ -89,24 +90,7 @@ export function StepBot({ setup, design, projects, busy, onDesign, onBack, onCre
             <span className="bv-rotulo">{o.nameLabel}</span>
             <input className="bv-busca" value={design.name} maxLength={MAX_NAME} onChange={(event) => set({ name: event.target.value })} />
           </label>
-          <div className="bv-campo">
-            <span className="bv-rotulo">{o.shapeLabel}</span>
-            <div className="bv-formas" role="radiogroup" aria-label={o.shapeLabel}>
-              {SHAPE_IDS.map((shape) => (
-                <button key={shape} role="radio" aria-checked={design.shape === shape} aria-label={shape} className={design.shape === shape ? 'ativo' : ''} onClick={() => set({ shape })}>
-                  <Avatar agent={faceOf(shape, design.color, shape)} size={30} state="still" />
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="bv-campo">
-            <span className="bv-rotulo">{o.colorLabel}</span>
-            <div className="bv-cores" role="radiogroup" aria-label={o.colorLabel}>
-              {COLORS.map((color) => (
-                <button key={color} role="radio" aria-checked={design.color === color} aria-label={color} className={design.color === color ? 'ativo' : ''} style={{ background: color }} onClick={() => set({ color })} />
-              ))}
-            </div>
-          </div>
+          <AvatarEditor value={{ shape: design.shape, color: design.color, finish: design.finish }} onChange={(look) => set(look)} />
           <label className="bv-campo">
             <span className="bv-rotulo">{o.instructionsLabel}</span>
             <textarea className="bv-texto" rows={3} value={design.instructions} maxLength={MAX_INSTRUCTIONS} placeholder={o.instructionsHint} onChange={(event) => set({ instructions: event.target.value })} />

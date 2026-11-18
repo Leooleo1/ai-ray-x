@@ -9,7 +9,8 @@ import type { Face } from '../avatars'
 export type AvatarState = 'idle' | 'thinking' | 'happy' | 'still'
 
 const EYE_COLOR = '#16161c'
-const DEPTH = 5
+/** Volume per finish: solid is the engine's natural depth, flat has none. */
+const DEPTH: Record<string, number> = { solid: 5, flat: 0, pixel: 3 }
 
 interface AvatarProps {
   agent: Face
@@ -29,7 +30,7 @@ export function Avatar({ agent, size, state = 'idle', followPointer = false }: A
       definition: agent.avatar as AvatarDefinition,
       color: agent.color,
       eyeColor: EYE_COLOR,
-      depth: DEPTH,
+      depth: DEPTH[agent.finish ?? 'solid'] ?? 5,
       still,
       followPointer,
       reducedMotion: 'system',
@@ -44,5 +45,5 @@ export function Avatar({ agent, size, state = 'idle', followPointer = false }: A
     if (!still) mounted.current?.update({ mood: state })
   }, [state, still])
 
-  return <div ref={host} className="avatar" role="img" aria-label={agent.name} style={{ width: size, height: size }} />
+  return <div ref={host} className={`avatar ${agent.finish === 'pixel' ? 'pixel' : ''}`} role="img" aria-label={agent.name} style={{ width: size, height: size }} />
 }

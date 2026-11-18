@@ -175,12 +175,17 @@ export interface Persona {
   instructions: string
   color: string
   shape: string
+  finish: Finish
 }
+
+export type Finish = 'solid' | 'flat' | 'pixel'
 
 export interface Bot {
   id: string
   agent: BotAgent
   persona: Persona | null
+  model: string | null
+  effort: string | null
   name: string
   dir: string
   has_session: boolean
@@ -202,7 +207,24 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure'
+
+export interface UsageRow {
+  name: string
+  tokens: number
+  requests: number
+}
+
+/** What a bot's project ran on lately and what the panel can set. */
+export interface BotUsage {
+  days: number
+  project: string
+  models: UsageRow[]
+  efforts: UsageRow[]
+  default: { model: string | null; effort: string | null }
+  offered_models: string[]
+  offered_efforts: string[]
+}
 
 export interface AiStatus {
   id: BotAgent
@@ -307,6 +329,10 @@ export function cloneRepo(repo: string): Promise<SetupState> {
 
 export function finishSetup(): Promise<{ done: boolean }> {
   return request<{ done: boolean }>('/api/setup/finish', {})
+}
+
+export function botUsage(id: string): Promise<BotUsage> {
+  return request<BotUsage>('/api/bot/usage', { id })
 }
 
 export function fetchBots(): Promise<BotsState> {

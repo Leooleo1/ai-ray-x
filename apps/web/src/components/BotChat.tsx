@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
 import { Avatar } from './Avatar'
+import { BotSettings, modelName } from './BotSettings'
 import { Markdown } from './Markdown'
 
 const TICK_MS = 1000
@@ -16,6 +17,7 @@ interface BotChatProps {
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
 export function BotChat({ bot, bots }: BotChatProps) {
   const [draft, setDraft] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const end = useRef<HTMLDivElement>(null)
   const messages = bot.messages
   const label = AGENT_LABEL[bot.agent]
@@ -42,6 +44,9 @@ export function BotChat({ bot, bots }: BotChatProps) {
         <header className="chat-topo">
           <b>{bot.name}</b>
           <small>{`${bot.persona ? `${bot.persona.name} · ` : ''}${label} · ${t.botTalkHint}`}</small>
+          <button type="button" className={`modelo ${settingsOpen ? 'ativo' : ''}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
+            {[bot.model ? modelName(bot.model) : '', bot.effort ?? ''].filter(Boolean).join(' · ') || t.settings}
+          </button>
           <button className="voltar" disabled={bot.busy || !bot.has_session} onClick={() => void bots.act('reset', { id: bot.id })}>
             {t.newConversation}
           </button>
@@ -90,7 +95,8 @@ export function BotChat({ bot, bots }: BotChatProps) {
             </svg>
           </button>
         </form>
-        {bots.error && <p className="nota failed chat-erro">{bots.error}</p>}
+        {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
+        {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}
       </section>
     </main>
   )
@@ -148,7 +154,7 @@ function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
           {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
         </span>
         {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
-        {reply && <Markdown text={reply.text} />}
+        {reply && <Markdown text={reply.text} color={face.color} />}
         {reply && (
           <span className="bot-meta">
             {`${t.readWord} ${compact(reply.read_tokens)} tokens · ${Math.max(1, Math.round(reply.duration_ms / 1000))} s`}
