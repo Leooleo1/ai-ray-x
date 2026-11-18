@@ -922,6 +922,12 @@ body {
   color: var(--giz);
 }
 
+/* What Confirm will write: its own line, never cut. */
+.nota.explica {
+  flex-basis: 100%;
+  white-space: normal;
+}
+
 /* Tooltip: solid surface (no live blur), opens on hover and keyboard focus */
 
 .dica-wrap {
@@ -1302,8 +1308,43 @@ body {
   color: var(--nevoa);
 }
 
-.chat-centro .nota {
+/* Only the composer's error line, not notes inside messages. */
+.chat-centro > .nota {
   margin: -12px 20px 12px;
+}
+
+/* Approval card inside Dieta's message */
+
+.aprovacoes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 8px;
+}
+
+.aprovacao {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #16161c;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.aprovacao-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.aprovacao-topo b {
+  font-weight: 500;
+}
+
+/* In the chat the latest message sits at the bottom, so the tooltip opens upward. */
+.chat-mensagens .dica {
+  top: auto;
+  bottom: calc(100% + 10px);
 }
 
 /* New lines rise in */

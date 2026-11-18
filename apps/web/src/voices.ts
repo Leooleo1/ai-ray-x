@@ -46,7 +46,7 @@ function dieta(d: Data): string {
   const bound = first.confidence === 'upper bound' ? (pt ? 'até ' : 'up to ') : '~'
   const applicable = ((d.applicable as string[] | undefined) ?? []).includes(first.id)
   const how = applicable
-    ? pt ? 'Esse eu aplico com um clique na aba Eficiência.' : 'I can apply this one with a click in the Efficiency tab.'
+    ? pt ? 'Esse dá para aplicar com um clique.' : 'This one can be applied with a click.'
     : pt ? 'Esse é hábito: não tem ajuste para aplicar.' : 'This one is a habit: there is no setting to apply.'
   return pt
     ? `Prato do dia: ${list.length} cortes. O maior é ${suggestionTitle(first.id, first.title).toLowerCase()}, ${bound}${percent(first.share)} menos contexto relido. ${how}`

@@ -1,8 +1,10 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { AGENTS, type AgentId } from '../agents'
 import { askAgent, type Report, type RoomMessage } from '../api'
-import { locale, t } from '../i18n'
+import { suggestionTitle } from '../diet'
+import { locale, percent, t } from '../i18n'
 import { askLabel, speak } from '../voices'
+import { Action } from './Action'
 import { Avatar } from './Avatar'
 import type { ChatView } from './Sidebar'
 
@@ -58,6 +60,8 @@ export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
 
   const messages = useMemo(() => (view === 'channel' ? all : all.filter((m) => belongsTo(m, view))), [all, view])
   const happy = useHappy(all)
+  // Approval buttons live only on Dieta's latest answer; older answers stay as text.
+  const lastDieta = messages.reduce((found, m, i) => (m.author === 'dieta' && m.kind === 'answer' ? i : found), -1)
   const latest = useMemo(() => {
     const last = new Map<string, number>()
     messages.forEach((m, i) => last.set(m.author, i))
@@ -136,6 +140,7 @@ export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
               isNew={view === 'channel' && index >= seen.current}
               live={latest.get(message.author) === index}
               isHappy={happy === message.author && latest.get(message.author) === index}
+              extra={index === lastDieta ? <Approvals message={message} report={report} onChanged={onChanged} /> : null}
             />
           ))}
           {pending && (
@@ -214,9 +219,10 @@ interface LineProps {
   isNew: boolean
   live: boolean
   isHappy: boolean
+  extra: ReactNode
 }
 
-function Line({ message, previous, isNew, live, isHappy }: LineProps) {
+function Line({ message, previous, isNew, live, isHappy, extra }: LineProps) {
   const day = dayLabel(message.ms)
   const showDay = !previous || dayLabel(previous.ms) !== day
   const grouped = !showDay && previous?.author === message.author && message.ms - previous.ms < GROUP_MS
@@ -251,6 +257,7 @@ function Line({ message, previous, isNew, live, isHappy }: LineProps) {
             </span>
           )}
           <span className="texto">{speak(message)}</span>
+          {extra}
         </div>
       </div>
     </>
@@ -277,4 +284,50 @@ function useHappy(all: RoomMessage[]): string | null {
     return () => window.clearTimeout(id)
   }, [last])
   return happy
+}
+
+interface ApprovalsProps {
+  message: RoomMessage
+  report: Report
+  onChanged: () => void
+}
+
+interface SuggestionData {
+  id: string
+  title: string
+  share: number
+  confidence: string
+}
+
+/** Dieta's applicable suggestions as cards, with the same Apply / Confirm / Undo as the Efficiency tab. */
+function Approvals({ message, report, onChanged }: ApprovalsProps) {
+  const suggestions = (message.data.suggestions as SuggestionData[] | undefined) ?? []
+  const applicable = (message.data.applicable as string[] | undefined) ?? []
+  const items = suggestions.filter((s) => applicable.includes(s.id))
+  if (items.length === 0) return null
+  return (
+    <div className="aprovacoes">
+      {items.map((s) => {
+        const change = report.changes.find((c) => c.suggestion === s.id && c.undone_ms === null)
+        return (
+          <div key={s.id} className="aprovacao">
+            <div className="aprovacao-topo">
+              <b>{suggestionTitle(s.id, s.title)}</b>
+              <span className="num">
+                {s.confidence === 'upper bound' ? t.upTo : '~'}
+                {percent(s.share)}
+              </span>
+            </div>
+            <Action
+              id={s.id}
+              source="claude"
+              change={change}
+              outcome={report.outcomes.find((o) => o.change_id === change?.id)}
+              onChanged={onChanged}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
 }
