@@ -34,7 +34,8 @@ export function Clock({ hours }: ClockProps) {
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                style={hour === peak ? undefined : { opacity: 0.3 + 0.7 * (value / max) }}
+                pathLength={1}
+                style={{ animationDelay: `${hour * 28}ms`, ...(hour === peak ? {} : { opacity: 0.3 + 0.7 * (value / max) }) }}
               />
             )
           })}

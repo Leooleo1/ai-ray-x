@@ -3,6 +3,8 @@
 Three agents carry the token diet into any harness that speaks MCP and skills
 (Claude Code, Codex, OpenBot, agentes.chat). Each has an avatar made with the
 open-bot-avatar engine (`assets/agents/*.json`, validated with `--strict`).
+The panel renders them live with the `open-bot-avatar` npm package (MIT,
+© 2026 Dominik Scholz): volume, gaze, blinks and moods.
 
 | Agent | Avatar | Job | Tools |
 | --- | --- | --- | --- |

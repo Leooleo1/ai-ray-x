@@ -57,6 +57,12 @@ export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
   }, [all.length])
 
   const messages = useMemo(() => (view === 'channel' ? all : all.filter((m) => belongsTo(m, view))), [all, view])
+  const happy = useHappy(all)
+  const latest = useMemo(() => {
+    const last = new Map<string, number>()
+    messages.forEach((m, i) => last.set(m.author, i))
+    return last
+  }, [messages])
   const mention = draft.match(OPEN_MENTION)
   const mentionOptions = mention ? ORDER.filter((id) => id.startsWith(mention[1].toLowerCase())) : []
 
@@ -128,6 +134,8 @@ export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
               message={message}
               previous={messages[index - 1]}
               isNew={view === 'channel' && index >= seen.current}
+              live={latest.get(message.author) === index}
+              isHappy={happy === message.author && latest.get(message.author) === index}
             />
           ))}
           {pending && (
@@ -204,9 +212,11 @@ interface LineProps {
   message: RoomMessage
   previous: RoomMessage | undefined
   isNew: boolean
+  live: boolean
+  isHappy: boolean
 }
 
-function Line({ message, previous, isNew }: LineProps) {
+function Line({ message, previous, isNew, live, isHappy }: LineProps) {
   const day = dayLabel(message.ms)
   const showDay = !previous || dayLabel(previous.ms) !== day
   const grouped = !showDay && previous?.author === message.author && message.ms - previous.ms < GROUP_MS
@@ -232,7 +242,7 @@ function Line({ message, previous, isNew }: LineProps) {
     <>
       {separator}
       <div className={`linha de-agente ${grouped ? 'agrupada' : ''} ${isNew ? 'nova' : ''}`}>
-        {grouped ? <span className="recuo" /> : <Avatar agent={agent} size={32} state="idle" />}
+        {grouped ? <span className="recuo" /> : <Avatar agent={agent} size={32} state={!live ? 'still' : isHappy ? 'happy' : 'idle'} />}
         <div className="corpo">
           {!grouped && (
             <span className="quem">
@@ -252,4 +262,19 @@ function dayLabel(ms: number): string {
   const today = new Date()
   if (date.toDateString() === today.toDateString()) return t.today
   return date.toLocaleDateString(locale, { weekday: 'long', day: '2-digit', month: 'long' })
+}
+
+const HAPPY_MS = 2600
+
+/** The agent that just answered looks happy for a moment. */
+function useHappy(all: RoomMessage[]): string | null {
+  const [happy, setHappy] = useState<string | null>(null)
+  const last = all[all.length - 1]
+  useEffect(() => {
+    if (!last || last.author === 'you' || Date.now() - last.ms > HAPPY_MS) return undefined
+    setHappy(last.author)
+    const id = window.setTimeout(() => setHappy(null), HAPPY_MS)
+    return () => window.clearTimeout(id)
+  }, [last])
+  return happy
 }

@@ -80,7 +80,7 @@ function AgentCard({ agent, value, label, isShare = false }: AgentCardProps) {
   return (
     <section className="cartao agente">
       <div className="agente-topo">
-        <Avatar agent={agent} size={44} />
+        <Avatar agent={agent} size={52} followPointer />
         <span className="agente-nome">
           <b>{agent.name}</b>
           <span>{agent.role}</span>

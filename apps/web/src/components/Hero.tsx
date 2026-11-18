@@ -1,5 +1,6 @@
 import type { DayTotal } from '../model'
-import { compact, splitCompact, t, usd } from '../i18n'
+import { compact, locale, splitCompact, t, usd } from '../i18n'
+import { useCountUp } from '../motion'
 
 const ROWS = 8
 const STEP = 10
@@ -20,7 +21,10 @@ interface HeroProps {
 
 /** The signature: the hero number and the days share one dot grid, like an X-ray plate. */
 export function Hero({ total, cost, days, streak, bySource }: HeroProps) {
-  const { value, unit } = splitCompact(total, true)
+  const shown = useCountUp(total)
+  const { unit } = splitCompact(total, true)
+  // Count inside the final scale, so the unit never changes mid-count.
+  const value = (shown / scaleOf(total)).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   return (
     <section className="cartao heroi">
       <span className="rotulo">{t.tokens}</span>
@@ -63,7 +67,16 @@ function DotPlate({ days }: DotPlateProps) {
     return Array.from({ length: ROWS }, (_, row) => {
       const on = ROWS - row <= lit
       const tone = !on ? 'apagado' : col === busiest ? 'pico' : 'aceso'
-      return <circle key={`${col}-${row}`} className={tone} cx={col * STEP + STEP / 2} cy={row * STEP + STEP / 2} r={DOT} />
+      return (
+        <circle
+          key={`${col}-${row}`}
+          className={tone}
+          style={on ? { animationDelay: `${col * 14 + (ROWS - row) * 30}ms` } : undefined}
+          cx={col * STEP + STEP / 2}
+          cy={row * STEP + STEP / 2}
+          r={DOT}
+        />
+      )
     })
   })
   return (
@@ -71,4 +84,8 @@ function DotPlate({ days }: DotPlateProps) {
       {dots}
     </svg>
   )
+}
+
+function scaleOf(n: number): number {
+  return [1e9, 1e6, 1e3].find((size) => n >= size) ?? 1
 }
