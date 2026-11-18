@@ -53,6 +53,25 @@ enum Command {
     },
     /// Run the read-only MCP server over stdio (for Claude Code, Codex, OpenBot, agentes.chat).
     Mcp,
+    /// Context the session of a folder carries now (default: the current folder's newest session).
+    Context {
+        /// Session id; overrides the folder lookup.
+        #[arg(long)]
+        session: Option<String>,
+        /// Project folder whose newest Claude Code session to read (default: current folder).
+        #[arg(long)]
+        dir: Option<PathBuf>,
+    },
+    /// What weighs most over the indexed period (compact JSON).
+    Weighs {
+        #[arg(long)]
+        source: Option<String>,
+    },
+    /// Dieta's ranked suggestions (compact JSON). Never applies anything.
+    Diet {
+        #[arg(long)]
+        source: Option<String>,
+    },
     /// Print the report in the terminal.
     Report {
         /// Print JSON instead of text.
@@ -83,6 +102,20 @@ fn main() -> Result<()> {
             serve::run(serve::Panel { store, roots, web_dir }, port, !no_open)
         }
         Command::Mcp => mcp::run(store, roots),
+        Command::Context { session, dir } => {
+            raiox_core::refresh(&mut store, &roots)?;
+            let dir = dir.map_or_else(std::env::current_dir, Ok)?;
+            let session = session.or_else(|| session_of_dir(&roots.claude, &dir));
+            emit(mcp::context_status(&store, &serde_json::json!({ "session": session }))?)
+        }
+        Command::Weighs { source } => {
+            raiox_core::refresh(&mut store, &roots)?;
+            emit(mcp::what_weighs(&store, &serde_json::json!({ "source": source }))?)
+        }
+        Command::Diet { source } => {
+            raiox_core::refresh(&mut store, &roots)?;
+            emit(mcp::suggest_diet(&store, &serde_json::json!({ "source": source }))?)
+        }
         Command::Report { json: true } => {
             println!("{}", serde_json::to_string_pretty(&data::refresh_and_collect(&mut store, &roots)?)?);
             Ok(())
@@ -116,4 +149,23 @@ fn restore_default_sigpipe() {
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
+}
+
+fn emit(value: serde_json::Value) -> Result<()> {
+    println!("{}", mcp::round_floats(value));
+    Ok(())
+}
+
+/// Claude Code keeps each project's transcripts in `projects/<folder with every
+/// non-alphanumeric character turned into '-'>`; the newest top-level file is the
+/// session being written now.
+fn session_of_dir(claude: &std::path::Path, dir: &std::path::Path) -> Option<String> {
+    let encoded: String = dir.to_string_lossy().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+    std::fs::read_dir(claude.join("projects").join(encoded))
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
+        .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
+        .max_by_key(|(modified, _)| *modified)
+        .and_then(|(_, path)| Some(path.file_stem()?.to_string_lossy().into_owned()))
 }
