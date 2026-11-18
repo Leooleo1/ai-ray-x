@@ -52,22 +52,175 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: var(--vao);
-  max-width: 1440px;
+  grid-template-columns: 248px minmax(0, 1fr);
   height: 100dvh;
-  margin: 0 auto;
+}
+
+.principal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--vao);
+  width: 100%;
+  max-width: 1440px;
+  min-height: 0;
   padding: var(--lateral);
+}
+
+/* Sidebar: the one navigation. A level of its own, one step above the night. */
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  padding: 20px 12px;
+  overflow-y: auto;
+  background: #09090c;
+  box-shadow: inset -1px 0 0 var(--fio);
+  scrollbar-width: none;
+}
+
+.lateral .marca {
+  margin: 0 8px;
+}
+
+.lado-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lado-titulo {
+  margin: 0 8px 6px;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.lado-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/20px var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.lado-item:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.lado-item.ativo {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+/* In the agents tab the open thread carries the highlight; the section only lights its text. */
+.lado-item.ativo-leve {
+  color: var(--giz);
+}
+
+.lado-item .nome {
+  white-space: nowrap;
+}
+
+.icone {
+  width: 18px;
+  height: 18px;
+  margin: 0 2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.lado-rodape {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: auto 8px 0;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.lado-rodape .lado-nota {
+  font: 12px/18px var(--sans);
+}
+
+/* Segmented control: one glass track, a thumb that slides to the active option */
+
+.segmentado {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.trilho-ativo {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 11%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  transition:
+    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.segmentado button {
+  position: relative;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+
+.segmentado button.ativo {
+  color: var(--giz);
+}
+
+.voltar {
+  height: 24px;
+  margin-left: auto;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--vidro-7);
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.voltar + .pilha {
+  margin-left: 8px;
 }
 
 /* Top bar and title */
 
-.topo {
-  display: flex;
-  align-items: center;
-  height: 24px;
-}
 
 .marca {
   display: inline-flex;
@@ -83,15 +236,6 @@ body {
   fill: var(--giz);
 }
 
-.meta {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--vao);
-  margin-left: auto;
-  color: var(--nevoa);
-  font: 12px/16px var(--mono);
-  white-space: nowrap;
-}
 
 .estado {
   display: inline-flex;
@@ -542,45 +686,6 @@ body {
   white-space: nowrap;
 }
 
-/* Tabs and the source picker: one glass track, the active option a step lighter */
-
-.abas,
-.seletor {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--vidro-7);
-  box-shadow: inset 0 0 0 1px var(--fio);
-}
-
-.abas {
-  margin-left: 24px;
-}
-
-.seletor {
-  margin-left: auto;
-}
-
-.abas button,
-.seletor button {
-  height: 26px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 13px/16px var(--sans);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.abas button.ativo,
-.seletor button.ativo {
-  background: rgb(255 255 255 / 10%);
-  color: var(--giz);
-}
-
 /* Efficiency tab */
 
 .eficiencia {
@@ -704,16 +809,28 @@ body {
 }
 
 @media (max-width: 960px) {
-  .abas {
-    margin-left: 12px;
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 100dvh;
   }
 
-  .meta {
+  .lateral {
+    flex-direction: row;
+    gap: 4px;
+    padding: 12px;
+    overflow-x: auto;
+    box-shadow: inset 0 -1px 0 var(--fio);
+  }
+
+  .lado-grupo {
+    flex-direction: row;
+  }
+
+  .lado-titulo,
+  .lado-rodape,
+  .presenca {
     display: none;
-  }
-
-  .abas button {
-    padding: 0 10px;
   }
 
   .agente .destaque {
@@ -845,8 +962,7 @@ body {
 
 .chat {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-  gap: var(--vao);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -861,53 +977,12 @@ body {
   color: var(--nevoa);
 }
 
-.chat-lado {
-  gap: 4px;
-  padding: 16px 12px;
-}
 
-.lado-titulo {
-  margin: 12px 8px 4px;
-  color: var(--nevoa);
-  font: 12px/16px var(--sans);
-}
 
-.lado-titulo:first-child {
-  margin-top: 0;
-}
 
-.lado-item {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  height: 40px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--raio-item);
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 14px/20px var(--sans);
-  text-align: left;
-  cursor: pointer;
-  transition: background 160ms ease, color 160ms ease;
-}
 
-.lado-item:hover {
-  background: var(--vidro-7);
-  color: var(--giz);
-}
 
-.lado-item.ativo {
-  background: rgb(255 255 255 / 10%);
-  color: var(--giz);
-}
 
-.cerquilha {
-  color: var(--nevoa);
-  font: 500 16px/20px var(--mono);
-  text-align: center;
-}
 
 .presenca {
   color: var(--nevoa);
@@ -918,12 +993,6 @@ body {
   color: var(--ok);
 }
 
-.lado-nota {
-  margin: auto 8px 0;
-  color: var(--nevoa);
-  font-size: 12px;
-  line-height: 18px;
-}
 
 .chat-centro {
   gap: 0;
@@ -1333,11 +1402,6 @@ body {
 /* Narrow screens: cards stack and the page scrolls */
 
 @media (max-width: 960px) {
-  .app {
-    height: auto;
-    min-height: 100dvh;
-  }
-
   .grade {
     grid-template-rows: none;
   }
@@ -1422,10 +1486,6 @@ body {
 @media (max-width: 960px) {
   .chat {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .chat-lado .lado-nota {
-    display: none;
   }
 
   .chat-centro {

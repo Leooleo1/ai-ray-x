@@ -4,6 +4,7 @@ import { askAgent, type Report, type RoomMessage } from '../api'
 import { locale, t } from '../i18n'
 import { askLabel, speak } from '../voices'
 import { Avatar } from './Avatar'
+import type { ChatView } from './Sidebar'
 
 const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
 const GROUP_MS = 5 * 60_000
@@ -12,7 +13,6 @@ const MIN_TYPING_MS = 800
 const MENTION = /@(raio|dieta|memo)\b/i
 const OPEN_MENTION = /@(\w*)$/
 
-type View = 'channel' | AgentId
 
 interface Pending {
   agent: AgentId
@@ -22,12 +22,14 @@ interface Pending {
 
 interface RoomProps {
   report: Report
+  view: ChatView
+  onView: (view: ChatView) => void
+  onTyping: (agent: AgentId | null) => void
   onChanged: () => void
 }
 
 /** Multi-agent chat for this project. Agents speak only when asked: here or via /token-diet. */
-export function Room({ report, onChanged }: RoomProps) {
-  const [view, setView] = useState<View>('channel')
+export function Room({ report, view, onView, onTyping, onChanged }: RoomProps) {
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState<Pending | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -38,8 +40,11 @@ export function Room({ report, onChanged }: RoomProps) {
 
   // The optimistic bubble goes away once the server's copy arrives.
   useEffect(() => {
-    if (pending && all.some((m) => m.author === 'you' && m.ms >= pending.since - 1000)) setPending(null)
-  }, [all, pending])
+    if (pending && all.some((m) => m.author === 'you' && m.ms >= pending.since - 1000)) {
+      setPending(null)
+      onTyping(null)
+    }
+  }, [all, pending, onTyping])
   // Jump to the latest line on open; glide only for lines that arrive while reading.
   const opened = useRef(false)
   useEffect(() => {
@@ -69,12 +74,14 @@ export function Room({ report, onChanged }: RoomProps) {
   const send = async (agent: AgentId, text: string) => {
     setError(null)
     setPending({ agent, text, since: Date.now() })
+    onTyping(agent)
     setDraft('')
     try {
       await Promise.all([askAgent(agent, text), new Promise((resolve) => setTimeout(resolve, MIN_TYPING_MS))])
       onChanged()
     } catch (failure: unknown) {
       setPending(null)
+      onTyping(null)
       setError(failure instanceof Error ? failure.message : String(failure))
     }
   }
@@ -96,29 +103,16 @@ export function Room({ report, onChanged }: RoomProps) {
 
   return (
     <main className="chat">
-      <aside className="cartao chat-lado">
-        <span className="lado-titulo">{t.channels}</span>
-        <button className={`lado-item ${view === 'channel' ? 'ativo' : ''}`} onClick={() => setView('channel')}>
-          <span className="cerquilha">#</span>
-          <span className="nome">{project}</span>
-        </button>
-        <span className="lado-titulo">{t.directs}</span>
-        {ORDER.map((id) => (
-          <button key={id} className={`lado-item ${view === id ? 'ativo' : ''}`} onClick={() => setView(id)}>
-            <Avatar agent={AGENTS[id]} size={24} state={pending?.agent === id ? 'thinking' : 'idle'} />
-            <span className="nome">{AGENTS[id].name}</span>
-            <span className={`presenca ${pending?.agent === id ? 'digitando' : ''}`}>
-              {pending?.agent === id ? t.typingShort : t.available}
-            </span>
-          </button>
-        ))}
-        <p className="lado-nota">{t.roomRule}</p>
-      </aside>
 
       <section className="cartao chat-centro">
         <header className="chat-topo">
           <b>{header.title}</b>
           <small>{header.hint}</small>
+          {view !== 'channel' && (
+            <button className="voltar" onClick={() => onView('channel')}>
+              {t.backToChannel}
+            </button>
+          )}
           <span className="pilha">
             {(view === 'channel' ? ORDER : [view]).map((id) => (
               <Avatar key={id} agent={AGENTS[id]} size={22} state="still" />

@@ -1,31 +1,25 @@
 import { useEffect, useState } from 'react'
+import type { AgentId } from './agents'
 import { fetchReport, sessionToken, type Report } from './api'
 import { Clock } from './components/Clock'
-import { EfficiencyView } from './components/Efficiency'
-import { Room } from './components/Room'
 import { ContextRuler } from './components/ContextRuler'
+import { EfficiencyView } from './components/Efficiency'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
-import { nowStamp, period, t } from './i18n'
-import {
-  carriedRows,
-  hours,
-  longestStreak,
-  plateDays,
-  projectRows,
-  reportedCost,
-  secretTotals,
-  totalTokens,
-} from './model'
+import { Room } from './components/Room'
+import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
+import { period, t } from './i18n'
+import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
-
-type Tab = 'xray' | 'efficiency' | 'agents'
-
 const PATHS: Record<Tab, string[]> = { xray: ['/'], efficiency: ['/eficiencia', '/efficiency'], agents: ['/agentes', '/agents'] }
-const TAB_LABELS: Record<Tab, string> = { xray: t.tabXray, efficiency: t.tabEfficiency, agents: t.tabAgents }
+const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
+  xray: { title: t.title, subtitle: t.subtitle },
+  efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
+  agents: { title: t.roomTitle, subtitle: t.roomSubtitle },
+}
 
 function tabFromPath(): Tab {
   const path = window.location.pathname
@@ -76,14 +70,20 @@ interface DashboardProps {
 
 function Dashboard({ report, at, onChanged }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
+  const [chat, setChat] = useState<ChatView>('channel')
+  const [typing, setTyping] = useState<AgentId | null>(null)
   useEffect(() => {
     const onBack = () => setTab(tabFromPath())
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
   }, [])
   const go = (next: Tab) => {
-    history.pushState(null, '', PATHS[next][0])
+    if (next !== tab) history.pushState(null, '', PATHS[next][0])
     setTab(next)
+  }
+  const openChat = (view: ChatView) => {
+    setChat(view)
+    go('agents')
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
@@ -92,65 +92,43 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
   const days = plateDays(report)
   const activeDays = days.filter((d) => d.tokens > 0).length
   const projects = projectRows(report, LIST_ROWS).map((row) => ({ ...row, share: row.value / total }))
+  const heading = HEADINGS[tab]
   return (
     <div className="app">
-      <header className="topo">
-        <span className="marca">
-          <Mark />
-          raiox
-        </span>
-        <nav className="abas" aria-label="raiox">
-          {(['xray', 'efficiency', 'agents'] as const).map((id) => (
-            <button key={id} className={tab === id ? 'ativo' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
-              {TAB_LABELS[id]}
-            </button>
-          ))}
-        </nav>
-        <span className="meta">
-          <span>{nowStamp(at)}</span>
-          <span className="estado">
-            <i className="ponto ok" />
-            {t.updated}
-          </span>
-        </span>
-      </header>
-      <div className="titulo">
-        <h1>{tab === 'xray' ? t.title : tab === 'efficiency' ? t.dietTitleMain : t.roomTitle}</h1>
-        <p>{tab === 'xray' ? t.subtitle : tab === 'efficiency' ? t.dietSubtitle : t.roomSubtitle}</p>
-        {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
+      <Sidebar
+        tab={tab}
+        chat={chat}
+        project={report.project_dir.split('/').pop() ?? ''}
+        typing={typing}
+        updatedAt={at}
+        onTab={go}
+        onChat={openChat}
+      />
+      <div className="principal">
+        <div className="titulo">
+          <h1>{heading.title}</h1>
+          <p>{heading.subtitle}</p>
+          {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
+        </div>
+        {tab === 'agents' && <Room report={report} view={chat} onView={setChat} onTyping={setTyping} onChanged={onChanged} />}
+        {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
+        {tab === 'xray' && (
+          <main className="grade">
+            <Hero
+              total={total}
+              cost={reportedCost(report)}
+              days={days}
+              streak={longestStreak(days)}
+              bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
+            />
+            <Clock hours={hours(report)} />
+            <ContextRuler sources={sources} main={main} />
+            <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
+            <RowsCard className="projetos" title={t.projects} rows={projects} />
+            <SecretsCard totals={secretTotals(report)} />
+          </main>
+        )}
       </div>
-      {tab === 'agents' ? (
-        <Room report={report} onChanged={onChanged} />
-      ) : tab === 'efficiency' ? (
-        <EfficiencyView report={report} onChanged={onChanged} />
-      ) : (
-      <main className="grade">
-        <Hero
-          total={total}
-          cost={reportedCost(report)}
-          days={days}
-          streak={longestStreak(days)}
-          bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
-        />
-        <Clock hours={hours(report)} />
-        <ContextRuler sources={sources} main={main} />
-        <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
-        <RowsCard className="projetos" title={t.projects} rows={projects} />
-        <SecretsCard totals={secretTotals(report)} />
-      </main>
-      )}
     </div>
-  )
-}
-
-function Mark() {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      {[
-        [8, 8], [24, 8], [12, 12], [20, 12], [16, 16], [12, 20], [20, 20], [8, 24], [24, 24],
-      ].map(([cx, cy]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={2.4} />
-      ))}
-    </svg>
   )
 }

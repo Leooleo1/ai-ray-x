@@ -4,6 +4,7 @@ import { applySuggestion, undoChange, type Change, type ContextStatus, type Repo
 import { dietLines, explainApply } from '../diet'
 import { compact, fill, percent, splitCompact, t } from '../i18n'
 import { Avatar } from './Avatar'
+import { Segmented } from './Segmented'
 
 const RULER_SCALE = 1_000_000
 const SOURCE_NAMES: Record<Source, string> = { claude: 'Claude Code', codex: 'Codex' }
@@ -33,19 +34,12 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
         <h2>
           {t.dietaTitle}
           <small>{t.dietaHint}</small>
-          <span className="seletor" role="tablist">
-            {report.sources.map((s) => (
-              <button
-                key={s.overview.source}
-                role="tab"
-                aria-selected={s.overview.source === source}
-                className={s.overview.source === source ? 'ativo' : ''}
-                onClick={() => setSource(s.overview.source)}
-              >
-                {SOURCE_NAMES[s.overview.source]}
-              </button>
-            ))}
-          </span>
+          <Segmented
+            label={t.dietaTitle}
+            value={source}
+            onChange={setSource}
+            options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
+          />
         </h2>
         <ol className="sugestoes">
           {lines.map((line) => (

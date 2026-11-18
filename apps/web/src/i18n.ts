@@ -1,6 +1,7 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  backToChannel: 'Back to the channel',
   channels: 'Channel',
   directs: 'Direct messages',
   available: 'available',
@@ -77,6 +78,7 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  backToChannel: 'Voltar ao canal',
   channels: 'Canal',
   directs: 'Mensagens diretas',
   available: 'disponível',
