@@ -56,6 +56,10 @@ export function explainApply(id: string): string[] {
   return locale === 'pt-BR' ? text.pt : text.en
 }
 
+export function suggestionTitle(id: string, fallback: string): string {
+  return locale === 'pt-BR' ? (PT[id]?.title ?? fallback) : fallback
+}
+
 export interface DietLine {
   id: string
   title: string

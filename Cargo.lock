@@ -504,6 +504,7 @@ dependencies = [
  "libc",
  "open",
  "raiox-core",
+ "serde",
  "serde_json",
  "tiny_http",
 ]

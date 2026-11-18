@@ -20,3 +20,8 @@ pub use store::Store;
 pub fn default_index_path() -> Option<std::path::PathBuf> {
     dirs::cache_dir().map(|dir| dir.join("raiox").join("index.sqlite"))
 }
+
+/// The project label used in the index for a working folder (`Projects/app`).
+pub fn project_label(dir: &std::path::Path, home: &std::path::Path) -> String {
+    util::project_of(&dir.to_string_lossy(), home)
+}

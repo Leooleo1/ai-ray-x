@@ -108,6 +108,16 @@ export interface Report {
   changes: Change[]
   applicable: Record<Source, string[]>
   project_dir: string
+  room: { opted_in: boolean; messages: RoomMessage[] }
+}
+
+export type AgentAuthor = 'raio' | 'dieta' | 'memo'
+
+export interface RoomMessage {
+  ms: number
+  author: AgentAuthor | 'you'
+  kind: 'ask' | 'answer' | 'applied' | 'undone' | 'kept' | 'kept_failed'
+  data: Record<string, unknown>
 }
 
 const TOKEN_KEY = 'raiox.session'
@@ -150,4 +160,8 @@ export function applySuggestion(id: string, source: Source): ReturnType<typeof p
 
 export function undoChange(change: string): ReturnType<typeof post> {
   return post('/api/undo', { change })
+}
+
+export function askAgent(agent: AgentAuthor): ReturnType<typeof post> {
+  return post('/api/ask', { agent })
 }

@@ -1,6 +1,16 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  tabAgents: 'Agents',
+  roomTitle: 'Agents room',
+  roomSubtitle: 'Raio, Dieta and Memo, only in this project and only when asked',
+  members: 'Members',
+  membersHint: 'they speak only when asked',
+  ask: 'Ask',
+  conversation: 'Conversation',
+  roomEmpty: 'The conversation starts when you ask an agent, here or with /token-diet.',
+  roomOffTitle: 'Room off in this folder',
+  roomOff: 'The agents only act in projects with the token-diet skill installed (.claude/skills/token-diet). Open raiox from such a project.',
   apply: 'Apply',
   confirm: 'Confirm',
   cancel: 'Cancel',
@@ -60,6 +70,16 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  tabAgents: 'Agentes',
+  roomTitle: 'Sala de agentes',
+  roomSubtitle: 'Raio, Dieta e Memo, só neste projeto e só quando chamados',
+  members: 'Membros',
+  membersHint: 'só falam quando chamados',
+  ask: 'Perguntar',
+  conversation: 'Conversa',
+  roomEmpty: 'A conversa começa quando você pergunta a um agente, aqui ou com /token-diet.',
+  roomOffTitle: 'Sala desligada nesta pasta',
+  roomOff: 'Os agentes só agem em projetos com a skill token-diet instalada (.claude/skills/token-diet). Abra o raiox a partir de um deles.',
   apply: 'Aplicar',
   confirm: 'Confirmar',
   cancel: 'Cancelar',

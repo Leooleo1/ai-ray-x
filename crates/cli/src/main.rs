@@ -3,6 +3,7 @@
 mod actions;
 mod data;
 mod memo;
+mod room;
 mod mcp;
 mod print;
 mod serve;
@@ -82,6 +83,8 @@ enum Command {
     },
     /// Undo an applied change by its id (see the panel or the ledger).
     Undo { change: String },
+    /// Ask one agent (raio, dieta or memo) in this project's room; only in opted-in projects.
+    Ask { agent: String },
     /// Print the report in the terminal.
     Report {
         /// Print JSON instead of text.
@@ -118,11 +121,16 @@ fn main() -> Result<()> {
             raiox_core::refresh(&mut store, &roots)?;
             emit(actions::apply_suggestion(&store, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
         }
+        Command::Ask { agent } => {
+            raiox_core::refresh(&mut store, &roots)?;
+            let messages = room::ask(&store, &roots, &state_dir(&db), &std::env::current_dir()?, &agent)?;
+            emit(serde_json::to_value(messages)?)
+        }
         Command::Undo { change } => emit(actions::undo_change(&store, &state_dir(&db), &std::env::current_dir()?, &change)?),
         Command::Context { session, dir } => {
             raiox_core::refresh(&mut store, &roots)?;
             let dir = dir.map_or_else(std::env::current_dir, Ok)?;
-            let session = session.or_else(|| session_of_dir(&roots.claude, &dir));
+            let session = session.or_else(|| room::current_session(&store, &roots, &dir));
             emit(mcp::context_status(&store, &serde_json::json!({ "session": session }))?)
         }
         Command::Weighs { source } => {
@@ -173,19 +181,6 @@ fn emit(value: serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-/// Claude Code keeps each project's transcripts in `projects/<folder with every
-/// non-alphanumeric character turned into '-'>`; the newest top-level file is the
-/// session being written now.
-fn session_of_dir(claude: &std::path::Path, dir: &std::path::Path) -> Option<String> {
-    let encoded: String = dir.to_string_lossy().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
-    std::fs::read_dir(claude.join("projects").join(encoded))
-        .ok()?
-        .flatten()
-        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
-        .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
-        .max_by_key(|(modified, _)| *modified)
-        .and_then(|(_, path)| Some(path.file_stem()?.to_string_lossy().into_owned()))
-}
 
 /// The ledger and backups live next to the index.
 fn state_dir(db: &std::path::Path) -> std::path::PathBuf {

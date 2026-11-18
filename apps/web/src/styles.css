@@ -719,7 +719,9 @@ body {
 
   .agente,
   .dieta-lista,
-  .sessao {
+  .sessao,
+  .membros,
+  .conversa {
     grid-column: span 12;
   }
 
@@ -835,6 +837,139 @@ body {
 .dieta-lista,
 .sugestoes {
   overflow: visible;
+}
+
+/* Agents room */
+
+.sala {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.membros {
+  grid-column: span 4;
+  align-self: start;
+}
+
+.conversa {
+  grid-column: span 8;
+}
+
+.sala-fora {
+  grid-column: span 12;
+  align-self: start;
+}
+
+.sala-fora p,
+.vazio {
+  margin: 0;
+  color: var(--nevoa);
+}
+
+.lista-membros {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-membros li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: var(--raio-item);
+}
+
+.lista-membros li:hover {
+  background: var(--vidro-7);
+}
+
+.membros .vidro-btn,
+.perguntas .vidro-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 500 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.membros .vidro-btn:disabled,
+.perguntas .vidro-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mensagens {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.mensagens::-webkit-scrollbar {
+  display: none;
+}
+
+.msg {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  max-width: 760px;
+}
+
+.msg .corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.quem b {
+  font-weight: 500;
+}
+
+.hora {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.msg .texto {
+  color: var(--giz);
+  line-height: 21px;
+}
+
+.msg.minha {
+  display: flex;
+  align-items: baseline;
+  align-self: flex-end;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.perguntas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* Narrow screens: cards stack and the page scrolls */

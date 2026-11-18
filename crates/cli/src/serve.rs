@@ -84,6 +84,19 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             )),
             Err(reply) => reply,
         },
+        (Method::Post, "/api/ask") => match body(request) {
+            Ok(input) => respond(
+                crate::room::ask(
+                    &panel.store,
+                    &panel.roots,
+                    &panel.state_dir,
+                    &panel.project_dir,
+                    input.get("agent").and_then(Value::as_str).unwrap_or(""),
+                )
+                .map(|messages| json!(messages)),
+            ),
+            Err(reply) => reply,
+        },
         (Method::Post, "/api/undo") => match body(request) {
             Ok(input) => respond(actions::undo_change(
                 &panel.store,
@@ -178,6 +191,13 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
         object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
         object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
+        object.insert(
+            "room".into(),
+            json!({
+                "opted_in": crate::room::opted_in(&panel.project_dir),
+                "messages": crate::room::messages(&panel.state_dir, &panel.project_dir),
+            }),
+        );
     }
     Ok(value)
 }

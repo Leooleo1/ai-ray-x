@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchReport, sessionToken, type Report } from './api'
 import { Clock } from './components/Clock'
 import { EfficiencyView } from './components/Efficiency'
+import { Room } from './components/Room'
 import { ContextRuler } from './components/ContextRuler'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
@@ -21,12 +22,14 @@ const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
 
-type Tab = 'xray' | 'efficiency'
+type Tab = 'xray' | 'efficiency' | 'agents'
 
-const EFFICIENCY_PATHS = ['/eficiencia', '/efficiency']
+const PATHS: Record<Tab, string[]> = { xray: ['/'], efficiency: ['/eficiencia', '/efficiency'], agents: ['/agentes', '/agents'] }
+const TAB_LABELS: Record<Tab, string> = { xray: t.tabXray, efficiency: t.tabEfficiency, agents: t.tabAgents }
 
 function tabFromPath(): Tab {
-  return EFFICIENCY_PATHS.includes(window.location.pathname) ? 'efficiency' : 'xray'
+  const path = window.location.pathname
+  return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
 }
 
 type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; report: Report; at: Date }
@@ -79,7 +82,7 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
     return () => window.removeEventListener('popstate', onBack)
   }, [])
   const go = (next: Tab) => {
-    history.pushState(null, '', next === 'efficiency' ? EFFICIENCY_PATHS[0] : '/')
+    history.pushState(null, '', PATHS[next][0])
     setTab(next)
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
@@ -97,9 +100,9 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
           raiox
         </span>
         <nav className="abas" aria-label="raiox">
-          {(['xray', 'efficiency'] as const).map((id) => (
+          {(['xray', 'efficiency', 'agents'] as const).map((id) => (
             <button key={id} className={tab === id ? 'ativo' : ''} aria-current={tab === id ? 'page' : undefined} onClick={() => go(id)}>
-              {id === 'xray' ? t.tabXray : t.tabEfficiency}
+              {TAB_LABELS[id]}
             </button>
           ))}
         </nav>
@@ -112,11 +115,13 @@ function Dashboard({ report, at, onChanged }: DashboardProps) {
         </span>
       </header>
       <div className="titulo">
-        <h1>{tab === 'xray' ? t.title : t.dietTitleMain}</h1>
-        <p>{tab === 'xray' ? t.subtitle : t.dietSubtitle}</p>
+        <h1>{tab === 'xray' ? t.title : tab === 'efficiency' ? t.dietTitleMain : t.roomTitle}</h1>
+        <p>{tab === 'xray' ? t.subtitle : tab === 'efficiency' ? t.dietSubtitle : t.roomSubtitle}</p>
         {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
       </div>
-      {tab === 'efficiency' ? (
+      {tab === 'agents' ? (
+        <Room report={report} onChanged={onChanged} />
+      ) : tab === 'efficiency' ? (
         <EfficiencyView report={report} onChanged={onChanged} />
       ) : (
       <main className="grade">
