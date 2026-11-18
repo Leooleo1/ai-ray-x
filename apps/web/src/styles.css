@@ -1,0 +1,629 @@
+/* raiox panel. Three depths: the dotted night background, charcoal data cards
+   (one engraved glow on the hero), and solid marks for the data itself. */
+
+:root {
+  --noite: #060607;
+  --carvao: #0d0d11;
+  --giz: #f4f4f6;
+  --nevoa: #9a9aa6;
+  --brasa: #e8754a;
+  --cobalto: #4c7df0;
+  --ok: #5fd08a;
+  --alerta: #e5b54c;
+  --vidro-7: rgb(255 255 255 / 7%);
+  --fio: rgb(255 255 255 / 8%);
+  --lateral: 20px;
+  --vao: 16px;
+  --raio-painel: 20px;
+  --raio-item: 10px;
+  --sans: 'Geist Variable', system-ui, sans-serif;
+  --mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --pontos: 'Doto', 'Geist Mono Variable', monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--noite)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='1.5' cy='1.5' r='0.8' fill='%23fff' fill-opacity='0.035'/%3E%3C/svg%3E");
+  color: var(--giz);
+  font: 400 14px/20px var(--sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tela-estado {
+  display: grid;
+  height: 100dvh;
+  place-items: center;
+  color: var(--nevoa);
+  font: 13px/16px var(--mono);
+}
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--vao);
+  max-width: 1440px;
+  height: 100dvh;
+  margin: 0 auto;
+  padding: var(--lateral);
+}
+
+/* Top bar and title */
+
+.topo {
+  display: flex;
+  align-items: center;
+  height: 24px;
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 15px/20px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.marca svg {
+  width: 18px;
+  height: 18px;
+  fill: var(--giz);
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vao);
+  margin-left: auto;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ponto {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ponto.claude,
+.claude {
+  color: var(--brasa);
+}
+
+.ponto.codex,
+.codex {
+  color: var(--cobalto);
+}
+
+.ponto.ok {
+  color: var(--ok);
+}
+
+.ponto.alerta {
+  color: var(--alerta);
+}
+
+.titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.titulo h1 {
+  margin: 0;
+  font: 500 22px/28px var(--sans);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+
+.titulo p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--nevoa);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.periodo {
+  margin-left: auto;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+/* Grid of cards */
+
+.grade {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--vao);
+  min-height: 0;
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--lateral);
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.cartao h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  font: 500 14px/20px var(--sans);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.cartao h2 small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  text-overflow: ellipsis;
+}
+
+.heroi {
+  grid-column: span 8;
+  justify-content: space-between;
+  background: var(--carvao) url('/luz/heroi.webp') center bottom / cover no-repeat;
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 24px 48px -24px rgb(0 0 0 / 70%);
+}
+
+.relogio {
+  grid-column: span 4;
+}
+
+.regua {
+  grid-column: span 12;
+}
+
+.carregado {
+  grid-column: span 5;
+}
+
+.projetos {
+  grid-column: span 4;
+}
+
+.segredos {
+  grid-column: span 3;
+}
+
+/* Hero: the number and the days share one dot grid */
+
+.rotulo {
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.numeros {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.numero {
+  font: 700 72px/72px var(--pontos);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.unidade {
+  margin-left: 10px;
+  color: var(--nevoa);
+  font: 300 22px/28px var(--sans);
+  letter-spacing: 0;
+}
+
+.valor-api {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.valor-api strong {
+  display: block;
+  font: 300 30px/36px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.valor-api span {
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.chapa {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chapa .apagado {
+  fill: rgb(255 255 255 / 7%);
+}
+
+.chapa .aceso {
+  fill: var(--giz);
+  fill-opacity: 0.88;
+}
+
+.chapa .pico {
+  fill: var(--brasa);
+}
+
+.rodape {
+  display: flex;
+  gap: var(--vao);
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.rodape b {
+  color: var(--giz);
+  font-weight: 400;
+}
+
+/* Clock: ring of marks */
+
+.anel {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+}
+
+.anel svg {
+  width: auto;
+  height: 100%;
+  max-height: 240px;
+  aspect-ratio: 1;
+}
+
+.marca,
+.marca-pico {
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.anel .marca {
+  stroke: var(--giz);
+}
+
+.anel .marca-pico {
+  stroke: var(--brasa);
+}
+
+.rotulo-hora {
+  fill: var(--nevoa);
+  font: 11px var(--mono);
+}
+
+.pico-valor {
+  fill: var(--giz);
+  font: 300 30px var(--sans);
+}
+
+.pico-rotulo {
+  fill: var(--nevoa);
+  font: 11px var(--mono);
+}
+
+/* Context ruler */
+
+.linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linha-regua {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--vao);
+}
+
+.fonte {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nevoa);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.trilho-wrap {
+  position: relative;
+  height: 56px;
+  margin-right: 8px;
+}
+
+.trilho {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%23fff' fill-opacity='0.22'/%3E%3C/svg%3E")
+    repeat-x left center;
+}
+
+.marcador {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.marcador.mediana {
+  background: currentColor;
+}
+
+.marcador.p90 {
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1.6px solid currentColor;
+  border-radius: 2px;
+  background: var(--carvao);
+}
+
+.corte {
+  position: absolute;
+  top: calc(50% - 12px);
+  height: 24px;
+  border-left: 1.6px dashed var(--nevoa);
+}
+
+.rotulo-marca,
+.rotulo-escala {
+  position: absolute;
+  font: 11px/14px var(--mono);
+  white-space: nowrap;
+}
+
+.rotulo-marca {
+  transform: translateX(-50%);
+  color: var(--giz);
+}
+
+.rotulo-marca.acima {
+  top: 0;
+}
+
+.rotulo-marca.abaixo {
+  bottom: 0;
+}
+
+.rotulo-marca.antes {
+  transform: translateX(calc(-100% - 8px));
+  color: var(--nevoa);
+}
+
+.rotulo-escala {
+  bottom: 0;
+  color: var(--nevoa);
+}
+
+.rotulo-escala.inicio {
+  left: 0;
+}
+
+.rotulo-escala.fim {
+  right: 0;
+}
+
+/* Rows */
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0 -8px;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.lista::-webkit-scrollbar {
+  display: none;
+}
+
+.lista li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto 44px;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--raio-item);
+}
+
+.lista li:hover {
+  background: var(--vidro-7);
+}
+
+.lista.simples li {
+  grid-template-columns: minmax(0, 1fr) auto;
+  height: 28px;
+}
+
+/* Long lists fade at the bottom so a cut row reads as "more below". */
+.carregado .lista,
+.projetos .lista {
+  padding-bottom: 16px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
+
+.segredos {
+  gap: 8px;
+}
+
+.nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  font: 13px/16px var(--mono);
+}
+
+.apoio {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  text-align: right;
+}
+
+.destaque {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.destaque strong {
+  font: 300 36px/40px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.destaque span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nevoa);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Narrow screens: cards stack and the page scrolls */
+
+@media (max-width: 960px) {
+  .app {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .grade {
+    grid-template-rows: none;
+  }
+
+  .grade > * {
+    grid-column: span 12;
+  }
+
+  .titulo {
+    flex-wrap: wrap;
+  }
+
+  .periodo {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .rodape {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .titulo p,
+  .rotulo-escala {
+    display: none;
+  }
+
+  /* Ruler labels leave the rail and line up below it. */
+  .trilho-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    height: auto;
+    padding-top: 28px;
+  }
+
+  .trilho,
+  .marcador {
+    top: 12px;
+  }
+
+  .corte {
+    top: 0;
+  }
+
+  .rotulo-marca,
+  .rotulo-marca.antes {
+    position: static;
+    transform: none;
+  }
+
+  .numero {
+    font-size: 48px;
+    line-height: 48px;
+  }
+
+  .numeros {
+    flex-wrap: wrap;
+  }
+
+  .valor-api {
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .anel svg {
+    height: 200px;
+  }
+
+  .linha-regua {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .lista {
+    max-height: 264px;
+  }
+}

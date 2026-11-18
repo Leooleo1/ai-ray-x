@@ -29,6 +29,13 @@ impl ModelUsage {
 }
 
 #[derive(Debug, Serialize)]
+pub struct DayPoint {
+    pub date: String,
+    pub requests: u64,
+    pub tokens: u64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct Overview {
     pub source: String,
     pub models: Vec<ModelUsage>,
@@ -38,6 +45,8 @@ pub struct Overview {
     pub active_days: u64,
     pub longest_streak: u64,
     pub busiest_day: Option<(String, u64)>,
+    /// Requests and tokens per local day, oldest first.
+    pub daily: Vec<DayPoint>,
     pub active_hours: f64,
     pub by_hour: [u64; 24],
     pub by_weekday: [u64; 7],
@@ -115,6 +124,7 @@ pub fn overview(conn: &Connection, source: &str) -> Result<Overview> {
         active_days: days.len() as u64,
         longest_streak: longest_streak(&days),
         busiest_day: days.iter().max_by_key(|(_, calls)| *calls).cloned(),
+        daily: daily(conn, source)?,
         active_hours: active_hours(conn, source)?,
         by_hour: histogram(conn, "local_hour", source)?,
         by_weekday: histogram(conn, "weekday", source)?,
@@ -160,6 +170,16 @@ pub fn secret_touches(conn: &Connection, source: &str) -> Result<Vec<(String, u6
     )?);
     found.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     Ok(found)
+}
+
+fn daily(conn: &Connection, source: &str) -> Result<Vec<DayPoint>> {
+    rows(
+        conn,
+        "SELECT local_date, COUNT(*), SUM(input + cache_read + cache_write_5m + cache_write_1h + output)
+         FROM calls WHERE source = ?1 AND local_date IS NOT NULL GROUP BY local_date ORDER BY local_date",
+        [source],
+        |r| Ok(DayPoint { date: r.get(0)?, requests: r.get::<_, i64>(1)? as u64, tokens: r.get::<_, i64>(2)? as u64 }),
+    )
 }
 
 fn top(items: Vec<(String, u64)>, limit: usize) -> Vec<(String, u64)> {

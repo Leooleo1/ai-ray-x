@@ -1,73 +1,102 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
+mod data;
 mod print;
+mod serve;
 
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use raiox_core::model::{CLAUDE, CODEX};
-use raiox_core::{Roots, Store, efficiency, report};
-use serde_json::json;
+use raiox_core::{efficiency, report, Roots, Store};
 
 #[derive(Parser)]
 #[command(name = "raiox", version, about = "Where your AI coding agents' tokens go. Local logs only.")]
-struct Args {
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+    #[command(flatten)]
+    common: Common,
+}
+
+#[derive(Args)]
+struct Common {
     /// Index location (default: the platform cache folder).
-    #[arg(long)]
+    #[arg(long, global = true)]
     db: Option<PathBuf>,
     /// Claude Code folder (default: $CLAUDE_CONFIG_DIR or ~/.claude).
-    #[arg(long)]
+    #[arg(long, global = true)]
     claude_dir: Option<PathBuf>,
     /// Codex folder (default: $CODEX_HOME or ~/.codex).
-    #[arg(long)]
+    #[arg(long, global = true)]
     codex_dir: Option<PathBuf>,
     /// Drop the index and read every log again.
-    #[arg(long)]
+    #[arg(long, global = true)]
     rebuild: bool,
-    /// Print the report as JSON.
-    #[arg(long)]
-    json: bool,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Open the panel in the browser (the default).
+    Open {
+        /// Port on 127.0.0.1 (0 picks a free one).
+        #[arg(long, default_value_t = 0)]
+        port: u16,
+        /// Print the link without opening the browser.
+        #[arg(long)]
+        no_open: bool,
+        /// Folder with the built panel.
+        #[arg(long)]
+        web_dir: Option<PathBuf>,
+    },
+    /// Print the report in the terminal.
+    Report {
+        /// Print JSON instead of text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> Result<()> {
-    let args = Args::parse();
+    let cli = Cli::parse();
     let detected = Roots::detect()?;
     let roots = Roots {
-        claude: args.claude_dir.unwrap_or(detected.claude),
-        codex: args.codex_dir.unwrap_or(detected.codex),
+        claude: cli.common.claude_dir.unwrap_or(detected.claude),
+        codex: cli.common.codex_dir.unwrap_or(detected.codex),
         home: detected.home,
     };
-    let db = args.db.or_else(raiox_core::default_index_path).context("no cache folder found; pass --db")?;
+    let db = cli.common.db.or_else(raiox_core::default_index_path).context("no cache folder found; pass --db")?;
     let mut store = Store::open(&db)?;
-    if args.rebuild {
+    if cli.common.rebuild {
         store.reset()?;
     }
-    let stats = raiox_core::refresh(&mut store, &roots)?;
+    match cli.command.unwrap_or(Command::Open { port: 0, no_open: false, web_dir: None }) {
+        Command::Open { port, no_open, web_dir } => {
+            let web_dir = web_dir.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist"));
+            raiox_core::refresh(&mut store, &roots)?;
+            serve::run(serve::Panel { store, roots, web_dir }, port, !no_open)
+        }
+        Command::Report { json: true } => {
+            println!("{}", serde_json::to_string_pretty(&data::refresh_and_collect(&mut store, &roots)?)?);
+            Ok(())
+        }
+        Command::Report { json: false } => print_report(&mut store, &roots, &db),
+    }
+}
+
+fn print_report(store: &mut Store, roots: &Roots, db: &std::path::Path) -> Result<()> {
+    let stats = raiox_core::refresh(store, roots)?;
+    print::scan(&stats, db);
     let conn = store.conn();
-    let mut sources = Vec::new();
     for source in [CLAUDE, CODEX] {
         let overview = report::overview(conn, source)?;
         if overview.models.is_empty() {
             continue;
         }
-        let efficiency = efficiency::efficiency(conn, source)?;
-        let secrets = report::secret_touches(conn, source)?;
-        sources.push((overview, efficiency, secrets));
-    }
-    if args.json {
-        let body: Vec<_> = sources
-            .iter()
-            .map(|(overview, efficiency, secrets)| json!({ "overview": overview, "efficiency": efficiency, "secrets": secrets }))
-            .collect();
-        println!("{}", serde_json::to_string_pretty(&json!({ "sources": body }))?);
-        return Ok(());
-    }
-    print::scan(&stats, &db);
-    for (overview, efficiency, secrets) in &sources {
-        print::overview(overview);
-        print::efficiency(efficiency);
-        print::secrets(secrets);
+        print::overview(&overview);
+        print::efficiency(&efficiency::efficiency(conn, source)?);
+        print::secrets(&report::secret_touches(conn, source)?);
     }
     Ok(())
 }
