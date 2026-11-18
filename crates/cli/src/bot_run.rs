@@ -18,6 +18,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, TO_MARK};
+use crate::bot_steps::{self, Step};
 
 /// A bot that thinks longer than this is stopped.
 const TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -120,7 +121,8 @@ fn claude(target: &Target, mode: Mode) -> Command {
     let mut command = Command::new("claude");
     command
         .current_dir(target.dir)
-        .args(["-p", "--output-format", "json", "--tools", tools, "--strict-mcp-config"])
+        // Live events (one JSON per line) so the panel can show each step; the last line is the result.
+        .args(["-p", "--output-format", "stream-json", "--verbose", "--tools", tools, "--strict-mcp-config"])
         .args(["--append-system-prompt", &target.guide]);
     if let Some(model) = target.model {
         command.args(["--model", model]);
@@ -164,7 +166,7 @@ fn codex(target: &Target, mode: Mode) -> Command {
 /// Shell commands stay denied (no --force).
 fn cursor(target: &Target, mode: Mode) -> Command {
     let mut command = Command::new("cursor-agent");
-    command.current_dir(target.dir).args(["-p", "--output-format", "json", "--trust", "--workspace"]).arg(target.dir);
+    command.current_dir(target.dir).args(["-p", "--output-format", "stream-json", "--trust", "--workspace"]).arg(target.dir);
     if mode == Mode::Talk {
         command.args(["--mode", "ask"]);
         if let Some(id) = target.session {
@@ -193,7 +195,7 @@ pub fn keeps_session(agent: &str, mode: Mode) -> bool {
 pub const STOPPED: &str = "stopped by the person";
 
 /// Runs one turn and waits for it, up to the timeout or until `stop` says so.
-pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool) -> Result<Reply> {
+pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool, on_step: &dyn Fn(Step)) -> Result<Reply> {
     let agent = target.agent;
     let (mut command, prompt) = match agent {
         "claude" => (claude(target, mode), prompt_for(mode, text)),
@@ -218,7 +220,11 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(prompt.as_bytes())?;
     }
+    let mut events = Tail::new(&out_path);
     let status = loop {
+        if let Some(step) = events.read_new().iter().rev().find_map(|line| bot_steps::from_line(agent, line, target.dir)) {
+            on_step(step);
+        }
         if let Some(status) = child.try_wait()? {
             break status;
         }
@@ -237,7 +243,7 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
     let duration_ms = started.elapsed().as_millis() as u64;
     let parsed = match agent {
         "codex" => parse_codex(&out),
-        _ => parse_result(agent, &out),
+        _ => parse_result(agent, final_result(&out)),
     };
     match parsed {
         Ok(reply) => Ok(Reply { duration_ms, ..reply }),
@@ -254,6 +260,43 @@ fn tail(text: &str) -> String {
 
 fn number(value: &Value, key: &str) -> u64 {
     value.get(key).and_then(Value::as_u64).unwrap_or(0)
+}
+
+/// The last `result` event of a stream (the whole output when it is a single JSON).
+fn final_result(out: &str) -> &str {
+    out.lines()
+        .rev()
+        .find(|line| serde_json::from_str::<Value>(line).is_ok_and(|e| e.get("type").and_then(Value::as_str) == Some("result")))
+        .unwrap_or(out)
+}
+
+/// Reads the lines a running CLI appended to its output file since last time.
+struct Tail {
+    path: std::path::PathBuf,
+    offset: u64,
+    partial: String,
+}
+
+impl Tail {
+    fn new(path: &Path) -> Tail {
+        Tail { path: path.to_path_buf(), offset: 0, partial: String::new() }
+    }
+
+    fn read_new(&mut self) -> Vec<String> {
+        use std::io::{Read, Seek, SeekFrom};
+        let Ok(mut file) = File::open(&self.path) else { return Vec::new() };
+        if file.seek(SeekFrom::Start(self.offset)).is_err() {
+            return Vec::new();
+        }
+        let mut chunk = String::new();
+        let Ok(read) = file.read_to_string(&mut chunk) else { return Vec::new() };
+        self.offset += read as u64;
+        self.partial.push_str(&chunk);
+        let complete = self.partial.rfind('\n').map_or(0, |end| end + 1);
+        let lines: Vec<String> = self.partial[..complete].lines().map(str::to_string).collect();
+        self.partial = self.partial[complete..].to_string();
+        lines
+    }
 }
 
 /// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.

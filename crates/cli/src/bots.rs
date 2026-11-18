@@ -132,16 +132,35 @@ impl Persona {
 
 /// Bots answering right now, by id: whether the person asked them to stop, and in which conversation.
 #[derive(Clone, Default)]
-pub struct Jobs(Arc<Mutex<HashMap<String, (bool, String)>>>);
+pub struct Jobs(Arc<Mutex<HashMap<String, Job>>>);
+
+#[derive(Default)]
+struct Job {
+    stop: bool,
+    thread: String,
+    step: Option<crate::bot_steps::Step>,
+}
 
 impl Jobs {
     /// One turn at a time per bot, whichever conversation it is in.
     fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), (false, thread.to_string())).is_none())
+        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), Job { thread: thread.to_string(), ..Job::default() }).is_none())
     }
 
     fn thread_of(&self, id: &str) -> Option<String> {
-        self.0.lock().ok().and_then(|map| map.get(id).map(|(_, t)| t.clone()))
+        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.thread.clone()))
+    }
+
+    fn step_of(&self, id: &str) -> Option<crate::bot_steps::Step> {
+        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.step.clone()))
+    }
+
+    fn set_step(&self, id: &str, step: crate::bot_steps::Step) {
+        if let Ok(mut map) = self.0.lock()
+            && let Some(job) = map.get_mut(id)
+        {
+            job.step = Some(step);
+        }
     }
 
     fn finish(&self, id: &str) {
@@ -155,15 +174,15 @@ impl Jobs {
     }
 
     fn should_stop(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.get(id).is_some_and(|(stop, _)| *stop))
+        self.0.lock().is_ok_and(|map| map.get(id).is_some_and(|job| job.stop))
     }
 
     /// Marks a running turn to stop; its thread kills the CLI on its next check.
     pub fn stop(&self, id: &str) -> Result<()> {
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
         match map.get_mut(id) {
-            Some((flag, _)) => {
-                *flag = true;
+            Some(job) => {
+                job.stop = true;
                 Ok(())
             }
             None => bail!("the bot is not answering"),
@@ -406,7 +425,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
     let (state_dir, jobs, text, thread) = (state_dir.to_path_buf(), jobs.clone(), text.to_string(), thread.to_string());
     std::thread::spawn(move || {
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
-        let others: Vec<String> = list(&state_dir).into_iter().filter(|b| b.dir != bot.dir).map(|b| b.name).collect();
+        // Only the projects wired to this one: the bot names no others and can message no others.
+        let others: Vec<String> = crate::links::linked(&state_dir, &bot.name);
         let defaults = crate::settings::Settings::load(&state_dir).defaults_for(&bot.agent);
         let target = bot_run::Target {
             agent: &bot.agent,
@@ -417,10 +437,11 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
         };
         let stop = || jobs.should_stop(&bot.id);
-        let outcome = match bot_run::run(&target, mode, &text, &scratch, &stop) {
+        let on_step = |step| jobs.set_step(&bot.id, step);
+        let outcome = match bot_run::run(&target, mode, &text, &scratch, &stop, &on_step) {
             // The CLI lost the session (its history was cleared): the talk goes on in a fresh one.
             Err(error) if target.session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
-                bot_run::run(&bot_run::Target { session: None, ..target }, mode, &text, &scratch, &stop)
+                bot_run::run(&bot_run::Target { session: None, ..target }, mode, &text, &scratch, &stop, &on_step)
             }
             other => other,
         };
@@ -464,6 +485,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "effort": bot.effort,
                 "busy": jobs.is_busy(&bot.id),
                 "busy_thread": jobs.thread_of(&bot.id),
+                "step": jobs.step_of(&bot.id),
                 "messages": messages,
                 "threads": side,
                 "pins": crate::pins::list(state_dir, &bot.id),
@@ -478,7 +500,14 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .filter(|k| k.bots && settings.is_enabled(k.id))
         .map(|k| json!({ "id": k.id, "name": k.name }))
         .collect();
-    Ok(json!({ "bots": bots, "candidates": candidates(store, home)?, "agents": agents, "max_text": MAX_TEXT }))
+    Ok(json!({
+        "bots": bots,
+        "candidates": candidates(store, home)?,
+        "agents": agents,
+        "links": crate::links::list(state_dir),
+        "batches": crate::batches::list(state_dir),
+        "max_text": MAX_TEXT,
+    }))
 }
 
 #[cfg(test)]

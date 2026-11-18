@@ -84,7 +84,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
     return (
       <>
         {head}
-        <div className="linha minha">
+        <div className="linha minha" id={`msg-${message.ms}`}>
           <span className={`balao ${fromMail ? 'via-memoria' : 'na-cor'}`} style={fromMail ? undefined : { background: face.color }}>
             {fromMail ? (
               <>

@@ -6,6 +6,7 @@ import { t } from '../../i18n'
 import { Avatar } from '../Avatar'
 import { Markdown } from '../Markdown'
 import { BotList } from './BotList'
+import type { ChatNav } from './nav'
 import { clock } from './BotLine'
 import { Expandable } from './Expandable'
 import { useFollowBottom } from './useFollowBottom'
@@ -13,14 +14,12 @@ import { useFollowBottom } from './useFollowBottom'
 interface ExchangeProps {
   exchange: ExchangeData
   bots: Bots
-  onOpen: (id: string) => void
-  onOpenExchange: (a: string, b: string) => void
-  onAdd: () => void
+  nav: ChatNav
   unread: Set<string>
 }
 
 /** One project's bot and another's, side by side: left the one that started, right the other; the person's steps in the middle. */
-export function ExchangeView({ exchange, bots, onOpen, onOpenExchange, onAdd, unread }: ExchangeProps) {
+export function ExchangeView({ exchange, bots, nav, unread }: ExchangeProps) {
   const list = useRef<HTMLDivElement>(null)
   useFollowBottom(list, exchange.items.length, `${exchange.a}|${exchange.b}`)
   const botOf = (project: string) => bots.state.bots.find((b) => b.name === project)
@@ -28,13 +27,13 @@ export function ExchangeView({ exchange, bots, onOpen, onOpenExchange, onAdd, un
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={`${exchange.a}|${exchange.b}`} unread={unread} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
+        <BotList bots={bots} current={`${exchange.a}|${exchange.b}`} unread={unread} nav={nav} />
         <div className="conversa">
           <header className="chat-topo bot-topo troca-topo">
             {ends.map(({ project, bot }, i) => (
               <span key={project} className="troca-ponta">
                 {i === 1 && <span className="troca-seta" aria-hidden="true">⇄</span>}
-                <button type="button" className="bot-aba" disabled={!bot} onClick={() => bot && onOpen(bot.id)}>
+                <button type="button" className="bot-aba" disabled={!bot} onClick={() => bot && nav.openBot(bot.id)}>
                   {bot && <Avatar agent={faceForBot(bot)} size={22} state="still" />}
                   <b>{project}</b>
                 </button>

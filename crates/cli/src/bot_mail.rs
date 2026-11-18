@@ -84,6 +84,9 @@ pub fn send(state_dir: &Path, id: &str, answer_ms: i64, project: &str) -> Result
         .and_then(|m| m.data.pointer("/reply/to")?.as_array()?.iter().find(|n| n["project"] == project).cloned())
         .context("no such suggestion in that answer")?;
     let to = bots::list(state_dir).into_iter().find(|b| b.name == project && b.dir != from.dir).context("that project has no bot")?;
+    if !crate::links::are_linked(state_dir, &from.name, project) {
+        bail!("{} and {project} are not wired; wire them in Settings first", from.name);
+    }
     let (workspace, target) = scope_of(&to.dir)?;
     let text = note["text"].as_str().unwrap_or_default();
     let body = format!("{text}\n\n(Sent by the raiox bot of the project \"{}\", approved by its owner.)", from.name);

@@ -992,3 +992,251 @@
 .memorias-lista li:has(.fixada-item) {
   display: block;
 }
+
+/* The live step: what the bot reads, searches or runs right now. */
+.passo-alvo {
+  display: inline-block;
+  max-width: 40ch;
+  margin-left: 6px;
+  padding: 0 6px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 11px/18px var(--mono);
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+/* Ask several: one quiet row under the search, like a conversation. */
+.conversas-acao {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 14px/20px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversas-acao:hover,
+.conversas-acao.ativo {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.conversas-acao svg {
+  width: 18px;
+  height: 18px;
+  margin: 0 9px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Messages found by the search. */
+.busca-periodo {
+  margin: 0 10px;
+}
+
+.conversas-vazio {
+  margin: 0;
+  padding: 0 10px;
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.conversas-achados li button {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+/* One question, several bots: the picker. */
+.grupo-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-mensagens.grupo-escolha {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px;
+}
+
+.grupo-escolha .nota {
+  margin: 0;
+}
+
+.grupo-bots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.grupo-bots button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.grupo-bots button.ativo {
+  background: rgb(255 255 255 / 8%);
+}
+
+.grupo-bots button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.grupo-bots span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.grupo-bots b {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grupo-bots small,
+.grupo-meta,
+.grupo-coluna small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  white-space: nowrap;
+}
+
+.grupo-marca {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--nevoa);
+}
+
+.grupo-bots button.ativo .grupo-marca {
+  box-shadow: inset 0 0 0 8px var(--giz);
+}
+
+/* The answers, one column per bot. */
+.chat-topo.grupo-topo {
+  gap: 12px;
+}
+
+.grupo-colunas {
+  display: grid;
+  flex: 1;
+  grid-auto-columns: minmax(300px, 1fr);
+  grid-auto-flow: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.grupo-coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 3%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.grupo-coluna header,
+.grupo-coluna footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.grupo-coluna header {
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.grupo-coluna header b {
+  font-weight: 500;
+}
+
+.grupo-coluna header small,
+.grupo-coluna footer .lado-link {
+  margin-left: auto;
+}
+
+.grupo-coluna footer {
+  min-height: 44px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.grupo-resposta {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+  scrollbar-width: none;
+}
+
+.grupo-passo {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .grupo-colunas {
+    grid-auto-columns: auto;
+    grid-auto-flow: row;
+    overflow-y: auto;
+  }
+}
+
+.grupo-coluna footer .lado-link {
+  align-self: center;
+  margin-top: 0;
+}
+
+.busca-periodo button {
+  padding: 0 10px;
+}
+
+.grupo-coluna footer .lado-link {
+  white-space: nowrap;
+}

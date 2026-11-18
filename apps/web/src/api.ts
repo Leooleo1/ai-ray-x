@@ -158,6 +158,19 @@ export interface BotNote {
   text: string
 }
 
+export interface BotStep {
+  kind: 'read' | 'search' | 'list' | 'edit' | 'run' | 'web' | 'think' | 'tool'
+  target: string
+}
+
+export interface Batch {
+  id: string
+  text: string
+  created_ms: number
+  items: { bot: string; thread: string }[]
+  skipped: string[]
+}
+
 export interface BotThread {
   id: string
   title: string
@@ -234,6 +247,8 @@ export interface Bot {
   busy: boolean
   /** The conversation the running turn belongs to. */
   busy_thread: string | null
+  /** What the running turn is doing now (read, search, run…). */
+  step: BotStep | null
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]
@@ -254,10 +269,13 @@ export interface BotsState {
   candidates: BotCandidate[]
   /** The CLIs the person turned on that can run bots. */
   agents: { id: BotAgent; name: string }[]
+  /** Wired project pairs: only these can message each other. */
+  links: [string, string][]
+  batches: Batch[]
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete'
 
 export interface InboxMessage {
   id: string

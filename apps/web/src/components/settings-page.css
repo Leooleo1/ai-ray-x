@@ -320,3 +320,35 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Wires: one switch per pair of projects. */
+.fio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fio-par {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fio-par b {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fio-linha {
+  flex: none;
+  width: 32px;
+  border-top: 1px dashed rgb(255 255 255 / 24%);
+}
+
+.fio-linha.ligado {
+  border-top: 1px solid var(--ok);
+}

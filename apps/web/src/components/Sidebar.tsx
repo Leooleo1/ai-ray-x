@@ -7,7 +7,7 @@ import { Icon } from './Icons'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'settings'
 export type RoomView = 'channel' | AgentId
-export type ChatView = RoomView | 'bots' | `bot:${string}` | `troca:${string}`
+export type ChatView = RoomView | 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}`
 
 const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
 

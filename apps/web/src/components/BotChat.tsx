@@ -14,6 +14,7 @@ import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
 import { PinsLine } from './chat/PinsLine'
+import type { ChatNav } from './chat/nav'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
 
@@ -22,22 +23,30 @@ const INBOX_MS = 30_000
 /** The conversation every bot has; the others are parallel ones. */
 const MAIN = 'main'
 const INBOX_ID = 'caixa-ai-memory'
+/** Lets the conversation render before scrolling to a message in it. */
+const FOCUS_DELAY_MS = 120
 const PROPOSAL_ID = 'esperando-aprovacao'
 
 interface BotChatProps {
   bot: Bot
   bots: Bots
-  onOpen: (id: string) => void
-  onOpenExchange: (a: string, b: string) => void
-  onAdd: () => void
+  nav: ChatNav
+  /** A conversation and message to open at (from search or a group question). */
+  focus: { thread: string; ms: number } | null
   onConnections: () => void
   unread: Set<string>
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnections, unread }: BotChatProps) {
+export function BotChat({ bot, bots, nav, focus, onConnections, unread }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [thread, setThread] = useState(MAIN)
+  const [thread, setThread] = useState(focus?.thread ?? MAIN)
+  useEffect(() => {
+    if (!focus) return undefined
+    setThread(focus.thread)
+    const timer = window.setTimeout(() => document.getElementById(`msg-${focus.ms}`)?.scrollIntoView({ block: 'center' }), FOCUS_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [focus])
   const [modelSignal, setModelSignal] = useState(0)
   const [memorySignal, setMemorySignal] = useState(0)
   const inbox = useInbox(bot)
@@ -82,7 +91,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={bot.id} unread={unread} onOpen={onOpen} onOpenExchange={onOpenExchange} onAdd={onAdd} />
+        <BotList bots={bots} current={bot.id} unread={unread} nav={nav} />
         <div className="conversa">
         <header className="chat-topo bot-topo">
           <div className="abas" role="tablist" aria-label={t.newThread}>
@@ -117,10 +126,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
 
         <div className="linhas-topo">
           <MemoriesLine bot={bot} openSignal={memorySignal} />
-          <PinsLine bot={bot} onGo={(pin) => {
-            setThread(pin.thread)
-            window.setTimeout(() => document.getElementById(`msg-${pin.ms}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80)
-          }} />
+          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
         </div>
         <div className="chat-mensagens" ref={list}>
           {messages.length === 0 && !busyHere && mail.length === 0 && (
@@ -148,7 +154,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
               onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
-              onOpenExchange={onOpenExchange}
+              onOpenExchange={nav.openExchange}
               onOpenPlace={openPlace}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
@@ -178,7 +184,7 @@ export function BotChat({ bot, bots, onOpen, onOpenExchange, onAdd, onConnection
           </button>
         )}
         {busyElsewhere && <p className="linha-sistema">{t.busyElsewhere}</p>}
-        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} since={lastAsk?.ms ?? Date.now()} />}
+        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} step={bot.step} since={lastAsk?.ms ?? Date.now()} />}
         {!bot.busy && waiting > 0 && (
           <div className="esperando">
             <i className="ponto alerta" />

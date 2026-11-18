@@ -153,6 +153,12 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
         "approve" => bots::approve(state_dir, jobs, field("id"), thread),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
+        "link_toggle" => crate::links::toggle(state_dir, field("a"), field("b")),
+        "ask_many" => {
+            let ids: Vec<String> = input.get("ids").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+            crate::batches::ask_many(state_dir, jobs, &ids, field("text"))
+        }
+        "batch_delete" => crate::batches::delete(state_dir, field("batch")),
         "pin" => crate::pins::toggle(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0)),
         "routine_new" => {
             let days: Vec<u8> = input.get("days").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).map(|d| d.min(255) as u8).collect();

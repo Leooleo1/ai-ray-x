@@ -6,6 +6,7 @@ import { compact, t } from '../i18n'
 import { Command } from '../onboarding/parts'
 import { Avatar } from './Avatar'
 import { Choice, modelName } from './BotSettings'
+import { WiresEditor } from './WiresEditor'
 import './settings-page.css'
 
 /** Model choices per CLI when no bot is open to ask: Claude Code's own aliases. */
@@ -56,6 +57,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
     ...(botClis.length > 0 ? [{ id: 'padroes', label: t.defaultsTitle }] : []),
     { id: 'github', label: t.githubTitle },
     { id: 'bots', label: t.botsTitle2 },
+    ...(bots.state.bots.length > 0 ? [{ id: 'fios', label: t.wires }] : []),
   ]
   const [current, setCurrent] = useState('conexoes')
   const go = (id: string) => {
@@ -186,6 +188,16 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
           ))}
         </ul>
       </section>
+
+      {bots.state.bots.length > 0 && (
+        <section className="cartao config-bloco" id="config-fios">
+          <header className="config-topo">
+            <b>{t.wires}</b>
+          </header>
+          <p className="nota">{t.wiresHint}</p>
+          <WiresEditor bots={bots} />
+        </section>
+      )}
 
       {(error ?? bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
       </div>

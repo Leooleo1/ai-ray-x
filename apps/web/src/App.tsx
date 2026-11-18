@@ -11,6 +11,9 @@ import { Clock } from './components/Clock'
 import { ContextRuler } from './components/ContextRuler'
 import { EfficiencyView } from './components/Efficiency'
 import { SettingsPage } from './components/SettingsPage'
+import { AskMany } from './components/chat/AskMany'
+import { BatchView } from './components/chat/BatchView'
+import type { ChatNav } from './components/chat/nav'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
 import { Room } from './components/Room'
@@ -37,11 +40,14 @@ const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
 
 const BOTS_PATH = '/bots'
 const EXCHANGE_PATH = '/trocas'
+const GROUP_PATH = '/grupos'
 const SETUP_PATHS = ['/boas-vindas', '/welcome']
 
 function chatFromPath(): ChatView {
   const path = window.location.pathname
   if (path === BOTS_PATH) return 'bots'
+  if (path === GROUP_PATH) return 'grupo'
+  if (path.startsWith(`${GROUP_PATH}/`)) return `grupo:${path.slice(GROUP_PATH.length + 1)}`
   if (path.startsWith(`${EXCHANGE_PATH}/`)) return `troca:${decodeURIComponent(path.slice(EXCHANGE_PATH.length + 1))}`
   if (path.startsWith(`${BOTS_PATH}/`)) return `bot:${path.slice(BOTS_PATH.length + 1)}`
   return 'channel'
@@ -49,6 +55,8 @@ function chatFromPath(): ChatView {
 
 function chatPath(view: ChatView): string {
   if (view === 'bots') return BOTS_PATH
+  if (view === 'grupo') return GROUP_PATH
+  if (view.startsWith('grupo:')) return `${GROUP_PATH}/${view.slice(6)}`
   if (view.startsWith('bot:')) return `${BOTS_PATH}/${view.slice(4)}`
   if (view.startsWith('troca:')) return `${EXCHANGE_PATH}/${encodeURIComponent(view.slice(6))}`
   return PATHS.agents[0]
@@ -56,7 +64,7 @@ function chatPath(view: ChatView): string {
 
 function tabFromPath(): Tab {
   const path = window.location.pathname
-  if (path.startsWith(BOTS_PATH) || path.startsWith(EXCHANGE_PATH)) return 'agents'
+  if (path.startsWith(BOTS_PATH) || path.startsWith(EXCHANGE_PATH) || path.startsWith(GROUP_PATH)) return 'agents'
   return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
 }
 
@@ -122,6 +130,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [typing, setTyping] = useState<AgentId | null>(null)
+  const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
   const bots = useBots(report.bots)
   useEffect(() => {
     const onBack = () => {
@@ -153,8 +162,23 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     ? exchanges(bots.state.bots).find((x) => [x.a, x.b].sort().join('|') === chat.slice(6).split('|').sort().join('|'))
     : undefined
   const showExchange = (a: string, b: string) => openChat(`troca:${a}|${b}`)
+  const openBatch = chat.startsWith('grupo:') ? bots.state.batches.find((b) => `grupo:${b.id}` === chat) : undefined
+  const nav: ChatNav = {
+    openBot: (id) => {
+      setFocus(null)
+      openChat(`bot:${id}`)
+    },
+    openExchange: showExchange,
+    openBatch: (id) => openChat(`grupo:${id}`),
+    askMany: () => openChat('grupo'),
+    openMessage: (bot, thread, ms) => {
+      setFocus({ bot, thread, ms })
+      openChat(`bot:${bot}`)
+    },
+    add: () => openChat('bots'),
+  }
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
-  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:') || chat.startsWith('troca:'))
+  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:') || chat.startsWith('troca:') || chat.startsWith('grupo'))
   const heading = inBots ? { title: t.botsTitle, subtitle: t.botsHint } : HEADINGS[tab]
   return (
     <div className="app">
@@ -175,11 +199,13 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} onConnections={() => go('settings')} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onConnections={() => go('settings')} nav={nav} />}
         {tab === 'agents' && openExchange && (
-          <ExchangeView exchange={openExchange} bots={bots} unread={unread} onOpen={(id) => openChat(`bot:${id}`)} onOpenExchange={showExchange} onAdd={() => openChat('bots')} />
+          <ExchangeView exchange={openExchange} bots={bots} unread={unread} nav={nav} />
         )}
-        {tab === 'agents' && !openBot && !openExchange && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
+        {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} unread={unread} nav={nav} />}
+        {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} unread={unread} nav={nav} />}
+        {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'agents' && !inBots && (
           <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />
         )}
