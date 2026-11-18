@@ -82,6 +82,8 @@ pub struct Efficiency {
     pub skills_used: Vec<(String, u64)>,
     pub snapshots: BTreeMap<String, serde_json::Value>,
     pub threads_by_model: Vec<(String, u64)>,
+    /// Tokens re-read that a shell output limit would have cut: (tool, limit in characters, tokens).
+    pub output_trim: Vec<(String, u64, f64)>,
 }
 
 pub fn efficiency(conn: &Connection, source: &str) -> Result<Efficiency> {
@@ -130,8 +132,29 @@ pub fn efficiency(conn: &Connection, source: &str) -> Result<Efficiency> {
             [source],
             |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64)),
         )?,
+        output_trim: output_trim(conn, source)?,
         context,
     })
+}
+
+/// Shell output limits worth simulating, in characters.
+pub const OUTPUT_LIMITS: [u64; 2] = [15_000, 10_000];
+
+/// Exact for the indexed logs: each output's characters above the limit, times
+/// the requests that re-read it before the next compaction.
+fn output_trim(conn: &Connection, source: &str) -> Result<Vec<(String, u64, f64)>> {
+    let tool = if source == "claude" { "Bash" } else { "exec" };
+    let sql = "WITH last AS (SELECT file, segment, MAX(seq) AS last_seq FROM calls WHERE source = ?1 GROUP BY file, segment)
+        SELECT COALESCE(SUM(MAX(r.chars - ?3, 0) * MAX(COALESCE(l.last_seq, r.seq_at) - r.seq_at, 0)), 0)
+        FROM tool_results r LEFT JOIN last l ON l.file = r.file AND l.segment = r.segment
+        WHERE r.source = ?1 AND r.tool = ?2";
+    OUTPUT_LIMITS
+        .iter()
+        .map(|limit| {
+            let chars: i64 = conn.query_row(sql, rusqlite::params![source, tool, *limit as i64], |r| r.get(0))?;
+            Ok((tool.to_string(), *limit, chars.max(0) as f64 / CHARS_PER_TOKEN))
+        })
+        .collect()
 }
 
 fn distribution(sorted: &[u64]) -> Distribution {

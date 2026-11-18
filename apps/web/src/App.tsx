@@ -33,6 +33,7 @@ type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind:
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
+  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     const token = sessionToken()
@@ -57,19 +58,20 @@ export function App() {
       alive = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [version])
 
   if (state.kind === 'loading') return <div className="tela-estado">{t.loading}</div>
   if (state.kind === 'failed') return <div className="tela-estado">{`${t.failed}: ${state.message}`}</div>
-  return <Dashboard report={state.report} at={state.at} />
+  return <Dashboard report={state.report} at={state.at} onChanged={() => setVersion((v) => v + 1)} />
 }
 
 interface DashboardProps {
   report: Report
   at: Date
+  onChanged: () => void
 }
 
-function Dashboard({ report, at }: DashboardProps) {
+function Dashboard({ report, at, onChanged }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   useEffect(() => {
     const onBack = () => setTab(tabFromPath())
@@ -115,7 +117,7 @@ function Dashboard({ report, at }: DashboardProps) {
         {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
       </div>
       {tab === 'efficiency' ? (
-        <EfficiencyView report={report} />
+        <EfficiencyView report={report} onChanged={onChanged} />
       ) : (
       <main className="grade">
         <Hero

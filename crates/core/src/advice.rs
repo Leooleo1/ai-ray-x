@@ -170,19 +170,24 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
 
     let shell = if claude { "Bash" } else { "exec" };
     let shell_tokens = carried(shell);
+    let trimmed = eff.output_trim.iter().find(|(_, limit, _)| *limit == 15_000).map_or(0.0, |(_, _, tokens)| *tokens);
     found.push(Suggestion {
         id: "trim-tool-output",
         source: source.clone(),
         title: "Trim tool output",
-        evidence: format!("{shell} output stays loaded: {:.0}M tokens re-read", shell_tokens / 1e6),
-        saving_tokens: (shell_tokens * 0.5) as u64,
-        saving_share: shell_tokens * 0.5 / total,
+        evidence: format!(
+            "{shell} output stays loaded: {:.0}M tokens re-read; a 15,000-character limit cuts {:.0}M",
+            shell_tokens / 1e6,
+            trimmed / 1e6
+        ),
+        saving_tokens: trimmed as u64,
+        saving_share: trimmed / total,
         how: if claude {
-            "Set BASH_MAX_OUTPUT_LENGTH, pipe long output through head/tail, and search with Grep instead of printing files"
+            "Set BASH_MAX_OUTPUT_LENGTH=15000 (default 30000), pipe long output through head/tail, search with Grep"
         } else {
             "Set tool_output_token_limit in ~/.codex/config.toml and keep command output short"
         },
-        confidence: "estimate",
+        confidence: "exact for past logs",
     });
 
     let images: f64 = eff.carried.iter().map(|c| c.images as f64).sum::<f64>() * IMAGE_TOKENS;

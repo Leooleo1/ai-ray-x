@@ -12,7 +12,12 @@ use anyhow::{anyhow, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
-use crate::data;
+use crate::{actions, data};
+use raiox_core::apply;
+use serde_json::{json, Value};
+use std::io::Read;
+
+const MAX_BODY: u64 = 4096;
 
 type Reply = Response<Cursor<Vec<u8>>>;
 
@@ -36,6 +41,10 @@ pub struct Panel {
     pub store: Store,
     pub roots: Roots,
     pub web_dir: PathBuf,
+    /// Where the change ledger and backups live (next to the index).
+    pub state_dir: PathBuf,
+    /// The project changes apply to: the folder `raiox open` started in.
+    pub project_dir: PathBuf,
 }
 
 pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
@@ -49,27 +58,40 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
         eprintln!("could not open the browser ({error}); open the link above");
     }
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
-    for request in server.incoming_requests() {
-        let reply = route(&mut panel, &request, &token, &hosts);
+    for mut request in server.incoming_requests() {
+        let reply = route(&mut panel, &mut request, &token, &hosts);
         // The browser may have gone away; nothing to do about it.
         let _ = request.respond(reply);
     }
     Ok(())
 }
 
-fn route(panel: &mut Panel, request: &Request, token: &str, hosts: &[String]) -> Reply {
+fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]) -> Reply {
     if !header(request, "Host").is_some_and(|host| hosts.iter().any(|h| h == host)) {
         return text(403, "forbidden host");
     }
     let path = request.url().split(['?', '#']).next().unwrap_or("/");
     match (request.method(), path) {
-        (Method::Get, "/api/report") if !authorized(request, token) => text(401, "missing or wrong session token"),
-        (Method::Get, "/api/report") => match data::refresh_and_collect(&mut panel.store, &panel.roots) {
-            Ok(value) => with_type(Response::from_data(value.to_string().into_bytes()), "application/json"),
-            Err(error) => {
-                eprintln!("report failed: {error:#}");
-                text(500, "report failed; see the terminal")
-            }
+        (_, p) if p.starts_with("/api/") && !authorized(request, token) => text(401, "missing or wrong session token"),
+        (Method::Get, "/api/report") => respond(report(panel)),
+        (Method::Post, "/api/apply") => match body(request) {
+            Ok(input) => respond(actions::apply_suggestion(
+                &panel.store,
+                &panel.state_dir,
+                &panel.project_dir,
+                input.get("id").and_then(Value::as_str).unwrap_or(""),
+                input.get("source").and_then(Value::as_str).unwrap_or("claude"),
+            )),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/undo") => match body(request) {
+            Ok(input) => respond(actions::undo_change(
+                &panel.store,
+                &panel.state_dir,
+                &panel.project_dir,
+                input.get("change").and_then(Value::as_str).unwrap_or(""),
+            )),
+            Err(reply) => reply,
         },
         (Method::Get, _) => static_file(&panel.web_dir, path),
         _ => text(405, "method not allowed"),
@@ -148,6 +170,33 @@ fn with_type(response: Reply, content_type: &str) -> Reply {
         .chain([("Content-Type", content_type)].iter())
         .filter_map(|(name, value)| Header::from_bytes(name.as_bytes(), value.as_bytes()).ok())
         .fold(response, |reply, header| reply.with_header(header))
+}
+
+fn report(panel: &mut Panel) -> anyhow::Result<Value> {
+    let mut value = data::refresh_and_collect(&mut panel.store, &panel.roots)?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
+        object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
+        object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
+    }
+    Ok(value)
+}
+
+fn respond(result: anyhow::Result<Value>) -> Reply {
+    match result {
+        Ok(value) => with_type(Response::from_data(value.to_string().into_bytes()), "application/json"),
+        Err(error) => {
+            let message = json!({ "error": format!("{error:#}") }).to_string();
+            with_type(Response::from_data(message.into_bytes()), "application/json").with_status_code(422)
+        }
+    }
+}
+
+/// Small JSON bodies only; anything else is refused.
+fn body(request: &mut Request) -> Result<Value, Reply> {
+    let mut raw = String::new();
+    request.as_reader().take(MAX_BODY).read_to_string(&mut raw).map_err(|_| text(400, "unreadable body"))?;
+    serde_json::from_str(&raw).map_err(|_| text(400, "body must be JSON"))
 }
 
 #[cfg(test)]

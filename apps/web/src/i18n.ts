@@ -1,6 +1,14 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  apply: 'Apply',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
+  applied: 'applied',
+  undo: 'undo',
+  applyTarget: 'writes {p} in .claude/settings.local.json of this project',
+  memoSaved: 'Memo kept the lesson in ai-memory',
+  memoFailed: 'applied; Memo could not keep the lesson',
   tabXray: 'X-ray',
   tabEfficiency: 'Efficiency',
   dietTitleMain: 'Token diet',
@@ -52,6 +60,14 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  apply: 'Aplicar',
+  confirm: 'Confirmar',
+  cancel: 'Cancelar',
+  applied: 'aplicado',
+  undo: 'desfazer',
+  applyTarget: 'grava {p} no .claude/settings.local.json deste projeto',
+  memoSaved: 'o Memo guardou a lição no ai-memory',
+  memoFailed: 'aplicado; o Memo não conseguiu guardar a lição',
   tabXray: 'Raio-X',
   tabEfficiency: 'Eficiência',
   dietTitleMain: 'Dieta de tokens',

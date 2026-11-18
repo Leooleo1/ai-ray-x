@@ -1,6 +1,8 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
+mod actions;
 mod data;
+mod memo;
 mod mcp;
 mod print;
 mod serve;
@@ -72,6 +74,14 @@ enum Command {
         #[arg(long)]
         source: Option<String>,
     },
+    /// Apply a Dieta suggestion to this project (backup, ledger, Memo lesson).
+    Apply {
+        suggestion: String,
+        #[arg(long, default_value = "claude")]
+        source: String,
+    },
+    /// Undo an applied change by its id (see the panel or the ledger).
+    Undo { change: String },
     /// Print the report in the terminal.
     Report {
         /// Print JSON instead of text.
@@ -99,9 +109,16 @@ fn main() -> Result<()> {
         Command::Open { port, no_open, web_dir } => {
             let web_dir = web_dir.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist"));
             raiox_core::refresh(&mut store, &roots)?;
-            serve::run(serve::Panel { store, roots, web_dir }, port, !no_open)
+            let state_dir = state_dir(&db);
+            let project_dir = std::env::current_dir()?;
+            serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir }, port, !no_open)
         }
         Command::Mcp => mcp::run(store, roots),
+        Command::Apply { suggestion, source } => {
+            raiox_core::refresh(&mut store, &roots)?;
+            emit(actions::apply_suggestion(&store, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
+        }
+        Command::Undo { change } => emit(actions::undo_change(&store, &state_dir(&db), &std::env::current_dir()?, &change)?),
         Command::Context { session, dir } => {
             raiox_core::refresh(&mut store, &roots)?;
             let dir = dir.map_or_else(std::env::current_dir, Ok)?;
@@ -168,4 +185,9 @@ fn session_of_dir(claude: &std::path::Path, dir: &std::path::Path) -> Option<Str
         .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
         .max_by_key(|(modified, _)| *modified)
         .and_then(|(_, path)| Some(path.file_stem()?.to_string_lossy().into_owned()))
+}
+
+/// The ledger and backups live next to the index.
+fn state_dir(db: &std::path::Path) -> std::path::PathBuf {
+    db.parent().map_or_else(|| std::path::PathBuf::from("."), std::path::Path::to_path_buf)
 }

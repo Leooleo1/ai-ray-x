@@ -58,7 +58,18 @@ export interface Suggestion {
   saving_tokens: number
   saving_share: number
   how: string
-  confidence: 'upper bound' | 'estimate'
+  confidence: 'upper bound' | 'estimate' | 'exact for past logs'
+}
+
+export interface Change {
+  id: string
+  suggestion: string
+  file: string
+  key: string
+  after: string
+  applied_ms: number
+  undone_ms: number | null
+  lesson: string | null
 }
 
 export interface ContextStatus {
@@ -94,6 +105,9 @@ export interface Report {
   generated_at: number
   sources: SourceReport[]
   context_status: ContextStatus | null
+  changes: Change[]
+  applicable: Record<Source, string[]>
+  project_dir: string
 }
 
 const TOKEN_KEY = 'raiox.session'
@@ -115,4 +129,25 @@ export async function fetchReport(token: string): Promise<Report> {
     throw new Error(`${response.status} ${await response.text()}`)
   }
   return (await response.json()) as Report
+}
+
+async function post(path: string, body: Record<string, string>): Promise<{ error?: string; memo?: { kept?: string; error?: string } }> {
+  const token = sessionToken()
+  if (!token) throw new Error('no session token')
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = (await response.json()) as { error?: string; memo?: { kept?: string; error?: string } }
+  if (!response.ok) throw new Error(data.error ?? `${response.status}`)
+  return data
+}
+
+export function applySuggestion(id: string, source: Source): ReturnType<typeof post> {
+  return post('/api/apply', { id, source })
+}
+
+export function undoChange(change: string): ReturnType<typeof post> {
+  return post('/api/undo', { change })
 }

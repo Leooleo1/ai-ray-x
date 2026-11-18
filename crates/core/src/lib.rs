@@ -3,6 +3,7 @@
 //! conversation text, command text or file contents leave the parser.
 
 pub mod advice;
+pub mod apply;
 pub mod efficiency;
 pub mod model;
 pub mod report;

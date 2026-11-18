@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { AGENTS, type Agent } from '../agents'
-import type { ContextStatus, Report, Source } from '../api'
+import { applySuggestion, undoChange, type Change, type ContextStatus, type Report, type Source } from '../api'
 import { dietLines } from '../diet'
-import { compact, percent, splitCompact, t } from '../i18n'
+import { compact, fill, percent, splitCompact, t } from '../i18n'
 import { Avatar } from './Avatar'
 
 const RULER_SCALE = 1_000_000
@@ -11,20 +11,24 @@ const DISPLAY: Record<string, string> = { 'your prompts': t.yourPrompts, 'inject
 
 interface EfficiencyViewProps {
   report: Report
+  onChanged: () => void
 }
 
-export function EfficiencyView({ report }: EfficiencyViewProps) {
+export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
   const [source, setSource] = useState<Source>(report.sources[0]?.overview.source ?? 'claude')
   const selected = report.sources.find((s) => s.overview.source === source) ?? report.sources[0]
   const lines = selected ? dietLines(selected) : []
   const best = Math.max(0, ...report.sources.flatMap((s) => s.suggestions.map((x) => x.saving_share)))
   const count = report.sources.reduce((sum, s) => sum + s.suggestions.length, 0)
   const status = report.context_status
+  const open = report.changes.filter((c) => c.undone_ms === null)
+  const lessons = report.changes.filter((c) => c.lesson !== null).length
+  const applicable = report.applicable[source] ?? []
   return (
     <main className="grade eficiencia">
       <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} label={t.raioLine} />
       <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare />
-      <AgentCard agent={AGENTS.memo} value={0} label={t.memoLine} />
+      <AgentCard agent={AGENTS.memo} value={lessons} label={t.memoLine} />
       <section className="cartao dieta-lista">
         <h2>
           {t.dietaTitle}
@@ -53,6 +57,14 @@ export function EfficiencyView({ report }: EfficiencyViewProps) {
               </div>
               <div className="linha-2">{line.evidence}</div>
               <div className="linha-3">{line.how}</div>
+              {applicable.includes(line.id) && (
+                <Action
+                  id={line.id}
+                  source={source}
+                  change={open.find((c) => c.suggestion === line.id)}
+                  onChanged={onChanged}
+                />
+              )}
             </li>
           ))}
         </ol>
@@ -137,5 +149,65 @@ function SessionCard({ status }: SessionCardProps) {
         ))}
       </ul>
     </section>
+  )
+}
+
+interface ActionProps {
+  id: string
+  source: Source
+  change: Change | undefined
+  onChanged: () => void
+}
+
+type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
+
+/** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
+function Action({ id, source, change, onChanged }: ActionProps) {
+  const [step, setStep] = useState<Step>({ kind: 'idle' })
+  const run = async (task: () => ReturnType<typeof applySuggestion>, ok: (memoKept: boolean) => string) => {
+    setStep({ kind: 'busy' })
+    try {
+      const result = await task()
+      setStep({ kind: 'done', message: ok(Boolean(result.memo?.kept)) })
+      onChanged()
+    } catch (error: unknown) {
+      setStep({ kind: 'failed', message: error instanceof Error ? error.message : String(error) })
+    }
+  }
+  const note = step.kind === 'done' || step.kind === 'failed' ? <span className={`nota ${step.kind}`}>{step.message}</span> : null
+  if (change) {
+    return (
+      <div className="acao">
+        <span className="estado">
+          <i className="ponto ok" />
+          {t.applied} · {change.key}={change.after}
+        </span>
+        <button className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id), () => t.undo)}>
+          {t.undo}
+        </button>
+        {note}
+      </div>
+    )
+  }
+  if (step.kind === 'confirm') {
+    return (
+      <div className="acao">
+        <button className="cheio" onClick={() => void run(() => applySuggestion(id, source), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
+          {t.confirm}
+        </button>
+        <button className="link" onClick={() => setStep({ kind: 'idle' })}>
+          {t.cancel}
+        </button>
+        <span className="nota">{fill(t.applyTarget, id === 'compact-earlier' ? 'CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000' : id)}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="acao">
+      <button className="vidro-btn" disabled={step.kind === 'busy'} onClick={() => setStep({ kind: 'confirm' })}>
+        {t.apply}
+      </button>
+      {note}
+    </div>
   )
 }
