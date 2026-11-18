@@ -29,8 +29,8 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
   const applicable = report.applicable[source] ?? []
   return (
     <main className="grade eficiencia">
+      <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare isHero />
       <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} label={t.raioLine} />
-      <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare />
       <AgentCard agent={AGENTS.memo} value={lessons} label={t.memoLine} />
       <section className="cartao dieta-lista">
         <h2>
@@ -48,8 +48,8 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
             <li key={line.id}>
               <div className="linha-1">
                 <span className="nome">{line.title}</span>
-                <span className="num">{line.saving > 0 ? `-${compact(line.saving)}` : ''}</span>
-                <span className="apoio">{line.share > 0 ? `~${percent(line.share)}` : ''}</span>
+                {line.saving > 0 && <span className="num">{`-${compact(line.saving)}`}</span>}
+                {line.share > 0 && <span className="apoio">{`~${percent(line.share)}`}</span>}
               </div>
               {line.id === 'compact-earlier' && selected?.efficiency.compaction.best ? (
                 <CompactionBreakdown model={selected.efficiency.compaction} />
@@ -81,22 +81,21 @@ interface AgentCardProps {
   value: number
   label: string
   isShare?: boolean
+  /** The tab's one big number: what Dieta could save. */
+  isHero?: boolean
 }
 
-function AgentCard({ agent, value, label, isShare = false }: AgentCardProps) {
+function AgentCard({ agent, value, label, isShare = false, isHero = false }: AgentCardProps) {
   const big = isShare ? { value: percent(value), unit: '' } : splitCompact(value)
   return (
-    <section className="cartao agente">
+    <section className={`cartao agente ${isHero ? 'agente-heroi' : ''}`}>
       <div className="agente-topo">
-        <Avatar agent={agent} size={52} followPointer />
-        <span className="agente-nome">
-          <b>{agent.name}</b>
-          <span>{agent.role}</span>
-        </span>
+        <Avatar agent={agent} size={isHero ? 40 : 28} followPointer={isHero} state={isHero ? 'idle' : 'still'} />
+        <b className="agente-nome">{agent.name}</b>
       </div>
       <div className="destaque">
         <strong>
-          {isShare && value > 0 ? `~${big.value}` : big.value}
+          {isShare && value > 0 && !isHero ? `~${big.value}` : big.value}
           {big.unit && <span className="unidade-pequena">{big.unit}</span>}
         </strong>
         <span>{label}</span>
@@ -116,9 +115,7 @@ function SessionCard({ status }: SessionCardProps) {
     <section className="cartao sessao">
       <h2>
         {t.sessionTitle}
-        <small>
-          {SOURCE_NAMES[status.source]} · {status.project.split('/').pop()} · {status.requests_since_compaction} {t.requests}
-        </small>
+        <small>{`${status.project.split('/').pop()} · ${status.requests_since_compaction} ${t.requests}`}</small>
       </h2>
       <div className={`trilho-wrap ${status.source}`}>
         <div className="trilho" />
@@ -134,16 +131,14 @@ function SessionCard({ status }: SessionCardProps) {
         )}
         <span className="rotulo-escala inicio">0</span>
       </div>
-      <ul className="lista">
+      <ul className="lista sem-ponto">
         <li>
-          <i className="ponto" />
           <span className="nome">{t.startup}</span>
           <span className="num">{compact(status.startup_tokens)}</span>
           <span className="apoio">{percent(status.startup_tokens / Math.max(1, status.context_tokens))}</span>
         </li>
         {status.loaded_since_compaction.map((item) => (
           <li key={item.name}>
-            <i className={`ponto ${status.source}`} />
             <span className="nome">{DISPLAY[item.name] ?? item.name}</span>
             <span className="num">{compact(item.tokens)}</span>
             <span className="apoio">{percent(item.tokens / Math.max(1, status.context_tokens))}</span>

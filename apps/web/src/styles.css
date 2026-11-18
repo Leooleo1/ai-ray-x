@@ -702,8 +702,18 @@ body {
 }
 
 .agente {
-  grid-column: span 4;
+  grid-column: span 3;
   justify-content: space-between;
+}
+
+/* Dieta's saving is the tab's hero: wider card, the number in dots like the Raio-X's. */
+.agente-heroi {
+  grid-column: span 6;
+}
+
+.agente-heroi .destaque strong {
+  font: 700 48px/48px var(--pontos);
+  letter-spacing: 0.02em;
 }
 
 .agente-topo {
@@ -718,20 +728,13 @@ body {
 }
 
 .agente-nome {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.agente-nome b {
   font: 500 14px/20px var(--sans);
 }
 
-.agente-nome span,
 .agente .destaque span {
   overflow: hidden;
   color: var(--nevoa);
-  font-size: 12px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -745,7 +748,7 @@ body {
 .unidade-pequena {
   margin-left: 6px;
   color: var(--nevoa);
-  font: 300 16px/20px var(--sans);
+  font: 400 13px/16px var(--sans);
 }
 
 .dieta-lista {
@@ -796,21 +799,22 @@ body {
   font-weight: 500;
 }
 
-.linha-2,
-.linha-3 {
+.linha-2 {
   overflow: hidden;
   color: var(--nevoa);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.linha-2 {
-  font-size: 13px;
-}
-
+/* How to do it: prose, so sans and up to two lines, never cut mid-word in mono. */
 .linha-3 {
-  font: 12px/16px var(--mono);
-  opacity: 0.8;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 13px/18px var(--sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .sessao .trilho-wrap {
@@ -819,6 +823,46 @@ body {
 }
 
 @media (max-width: 960px) {
+  .agente,
+  .agente-heroi {
+    grid-column: 1 / -1;
+  }
+
+  .dieta-lista h2 {
+    flex-wrap: wrap;
+  }
+
+  .dieta-lista h2 small {
+    display: none;
+  }
+
+  .linha-1 {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .linha-1 .nome {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+
+  .dieta-lista .comparativo {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 2px 16px;
+  }
+
+  .dieta-lista .comparativo dt {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+
+  .dieta-lista .comparativo dt:first-child {
+    display: none;
+  }
+
+  .dieta-lista .comparativo dd {
+    text-align: left;
+  }
+
   .carregado .lista,
   .projetos .lista {
     overflow: visible;
@@ -945,6 +989,11 @@ body {
 
 /* Tooltip: solid surface (no live blur), opens on hover and keyboard focus */
 
+/* A long setting name (CLAUDE_CODE_AUTO_COMPACT_WINDOW=…) breaks inside the tooltip, never past the screen. */
+.dica * {
+  overflow-wrap: anywhere;
+}
+
 .dica-wrap {
   position: relative;
   display: inline-flex;
@@ -958,7 +1007,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: min(380px, calc(100vw - 72px));
+  /* The card's padding and the list's on both sides keep it inside a phone screen. */
+  width: min(380px, calc(100vw - 104px));
   padding: 12px 14px;
   border-radius: 12px;
   background: #16161c;
@@ -966,7 +1016,7 @@ body {
     inset 0 0 0 1px var(--fio),
     0 16px 32px -12px rgb(0 0 0 / 80%);
   color: var(--nevoa);
-  font: 12px/18px var(--sans);
+  font: 13px/18px var(--sans);
   white-space: normal;
   opacity: 0;
   pointer-events: none;
@@ -1603,7 +1653,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 4px 20px;
   margin: 6px 0 2px;
-  font: 12px/16px var(--mono);
+  font: 13px/18px var(--mono);
 }
 
 .comparativo dt {
