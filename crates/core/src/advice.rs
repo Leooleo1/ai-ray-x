@@ -11,7 +11,6 @@ use crate::report::rows;
 
 const CHARS_PER_TOKEN: f64 = 3.6;
 const IMAGE_TOKENS: f64 = 1_500.0;
-const COMPACT_TARGET: u64 = 400_000;
 const TOP_LOADED: usize = 6;
 /// Suggestions below this share of the re-read context are not worth the noise.
 const MIN_SHARE: f64 = 0.02;
@@ -116,7 +115,9 @@ pub struct Suggestion {
     pub saving_tokens: u64,
     pub saving_share: f64,
     pub how: &'static str,
-    /// "upper bound" or "estimate": how much to trust the number.
+    /// The setting value to apply, when the suggestion has one (e.g. the compaction point).
+    pub value: Option<String>,
+    /// "net estimate", "estimate" or "exact for past logs": how much to trust the number.
     pub confidence: &'static str,
 }
 
@@ -128,25 +129,33 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
     let claude = source == "claude";
     let mut found = Vec::new();
 
-    if eff.compaction_pre_median > COMPACT_TARGET {
-        let saved = eff.simulation.iter().find(|(cap, _)| *cap == COMPACT_TARGET).map_or(0.0, |(_, s)| *s);
+    if let Some(best) = eff.compaction.best.as_ref().filter(|b| eff.compaction_pre_median > b.cap) {
+        let m = &eff.compaction;
         found.push(Suggestion {
             id: "compact-earlier",
             source: source.clone(),
             title: "Compact earlier",
             evidence: format!(
-                "compaction happens at about {}K tokens; half the requests carry over {}K",
-                eff.compaction_pre_median / 1000,
-                eff.context.median / 1000
+                "compacting at {}K: each request re-reads {}K on average instead of {}K; {:.1} compactions per 100 \
+                 requests instead of {:.1}, each reading the context once to summarize; after each, it restarts at \
+                 {}K and re-reads about {}K more (kept to at most one summary per 100 requests)",
+                best.cap / 1000,
+                best.avg_context / 1000,
+                m.now_avg_context / 1000,
+                best.compactions_per_100,
+                m.now_compactions_per_100,
+                m.floor / 1000,
+                m.refill / 1000
             ),
-            saving_tokens: (saved * total) as u64,
-            saving_share: saved,
+            saving_tokens: (best.net_saving * total) as u64,
+            saving_share: best.net_saving,
             how: if claude {
-                "Lower the auto-compact window (Claude Code setting autoCompactWindow) or run /compact when a task ends"
+                "Set CLAUDE_CODE_AUTO_COMPACT_WINDOW in this project's .claude/settings.local.json, or run /compact when a task ends"
             } else {
                 "Set model_auto_compact_token_limit in ~/.codex/config.toml, or compact when a task ends"
             },
-            confidence: "upper bound",
+            value: Some(best.cap.to_string()),
+            confidence: "net estimate",
         });
     }
 
@@ -164,6 +173,7 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
             saving_tokens: idle * 8 / 10,
             saving_share: idle as f64 * 0.8 / total,
             how: "After an hour away, start a new session with a short summary (or a handoff) instead of resuming a huge one",
+            value: None,
             confidence: "estimate",
         });
     }
@@ -187,6 +197,7 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
         } else {
             "Set tool_output_token_limit in ~/.codex/config.toml and keep command output short"
         },
+        value: None,
         confidence: "exact for past logs",
     });
 
@@ -203,6 +214,7 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
             saving_tokens: 0,
             saving_share: 0.0,
             how: "Let a subagent open and judge the screenshots and return a short verdict, so the images never reach the main session",
+            value: None,
             confidence: "estimate",
         });
     }
@@ -225,6 +237,7 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
                 saving_tokens: (fixed.share_of_context * total * 0.3) as u64,
                 saving_share: fixed.share_of_context * 0.3,
                 how: "Disable plugins, skills and MCP servers unused in the last 60 days; keep rules and memory indexes short",
+                value: None,
                 confidence: "estimate",
             });
         }

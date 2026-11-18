@@ -1,6 +1,10 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  compactingAt: 'compacting at',
+  rereadPerRequest: 're-read per request',
+  summariesPer100: 'summaries per 100 requests',
+  afterSummary: 'after each summary (restart + re-read)',
   backToChannel: 'Back to the channel',
   channels: 'Channel',
   directs: 'Direct messages',
@@ -37,7 +41,6 @@ const en = {
   memoLine: 'lessons kept · when you accept a suggestion',
   dietaTitle: 'Suggestions',
   dietaHint: 'saving over the period · suggestions only',
-  upTo: 'up to ',
   sessionTitle: 'Current session',
   requests: 'requests since compaction',
   now: 'now',
@@ -78,6 +81,10 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  compactingAt: 'compactando em',
+  rereadPerRequest: 'relido por pedido',
+  summariesPer100: 'resumos a cada 100 pedidos',
+  afterSummary: 'depois de cada resumo (recomeça + relê)',
   backToChannel: 'Voltar ao canal',
   channels: 'Canal',
   directs: 'Mensagens diretas',
@@ -114,7 +121,6 @@ const pt: Texts = {
   memoLine: 'lições guardadas · quando você aceitar uma sugestão',
   dietaTitle: 'Sugestões',
   dietaHint: 'economia no período · só sugestões',
-  upTo: 'até ',
   sessionTitle: 'Sessão atual',
   requests: 'pedidos desde a compactação',
   now: 'agora',

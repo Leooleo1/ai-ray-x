@@ -18,8 +18,6 @@ const CHARS_PER_TOKEN: f64 = 3.6;
 /// Rough cost of one screenshot-sized image.
 const IMAGE_TOKENS: f64 = 1_500.0;
 const BUCKET_EDGES: [u64; 6] = [50_000, 100_000, 200_000, 400_000, 600_000, 800_000];
-pub const COMPACTION_CAPS: [u64; 3] = [200_000, 300_000, 400_000];
-const DEFAULT_POST_COMPACTION: u64 = 40_000;
 
 #[derive(Debug, Serialize)]
 pub struct Distribution {
@@ -75,9 +73,8 @@ pub struct Efficiency {
     pub rewrites: Vec<Rewrite>,
     pub compactions: u64,
     pub compaction_pre_median: u64,
-    pub compaction_post_median: u64,
-    /// Share of context tokens saved if compaction happened at each cap (upper bound).
-    pub simulation: Vec<(u64, f64)>,
+    /// What compacting earlier would really save (net of summarizing and re-reading).
+    pub compaction: crate::compaction::Model,
     pub carried: Vec<Carried>,
     pub skills_used: Vec<(String, u64)>,
     pub snapshots: BTreeMap<String, serde_json::Value>,
@@ -96,7 +93,7 @@ pub fn efficiency(conn: &Connection, source: &str) -> Result<Efficiency> {
     let mut sizes: Vec<u64> = contexts.iter().map(|(ctx, _)| *ctx).collect();
     sizes.sort_unstable();
     let context = distribution(&sizes);
-    let (pre, post) = compaction_medians(conn, source)?;
+    let pre = compaction_pre_median(conn, source)?;
     Ok(Efficiency {
         source: source.to_string(),
         cost_shares: cost_shares(conn, source)?,
@@ -113,11 +110,7 @@ pub fn efficiency(conn: &Connection, source: &str) -> Result<Efficiency> {
         )?,
         compactions: single(conn, "SELECT COUNT(*) FROM compactions WHERE source = ?1", [source])?,
         compaction_pre_median: pre,
-        compaction_post_median: post,
-        simulation: COMPACTION_CAPS
-            .iter()
-            .map(|cap| (*cap, simulate(&sizes, *cap, post.max(1).min(cap / 2))))
-            .collect(),
+        compaction: crate::compaction::model(conn, source)?,
         carried: carried(conn, source, context.total)?,
         skills_used: rows(
             conn,
@@ -228,26 +221,12 @@ fn fixed_overhead(conn: &Connection, source: &str, contexts: &[(u64, bool)], tot
     Ok(result)
 }
 
-fn compaction_medians(conn: &Connection, source: &str) -> Result<(u64, u64)> {
-    let pairs = rows(conn, "SELECT pre, post FROM compactions WHERE source = ?1 AND pre > 0", [source], |r| {
-        Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as u64))
+fn compaction_pre_median(conn: &Connection, source: &str) -> Result<u64> {
+    let mut pre = rows(conn, "SELECT pre FROM compactions WHERE source = ?1 AND pre > 0", [source], |r| {
+        Ok(r.get::<_, i64>(0)? as u64)
     })?;
-    let median = |mut values: Vec<u64>| {
-        values.sort_unstable();
-        values.get(values.len() / 2).copied()
-    };
-    let pre = median(pairs.iter().map(|(p, _)| *p).collect()).unwrap_or(0);
-    let post = median(pairs.iter().map(|(_, p)| *p).collect()).unwrap_or(DEFAULT_POST_COMPACTION);
-    Ok((pre, post))
-}
-
-/// Context re-read if compaction happened at `cap` and shrank it to `post`.
-/// Upper bound: it ignores files the agent would read again after compacting.
-fn simulate(sizes: &[u64], cap: u64, post: u64) -> f64 {
-    let total: u64 = sizes.iter().sum();
-    let simulated: u64 =
-        sizes.iter().map(|ctx| if *ctx <= cap { *ctx } else { post + (ctx - cap) % (cap - post) }).sum();
-    if total == 0 { 0.0 } else { 1.0 - simulated as f64 / total as f64 }
+    pre.sort_unstable();
+    Ok(pre.get(pre.len() / 2).copied().unwrap_or(0))
 }
 
 /// What stayed in the context, weighted by how many later requests re-read it.
@@ -306,18 +285,6 @@ fn snapshots(conn: &Connection, source: &str) -> Result<BTreeMap<String, serde_j
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn simulation_saves_nothing_below_the_cap() {
-        assert_eq!(simulate(&[100, 200], 300, 40), 0.0);
-    }
-
-    #[test]
-    fn simulation_folds_context_above_the_cap() {
-        // 500 with cap 300 and post 100: 100 + (500 - 300) % 200 = 100.
-        let saved = simulate(&[500], 300, 100);
-        assert!((saved - 0.8).abs() < 1e-9);
-    }
 
     #[test]
     fn buckets_split_calls_and_tokens() {

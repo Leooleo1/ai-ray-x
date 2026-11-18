@@ -4,6 +4,7 @@
 
 pub mod advice;
 pub mod apply;
+pub mod compaction;
 pub mod efficiency;
 pub mod model;
 pub mod outcome;

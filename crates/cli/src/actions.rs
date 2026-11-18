@@ -15,20 +15,22 @@ fn now_ms() -> i64 {
         .map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
-fn evidence(store: &Store, suggestion: &str, source: &str) -> String {
+/// Dieta's suggestion as computed now: its evidence and the value to apply.
+fn current(store: &Store, suggestion: &str, source: &str) -> (String, Option<String>) {
     efficiency::efficiency(store.conn(), source)
         .map(|e| advice::suggestions(&e, None))
         .ok()
         .and_then(|list| list.into_iter().find(|s| s.id == suggestion))
-        .map_or_else(String::new, |s| s.evidence)
+        .map_or_else(|| (String::new(), None), |s| (s.evidence, s.value))
 }
 
 pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, suggestion: &str, source: &str) -> Result<Value> {
     room::require_opt_in(project_dir)?;
-    let plan = apply::plan(suggestion, source, project_dir)
+    let (evidence, value) = current(store, suggestion, source);
+    let plan = apply::plan(suggestion, source, project_dir, value.as_deref())
         .ok_or_else(|| anyhow!("{suggestion} for {source} has no setting to apply; it is a habit"))?;
     let change = apply::apply(&plan, state_dir, now_ms())?;
-    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, suggestion, source), None) {
+    let memo = match memo::keep_lesson(project_dir, &change, &evidence, None) {
         Ok(path) => {
             apply::set_lesson(&change.id, &path, state_dir)?;
             json!({ "kept": path })
@@ -42,7 +44,7 @@ pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, sug
 pub fn undo_change(store: &Store, state_dir: &Path, project_dir: &Path, change_id: &str) -> Result<Value> {
     room::require_opt_in(project_dir)?;
     let change = apply::undo(change_id, state_dir, now_ms())?;
-    let memo = match memo::keep_lesson(project_dir, &change, &evidence(store, &change.suggestion, "claude"), None) {
+    let memo = match memo::keep_lesson(project_dir, &change, &current(store, &change.suggestion, "claude").0, None) {
         Ok(path) => json!({ "kept": path }),
         Err(error) => json!({ "error": format!("{error:#}") }),
     };

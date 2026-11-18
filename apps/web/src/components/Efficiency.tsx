@@ -5,6 +5,7 @@ import { dietLines } from '../diet'
 import { compact, percent, splitCompact, t } from '../i18n'
 import { Action } from './Action'
 import { Avatar } from './Avatar'
+import { CompactionBreakdown } from './Breakdown'
 import { Segmented } from './Segmented'
 
 const RULER_SCALE = 1_000_000
@@ -48,13 +49,18 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
               <div className="linha-1">
                 <span className="nome">{line.title}</span>
                 <span className="num">{line.saving > 0 ? `-${compact(line.saving)}` : ''}</span>
-                <span className="apoio">{line.share > 0 ? `${line.isUpperBound ? t.upTo : '~'}${percent(line.share)}` : ''}</span>
+                <span className="apoio">{line.share > 0 ? `~${percent(line.share)}` : ''}</span>
               </div>
-              <div className="linha-2">{line.evidence}</div>
+              {line.id === 'compact-earlier' && selected?.efficiency.compaction.best ? (
+                <CompactionBreakdown model={selected.efficiency.compaction} />
+              ) : (
+                <div className="linha-2">{line.evidence}</div>
+              )}
               <div className="linha-3">{line.how}</div>
               {applicable.includes(line.id) && (
                 <Action
                   id={line.id}
+                  value={line.value}
                   source={source}
                   change={open.find((c) => c.suggestion === line.id)}
                   outcome={report.outcomes.find((o) => o.change_id === open.find((c) => c.suggestion === line.id)?.id)}
@@ -90,7 +96,7 @@ function AgentCard({ agent, value, label, isShare = false }: AgentCardProps) {
       </div>
       <div className="destaque">
         <strong>
-          {isShare && value > 0 ? `${t.upTo}${big.value}` : big.value}
+          {isShare && value > 0 ? `~${big.value}` : big.value}
           {big.unit && <span className="unidade-pequena">{big.unit}</span>}
         </strong>
         <span>{label}</span>

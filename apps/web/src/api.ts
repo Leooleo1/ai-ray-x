@@ -58,7 +58,8 @@ export interface Suggestion {
   saving_tokens: number
   saving_share: number
   how: string
-  confidence: 'upper bound' | 'estimate' | 'exact for past logs'
+  value?: string | null
+  confidence: 'net estimate' | 'estimate' | 'exact for past logs'
 }
 
 export interface Change {
@@ -83,7 +84,25 @@ export interface ContextStatus {
   usual_compaction_at: number
 }
 
+export interface CompactionPlan {
+  cap: number
+  net_saving: number
+  avg_context: number
+  compactions_per_100: number
+}
+
+export interface CompactionModel {
+  floor: number
+  refill: number
+  now_avg_context: number
+  now_compactions_per_100: number
+  calibration: number
+  plans: CompactionPlan[]
+  best: CompactionPlan | null
+}
+
 export interface Efficiency {
+  compaction: CompactionModel
   fixed: { kind: string; median_first_request: number; share_of_context: number }[]
   skills_used: [string, number][]
   snapshots: Record<string, unknown>

@@ -135,14 +135,27 @@ pub fn efficiency(e: &Efficiency) {
     let rewrites: Vec<String> =
         e.rewrites.iter().map(|r| format!("{} {}× ({})", r.reason, r.count, n(r.tokens))).collect();
     println!("  cache rewrites   {}", rewrites.join(" · "));
-    match (e.compactions, e.compaction_pre_median) {
-        (0, _) => {}
-        (count, 0) => println!("  compactions      {count}"),
-        (count, pre) => println!("  compactions      {count} · median {} → {}", n(pre), n(e.compaction_post_median)),
+    let m = &e.compaction;
+    println!(
+        "  compactions      {} · today at ~{} · restarts at {} · re-reads ~{} more after · replay check {:.0}%",
+        e.compactions,
+        n(e.compaction_pre_median),
+        n(m.floor),
+        n(m.refill),
+        m.calibration * 100.0
+    );
+    for plan in &m.plans {
+        let mark = if m.best.as_ref().is_some_and(|b| b.cap == plan.cap) { "  ← best" } else { "" };
+        println!(
+            "  compact at {:>5}  net {:>4} · avg context {} (today {}) · {:.1} compactions/100 (today {:.1}){mark}",
+            n(plan.cap),
+            pct(plan.net_saving),
+            n(plan.avg_context),
+            n(m.now_avg_context),
+            plan.compactions_per_100,
+            m.now_compactions_per_100
+        );
     }
-    let simulation: Vec<String> =
-        e.simulation.iter().map(|(cap, saved)| format!("at {} -{}", n(*cap), pct(*saved))).collect();
-    println!("  compact earlier  {} (upper bound)", simulation.join(" · "));
     println!("  stays loaded (tokens re-read):");
     for item in e.carried.iter().take(TOP_CARRIED) {
         println!(

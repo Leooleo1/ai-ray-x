@@ -46,16 +46,27 @@ const PLANS: [(&str, &str, &str, &str, &str); 1] = [(
     "claude",
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
     "400000",
-    "Claude Code compacts when the context reaches 400K tokens instead of near the model limit",
+    "Claude Code compacts when the context reaches {value} tokens instead of near the model limit",
 )];
 
-pub fn plan(suggestion: &str, source: &str, project_dir: &Path) -> Option<Plan> {
-    PLANS.iter().find(|(id, src, ..)| *id == suggestion && *src == source).map(|(id, _, key, value, effect)| Plan {
-        suggestion: id.to_string(),
-        file: project_dir.join(".claude").join("settings.local.json"),
-        key: key.to_string(),
-        value: value.to_string(),
-        effect: effect.to_string(),
+/// The documented range of CLAUDE_CODE_AUTO_COMPACT_WINDOW, in tokens.
+const COMPACT_WINDOW_RANGE: std::ops::RangeInclusive<u64> = 100_000..=1_000_000;
+
+/// The plan for a suggestion; `value` (the one Dieta computed) replaces the
+/// default when it is inside the setting's documented range.
+pub fn plan(suggestion: &str, source: &str, project_dir: &Path, value: Option<&str>) -> Option<Plan> {
+    PLANS.iter().find(|(id, src, ..)| *id == suggestion && *src == source).map(|(id, _, key, default, effect)| {
+        let chosen = value
+            .filter(|v| v.parse::<u64>().is_ok_and(|n| COMPACT_WINDOW_RANGE.contains(&n)))
+            .unwrap_or(default)
+            .to_string();
+        Plan {
+            suggestion: id.to_string(),
+            file: project_dir.join(".claude").join("settings.local.json"),
+            key: key.to_string(),
+            effect: effect.replace("{value}", &chosen),
+            value: chosen,
+        }
     })
 }
 
@@ -229,7 +240,7 @@ mod tests {
         let dir = temp_dir("roundtrip");
         let file = dir.join("project/.claude/settings.local.json");
         fs::write(&file, r#"{"permissions":{"allow":["Bash(ls)"]},"env":{"FOO":"1"}}"#).unwrap();
-        let plan = plan("compact-earlier", "claude", &dir.join("project")).unwrap();
+        let plan = plan("compact-earlier", "claude", &dir.join("project"), None).unwrap();
         let change = apply(&plan, &dir.join("state"), 1).unwrap();
         let applied: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
         assert_eq!(applied["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"], "400000");
@@ -243,7 +254,7 @@ mod tests {
     #[test]
     fn undo_leaves_a_value_the_person_changed() {
         let dir = temp_dir("edited");
-        let plan = plan("compact-earlier", "claude", &dir.join("project")).unwrap();
+        let plan = plan("compact-earlier", "claude", &dir.join("project"), None).unwrap();
         let change = apply(&plan, &dir.join("state"), 1).unwrap();
         fs::write(&plan.file, r#"{"env":{"CLAUDE_CODE_AUTO_COMPACT_WINDOW":"300000"}}"#).unwrap();
         assert!(undo(&change.id, &dir.join("state"), 2).is_err());
@@ -255,7 +266,7 @@ mod tests {
         let dir = temp_dir("broken");
         let file = dir.join("project/.claude/settings.local.json");
         fs::write(&file, "{ not json").unwrap();
-        let plan = plan("compact-earlier", "claude", &dir.join("project")).unwrap();
+        let plan = plan("compact-earlier", "claude", &dir.join("project"), None).unwrap();
         assert!(apply(&plan, &dir.join("state"), 1).is_err());
         assert_eq!(fs::read_to_string(&file).unwrap(), "{ not json");
         fs::remove_dir_all(dir).unwrap();

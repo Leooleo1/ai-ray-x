@@ -6,6 +6,7 @@ import { locale, percent, t } from '../i18n'
 import { askLabel, speak } from '../voices'
 import { Action } from './Action'
 import { Avatar } from './Avatar'
+import { CompactionBreakdown } from './Breakdown'
 import type { ChatView } from './Sidebar'
 
 const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
@@ -297,13 +298,21 @@ interface SuggestionData {
   title: string
   share: number
   confidence: string
+  value?: string | null
 }
 
 /** Dieta's applicable suggestions as cards, with the same Apply / Confirm / Undo as the Efficiency tab. */
 function Approvals({ message, report, onChanged }: ApprovalsProps) {
   const suggestions = (message.data.suggestions as SuggestionData[] | undefined) ?? []
   const applicable = (message.data.applicable as string[] | undefined) ?? []
-  const items = suggestions.filter((s) => applicable.includes(s.id))
+  const claude = report.sources.find((source) => source.overview.source === 'claude')
+  // The buttons act on Dieta's suggestion as computed now, never on numbers saved in an old message.
+  const items = suggestions
+    .filter((s) => applicable.includes(s.id))
+    .flatMap((s) => {
+      const now = claude?.suggestions.find((current) => current.id === s.id)
+      return now ? [{ id: now.id, title: now.title, share: now.saving_share, confidence: now.confidence, value: now.value }] : []
+    })
   if (items.length === 0) return null
   return (
     <div className="aprovacoes">
@@ -314,12 +323,14 @@ function Approvals({ message, report, onChanged }: ApprovalsProps) {
             <div className="aprovacao-topo">
               <b>{suggestionTitle(s.id, s.title)}</b>
               <span className="num">
-                {s.confidence === 'upper bound' ? t.upTo : '~'}
+                ~
                 {percent(s.share)}
               </span>
             </div>
+            {s.id === 'compact-earlier' && claude && <CompactionBreakdown model={claude.efficiency.compaction} />}
             <Action
               id={s.id}
+              value={s.value}
               source="claude"
               change={change}
               outcome={report.outcomes.find((o) => o.change_id === change?.id)}

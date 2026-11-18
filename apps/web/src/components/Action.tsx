@@ -6,6 +6,7 @@ import { describeOutcome } from '../outcome'
 
 interface ActionProps {
   id: string
+  value?: string | null
   source: Source
   change: Change | undefined
   outcome: Outcome | undefined
@@ -15,7 +16,7 @@ interface ActionProps {
 type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
 
 /** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
-export function Action({ id, source, change, outcome, onChanged }: ActionProps) {
+export function Action({ id, value, source, change, outcome, onChanged }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const box = useRef<HTMLDivElement>(null)
   // The control grows when it asks for confirmation; keep it in view (the chat scrolls).
@@ -57,7 +58,7 @@ export function Action({ id, source, change, outcome, onChanged }: ActionProps) 
         <button className="link" onClick={() => setStep({ kind: 'idle' })}>
           {t.cancel}
         </button>
-        <span className="nota explica">{fill(t.applyTarget, id === 'compact-earlier' ? 'CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000' : id)}</span>
+        <span className="nota explica">{fill(t.applyTarget, id === 'compact-earlier' ? `CLAUDE_CODE_AUTO_COMPACT_WINDOW=${value ?? '400000'}` : id)}</span>
       </div>
     )
   }
@@ -74,7 +75,7 @@ export function Action({ id, source, change, outcome, onChanged }: ActionProps) 
           {t.apply}
         </button>
         <span className="dica" role="tooltip" id={tipId}>
-          {explainApply(id).map((line) => (
+          {explainApply(id, value).map((line) => (
             <span key={line}>{line}</span>
           ))}
         </span>

@@ -144,7 +144,8 @@ pub(crate) fn what_weighs(store: &Store, args: &Value) -> Result<Value> {
         "startup_overhead": e.fixed.iter().map(|f| json!({ "kind": f.kind, "tokens": f.median_first_request, "share": round(f.share_of_context) })).collect::<Vec<_>>(),
         "stays_loaded": loaded,
         "cache_rewrites": e.rewrites.iter().map(|r| json!({ "reason": r.reason, "count": r.count, "tokens": r.tokens })).collect::<Vec<_>>(),
-        "compactions": { "count": e.compactions, "median_before": e.compaction_pre_median, "median_after": e.compaction_post_median },
+        "compactions": { "count": e.compactions, "median_before": e.compaction_pre_median, "restart_floor": e.compaction.floor, "refill_after": e.compaction.refill },
+        "compact_earlier": { "plans": e.compaction.plans, "best": e.compaction.best, "calibration": e.compaction.calibration },
     }))
 }
 

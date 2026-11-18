@@ -144,7 +144,7 @@ fn dieta(store: &Store) -> Result<Value> {
     let top: Vec<Value> = advice::suggestions(&eff, listed)
         .into_iter()
         .take(TOP)
-        .map(|s| json!({ "id": s.id, "title": s.title, "share": s.saving_share, "confidence": s.confidence }))
+        .map(|s| json!({ "id": s.id, "title": s.title, "share": s.saving_share, "confidence": s.confidence, "value": s.value }))
         .collect();
     Ok(json!({ "suggestions": top, "applicable": apply::applicable("claude") }))
 }

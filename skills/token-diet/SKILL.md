@@ -14,8 +14,8 @@ is also kept in the project's agents room (`raiox open`, Agents tab).
    context carried, what weighs most since the last compaction, and, above
    400K tokens, suggest finishing the current step and running `/compact`.
 2. **Dieta, what to cut:** `./target/release/raiox ask dieta`. Give the top
-   three suggestions in one line each, with the saving and whether it is an
-   upper bound or an estimate. Never edit settings yourself: the person
+   three suggestions in one line each, with the net saving (already counting
+   summaries and re-reads) and the compaction point it would use. Never edit settings yourself: the person
    applies changes in the panel, which keeps a backup and an undo.
 3. **Memo, what we kept:** `./target/release/raiox ask memo`. Say how many
    lessons are kept and whether ai-memory knows this project.
