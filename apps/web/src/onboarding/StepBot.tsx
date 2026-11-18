@@ -1,5 +1,5 @@
-import type { SetupState } from '../api'
-import { AGENT_LABEL, faceOf } from '../avatars'
+import type { BotAgent, SetupState } from '../api'
+import { faceOf } from '../avatars'
 import { Avatar } from '../components/Avatar'
 import { AvatarEditor } from '../components/AvatarEditor'
 import { CUSTOM, PRESETS, type BotDesign, designFrom } from './presets'
@@ -41,16 +41,16 @@ export function StepBot({ setup, design, projects, busy, onDesign, onBack, onCre
       <div className="bv-campo">
         <span className="bv-rotulo">{o.runsOn}</span>
         <div className="bv-segmentos" role="radiogroup" aria-label={o.runsOn}>
-          {setup.ais.map((ai) => (
+          {setup.ais.filter((ai) => ai.bots && ai.enabled).map((ai) => (
             <button
               key={ai.id}
               role="radio"
               aria-checked={design.agent === ai.id}
               className={design.agent === ai.id ? 'ativo' : ''}
-              disabled={!ai.logged_in}
-              onClick={() => set({ agent: ai.id })}
+              disabled={ai.logged_in !== true}
+              onClick={() => set({ agent: ai.id as BotAgent })}
             >
-              {AGENT_LABEL[ai.id]}
+              {ai.name}
             </button>
           ))}
         </div>

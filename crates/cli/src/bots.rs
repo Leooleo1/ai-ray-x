@@ -17,7 +17,6 @@ use serde_json::{json, Value};
 use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
 
-pub const AGENTS: [(&str, &str); 2] = [("claude", "Claude Code"), ("codex", "Codex")];
 /// Longest message the person can send to a bot, in characters.
 pub const MAX_TEXT: usize = 4000;
 const CANDIDATES: usize = 24;
@@ -71,6 +70,35 @@ pub const CLAUDE_EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 pub const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const MAX_MODEL: usize = 64;
 
+/// Effort levels a CLI takes; Cursor has none (its models carry the variant).
+pub fn efforts_for(agent: &str) -> &'static [&'static str] {
+    match agent {
+        "claude" => &CLAUDE_EFFORTS,
+        "codex" => &CODEX_EFFORTS,
+        _ => &[],
+    }
+}
+
+/// An empty model means the CLI's default; anything else is letters, digits, dots and dashes.
+pub fn check_model(model: Option<&str>) -> Result<Option<String>> {
+    let model = model.map(str::trim).filter(|m| !m.is_empty());
+    if let Some(m) = model
+        && (m.len() > MAX_MODEL || !m.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b)))
+    {
+        bail!("invalid model name");
+    }
+    Ok(model.map(str::to_string))
+}
+
+pub fn check_effort(agent: &str, effort: Option<&str>) -> Result<Option<String>> {
+    let effort = effort.map(str::trim).filter(|e| !e.is_empty());
+    let allowed = efforts_for(agent);
+    if effort.is_some_and(|e| !allowed.contains(&e)) {
+        bail!("{agent} takes no effort {}", effort.unwrap_or_default());
+    }
+    Ok(effort.map(str::to_string))
+}
+
 const MAX_NAME: usize = 32;
 const MAX_INSTRUCTIONS: usize = 1200;
 const MAX_SLUG: usize = 40;
@@ -122,7 +150,7 @@ fn registry_file(state_dir: &Path) -> PathBuf {
     state_dir.join("bots.json")
 }
 
-fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
+pub fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
     state_dir.join("bots").join(format!("{id}.json"))
 }
 
@@ -179,7 +207,7 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
         .flatten()
         // Hidden folders (.claude, .codex, .config…) hold the tools' own data, not projects.
         .filter(|(project, agent, ..)| {
-            AGENTS.iter().any(|(a, _)| a == agent) && !project.starts_with('.') && home.join(project).is_dir()
+            crate::connections::bot_agents().any(|a| a == agent) && !project.starts_with('.') && home.join(project).is_dir()
         })
         .take(CANDIDATES)
         .map(|(project, agent, requests, last_ms)| Candidate {
@@ -198,8 +226,8 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
     if let Some(p) = &persona {
         p.validate()?;
     }
-    if !AGENTS.iter().any(|(a, _)| *a == agent) {
-        bail!("unknown agent {agent}");
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
     }
     let home = home.canonicalize()?;
     let dir = home.join(project).canonicalize().with_context(|| format!("no folder {project} in the home folder"))?;
@@ -242,17 +270,7 @@ pub fn configure(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>, e
         bail!("the bot is answering; wait for it to finish");
     }
     let bot = find(state_dir, id)?;
-    let clean = |value: Option<&str>| value.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
-    let (model, effort) = (clean(model), clean(effort));
-    if let Some(m) = &model
-        && (m.len() > MAX_MODEL || !m.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b)))
-    {
-        bail!("invalid model name");
-    }
-    let efforts: &[&str] = if bot.agent == "codex" { &CODEX_EFFORTS } else { &CLAUDE_EFFORTS };
-    if effort.as_deref().is_some_and(|e| !efforts.contains(&e)) {
-        bail!("effort must be one of {}", efforts.join(", "));
-    }
+    let (model, effort) = (check_model(model)?, check_effort(&bot.agent, effort)?);
     if let Some(p) = &persona {
         p.validate()?;
     }
@@ -294,6 +312,11 @@ fn said(kind: &str, data: Value) -> Message {
 }
 
 /// The person talks to a bot. The answer arrives later, on its own thread.
+/// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
+pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
+    start(state_dir, jobs, id, Mode::Talk, prompt, said("ask", shown))
+}
+
 pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
     let text = text.trim();
     if text.is_empty() || text.chars().count() > MAX_TEXT {
@@ -305,19 +328,23 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
 /// The person approves the proposal in the bot's latest answer.
 pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     let messages = room::read_messages(&chat_file(state_dir, id));
-    // A failed or interrupted approval can be retried: both are skipped.
-    let last = messages.iter().rev().find(|m| m.kind != "failed" && m.kind != "approve");
+    // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
+    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent"));
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
         .map(str::to_string)
         .context("the latest answer has no proposal to approve")?;
-    start(state_dir, jobs, id, Mode::Edit, &proposal, said("approve", json!({ "proposal": proposal })))
+    // Cursor edits in a fresh session, so it gets its earlier answer as context.
+    let agent = find(state_dir, id)?.agent;
+    let answer = last.and_then(|m| m.data.pointer("/reply/text")).and_then(Value::as_str).unwrap_or("");
+    let text = if agent == "cursor" { format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.") } else { proposal.clone() };
+    start(state_dir, jobs, id, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
 }
 
 fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
     let bot = find(state_dir, id)?;
-    if mode == Mode::Edit && bot.session.is_none() {
+    if mode == Mode::Edit && bot.session.is_none() && bot.agent != "cursor" {
         bail!("this conversation was reset; ask the bot again");
     }
     if !jobs.start(id) {
@@ -331,18 +358,22 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, mode: Mode, text: &str, asked:
     let (state_dir, jobs, text) = (state_dir.to_path_buf(), jobs.clone(), text.to_string());
     std::thread::spawn(move || {
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
+        let others: Vec<String> = list(&state_dir).into_iter().filter(|b| b.dir != bot.dir).map(|b| b.name).collect();
+        let defaults = crate::settings::Settings::load(&state_dir).defaults_for(&bot.agent);
         let target = bot_run::Target {
             agent: &bot.agent,
             dir: &bot.dir,
-            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default()),
+            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others),
             session: bot.session.as_deref(),
-            model: bot.model.as_deref(),
-            effort: bot.effort.as_deref(),
+            model: bot.model.as_deref().or(defaults.model.as_deref()),
+            effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
         };
         let outcome = bot_run::run(&target, mode, &text, &scratch);
         let message = match outcome {
             Ok(reply) => {
-                if reply.session.is_some() && reply.session != bot.session {
+                // Messages for projects without a bot are dropped: nobody there would read them.
+                let reply = bot_run::Reply { to: reply.to.into_iter().filter(|n| others.contains(&n.project)).collect(), ..reply };
+                if reply.session.is_some() && reply.session != bot.session && bot_run::keeps_session(&bot.agent, mode) {
                     let _ = set_session(&state_dir, &bot.id, reply.session.clone());
                 }
                 let mode_name = if mode == Mode::Edit { "edit" } else { "talk" };
@@ -376,7 +407,14 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
             })
         })
         .collect();
-    Ok(json!({ "bots": bots, "candidates": candidates(store, home)?, "max_text": MAX_TEXT }))
+    // The CLIs the person turned on that raiox can run as bots, for the pickers.
+    let settings = crate::settings::Settings::load(state_dir);
+    let agents: Vec<Value> = crate::connections::KNOWN
+        .iter()
+        .filter(|k| k.bots && settings.is_enabled(k.id))
+        .map(|k| json!({ "id": k.id, "name": k.name }))
+        .collect();
+    Ok(json!({ "bots": bots, "candidates": candidates(store, home)?, "agents": agents, "max_text": MAX_TEXT }))
 }
 
 #[cfg(test)]

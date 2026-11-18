@@ -119,6 +119,11 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             ),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/settings") => respond(settings_state(panel)),
+        (Method::Post, "/api/settings") => match body(request) {
+            Ok(input) => respond(crate::settings::update(&panel.state_dir, &input).and_then(|_| settings_state(panel))),
+            Err(reply) => reply,
+        },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
@@ -151,9 +156,21 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::configure(state_dir, jobs, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)
         }
         "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
+        "inbox" => return crate::bot_mail::inbox(state_dir, field("id")),
+        "send" => crate::bot_mail::send(state_dir, field("id"), input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("project")),
+        "handle" => crate::bot_mail::handle(state_dir, jobs, field("id"), field("message")),
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
+}
+
+/// The settings page: every known CLI probed now, and the person's choices.
+fn settings_state(panel: &Panel) -> anyhow::Result<Value> {
+    let settings = crate::settings::Settings::load(&panel.state_dir);
+    Ok(json!({
+        "connections": crate::connections::detect(&panel.store, &panel.roots.home, &settings),
+        "defaults": settings.defaults,
+    }))
 }
 
 fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {

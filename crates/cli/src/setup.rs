@@ -1,4 +1,4 @@
-//! First-run setup: what is installed and logged in on this machine, the
+//! First-run setup and settings data: the CLIs on this machine (see connections), the
 //! person's projects (with their GitHub remote, read from `.git/config`), and
 //! GitHub through the person's own `gh` CLI. raiox stores no token: it only
 //! asks `gh`, `claude` and `codex` for their status. Account e-mails and
@@ -21,22 +21,6 @@ const PARENTS: [&str; 11] =
 const MAX_PROJECTS: usize = 200;
 const MAX_REPOS: &str = "100";
 const MAX_DESCRIPTION: usize = 120;
-
-#[derive(Debug, Serialize)]
-pub struct Ai {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub installed: bool,
-    pub version: Option<String>,
-    pub logged_in: bool,
-    /// How it is logged in ("claude.ai", "ChatGPT", "API key"…), never who.
-    pub method: Option<String>,
-    pub plan: Option<String>,
-    pub sessions: u64,
-    pub requests: u64,
-    pub install: &'static str,
-    pub login: &'static str,
-}
 
 #[derive(Debug, Serialize)]
 pub struct Project {
@@ -68,59 +52,6 @@ fn quiet(program: &str, args: &[&str]) -> Option<std::process::Output> {
 
 fn first_line(bytes: &[u8]) -> Option<String> {
     String::from_utf8_lossy(bytes).lines().next().map(|l| l.trim().to_string()).filter(|l| !l.is_empty())
-}
-
-fn usage(store: &Store, source: &str) -> (u64, u64) {
-    store
-        .conn()
-        .query_row("SELECT COUNT(DISTINCT session), COUNT(*) FROM calls WHERE source = ?1 AND is_sub = 0", [source], |r| {
-            Ok((r.get::<_, i64>(0)?.max(0) as u64, r.get::<_, i64>(1)?.max(0) as u64))
-        })
-        .unwrap_or((0, 0))
-}
-
-fn claude(store: &Store) -> Ai {
-    let version = quiet("claude", &["--version"]).filter(|o| o.status.success()).and_then(|o| first_line(&o.stdout));
-    let status: Value = quiet("claude", &["auth", "status"])
-        .and_then(|o| serde_json::from_slice(&o.stdout).ok())
-        .unwrap_or(Value::Null);
-    let text = |key: &str| status.get(key).and_then(Value::as_str).map(str::to_string);
-    let (sessions, requests) = usage(store, "claude");
-    Ai {
-        id: "claude",
-        name: "Claude Code",
-        installed: version.is_some(),
-        version,
-        logged_in: status.get("loggedIn").and_then(Value::as_bool).unwrap_or(false),
-        method: text("authMethod"),
-        plan: text("subscriptionType"),
-        sessions,
-        requests,
-        install: "npm install -g @anthropic-ai/claude-code",
-        login: "claude auth login",
-    }
-}
-
-fn codex(store: &Store) -> Ai {
-    let version = quiet("codex", &["--version"]).filter(|o| o.status.success()).and_then(|o| first_line(&o.stdout));
-    let status = quiet("codex", &["login", "status"]);
-    let said = status.as_ref().map(|o| format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))).unwrap_or_default();
-    let logged_in = status.as_ref().is_some_and(|o| o.status.success()) && said.contains("Logged in");
-    let method = logged_in.then(|| if said.contains("ChatGPT") { "ChatGPT" } else { "API key" }.to_string());
-    let (sessions, requests) = usage(store, "codex");
-    Ai {
-        id: "codex",
-        name: "Codex",
-        installed: version.is_some(),
-        version,
-        logged_in,
-        method,
-        plan: None,
-        sessions,
-        requests,
-        install: "npm install -g @openai/codex",
-        login: "codex login",
-    }
 }
 
 /// "owner/name" from a GitHub remote URL (https, ssh or scp-like).
@@ -258,7 +189,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> R
     let parent = clone_parent(home, &projects);
     Ok(json!({
         "done": is_done(state_dir),
-        "ais": [claude(store), codex(store)],
+        "ais": crate::connections::detect(store, home, &crate::settings::Settings::load(state_dir)),
         "clone_to": label(home, &parent).unwrap_or_else(|| "Projects".into()),
         "clones": clones.snapshot(),
         "projects": projects,

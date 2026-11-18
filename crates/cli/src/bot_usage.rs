@@ -9,7 +9,7 @@ use anyhow::Result;
 use raiox_core::{Roots, Store};
 use serde_json::{json, Value};
 
-use crate::bots::{self, CLAUDE_EFFORTS, CODEX_EFFORTS};
+use crate::bots;
 
 /// How far back "lately" goes.
 const DAYS: i64 = 30;
@@ -39,6 +39,13 @@ fn toml_value(text: &str, key: &str) -> Option<String> {
 }
 
 fn defaults(roots: &Roots, agent: &str) -> Value {
+    if agent == "cursor" {
+        let config: Value = fs::read_to_string(roots.home.join(".cursor/cli-config.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or(Value::Null);
+        return json!({ "model": config.pointer("/model/displayModelId"), "effort": null });
+    }
     if agent == "codex" {
         let config = fs::read_to_string(roots.codex.join("config.toml")).unwrap_or_default();
         return json!({ "model": toml_value(&config, "model"), "effort": toml_value(&config, "model_reasoning_effort") });
@@ -58,6 +65,16 @@ fn codex_models(store: &Store) -> Result<Vec<String>> {
     )?;
     let found = statement.query_map([], |r| r.get::<_, String>(0))?.flatten().collect();
     Ok(found)
+}
+
+/// Cursor's model ids, from `cursor-agent models` ("id - Name" per line).
+fn cursor_models() -> Vec<String> {
+    let Some(out) = crate::connections::probe("cursor-agent", &["models"]) else { return Vec::new() };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| line.split_once(" - ").map(|(id, _)| id.trim().to_string()))
+        .filter(|id| bots::check_model(Some(id)).is_ok_and(|m| m.is_some()))
+        .collect()
 }
 
 pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result<Value> {
@@ -83,9 +100,12 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
         since,
     )?;
     // Models to offer: Claude Code's aliases, or the Codex models this person has used.
-    let offered: Vec<String> =
-        if bot.agent == "codex" { codex_models(store)? } else { CLAUDE_ALIASES.iter().map(|m| m.to_string()).collect() };
-    let efforts_allowed: &[&str] = if bot.agent == "codex" { &CODEX_EFFORTS } else { &CLAUDE_EFFORTS };
+    let offered: Vec<String> = match bot.agent.as_str() {
+        "codex" => codex_models(store)?,
+        "cursor" => cursor_models(),
+        _ => CLAUDE_ALIASES.iter().map(|m| m.to_string()).collect(),
+    };
+    let efforts_allowed = bots::efforts_for(&bot.agent);
     Ok(json!({
         "days": DAYS,
         "project": project,

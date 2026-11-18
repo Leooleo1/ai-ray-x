@@ -88,6 +88,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               show={modelName}
               onPick={(model) => run(model, bot.effort, null)}
             />
+            {usage.offered_efforts.length > 0 && (
             <Choice
               label={t.effortLabel}
               current={bot.effort}
@@ -97,6 +98,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               show={(e) => e}
               onPick={(effort) => run(bot.model, effort, null)}
             />
+            )}
             <p className="ajustes-nota">{t.nextMessages}</p>
           </>
         )}
@@ -122,18 +124,24 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
   )
 }
 
+/** Past this many options, a field with suggestions replaces the grid. */
+const GRID_LIMIT = 8
+
 interface ChoiceProps {
   label: string
   current: string | null
   fallback: string | null
   options: string[]
+  /** Type any value (with the options as suggestions) instead of picking from a grid. */
+  free?: boolean
   busy: boolean
   show: (value: string) => string
   onPick: (value: string | null) => void
 }
 
 /** One grouped selector: the CLI's default first, then each option. */
-function Choice({ label, current, fallback, options, busy, show, onPick }: ChoiceProps) {
+export function Choice({ label, current, fallback, options, free = false, busy, show, onPick }: ChoiceProps) {
+  if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} busy={busy} show={show} onPick={onPick} />
   return (
     <div className="ajustes-campo">
       <span>{label}</span>
@@ -147,6 +155,31 @@ function Choice({ label, current, fallback, options, busy, show, onPick }: Choic
             <b>{show(option)}</b>
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/** Many models (Cursor lists hundreds): the default, or one typed with suggestions. */
+function LongChoice({ label, current, fallback, options, busy, onPick }: ChoiceProps) {
+  const [draft, setDraft] = useState(current ?? '')
+  const listId = `modelos-${label}`
+  return (
+    <div className="ajustes-campo">
+      <span>{label}</span>
+      <div className="ajustes-livre">
+        <button type="button" className={`vidro-btn ${current === null ? 'ativo' : ''}`} disabled={busy} onClick={() => onPick(null)}>
+          {fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
+        </button>
+        <input list={listId} value={draft} placeholder={t.otherModel} onChange={(event) => setDraft(event.target.value)} />
+        <datalist id={listId}>
+          {options.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+        <button type="button" className="vidro-btn" disabled={busy || !draft.trim() || draft.trim() === current} onClick={() => onPick(draft.trim())}>
+          {t.use}
+        </button>
       </div>
     </div>
   )

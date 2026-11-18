@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
-import type { Bot, BotMessage } from '../api'
+import { type Bot, type BotMessage, type Inbox, botInbox } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
@@ -8,6 +8,8 @@ import { BotSettings, modelName } from './BotSettings'
 import { Markdown } from './Markdown'
 
 const TICK_MS = 1000
+/** The project's ai-memory inbox is asked again this often while the chat is open. */
+const INBOX_MS = 30_000
 
 interface BotChatProps {
   bot: Bot
@@ -18,11 +20,25 @@ interface BotChatProps {
 export function BotChat({ bot, bots }: BotChatProps) {
   const [draft, setDraft] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [inbox, setInbox] = useState<Inbox | null>(null)
+  // Asked when the chat opens, when the bot finishes a turn, and every so often.
+  useEffect(() => {
+    if (bot.busy) return undefined
+    let alive = true
+    const load = () => botInbox(bot.id).then((next) => alive && setInbox(next)).catch(() => alive && setInbox(null))
+    void load()
+    const timer = window.setInterval(() => void load(), INBOX_MS)
+    return () => {
+      alive = false
+      window.clearInterval(timer)
+    }
+  }, [bot.id, bot.busy])
   const end = useRef<HTMLDivElement>(null)
   const messages = bot.messages
   const label = AGENT_LABEL[bot.agent]
   const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
+  const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' })
@@ -64,11 +80,30 @@ export function BotChat({ bot, bots }: BotChatProps) {
               isLatest={index === messages.length - 1}
               approvable={index === pending}
               onApprove={() => void bots.act('approve', { id: bot.id })}
+              sent={sent}
+              onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
             />
           ))}
           {bot.busy && <Waiting bot={bot} />}
           <div ref={end} />
         </div>
+
+        {(inbox?.messages.length ?? 0) > 0 && !bot.busy && (
+          <div className="caixa">
+            {inbox?.messages.map((mail) => (
+              <div key={mail.id} className="correio">
+                <span className="correio-rotulo">{`${t.inboxTitle} · ${mail.subject ?? ''}`}</span>
+                <Markdown text={mail.body} />
+                <span className="acao">
+                  <button className="cheio" onClick={() => void bots.act('handle', { id: bot.id, message: mail.id }).then(() => setInbox(null))}>
+                    {t.handleMail}
+                  </button>
+                  <span className="nota">{t.mailUntrusted}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {messages.length === 0 && !bot.busy && (
           <div className="chat-sugestoes">
@@ -106,7 +141,7 @@ export function BotChat({ bot, bots }: BotChatProps) {
 function pendingProposal(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]
-    if (m.kind === 'failed') continue
+    if (m.kind === 'failed' || m.kind === 'sent') continue
     if (m.kind === 'approve') return -1
     return m.kind === 'answer' && m.data.reply?.proposal ? i : -1
   }
@@ -121,9 +156,12 @@ interface LineProps {
   isLatest: boolean
   approvable: boolean
   onApprove: () => void
+  /** "answer ms|project" of the suggestions already sent. */
+  sent: Set<string>
+  onSend: (project: string) => void
 }
 
-function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
+function Line({ bot, message, isLatest, approvable, onApprove, sent, onSend }: LineProps) {
   const face = faceForBot(bot)
   if (message.kind === 'reset') {
     return (
@@ -134,6 +172,20 @@ function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
   }
   if (message.author === 'you' && message.kind === 'approve') {
     return <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
+  }
+  if (message.author === 'you' && message.kind === 'sent') {
+    return <p className="linha-sistema">{t.youSent.replace('{p}', message.data.project ?? '')}</p>
+  }
+  if (message.author === 'you' && message.data.via === 'ai-memory') {
+    return (
+      <div className="linha minha">
+        <span className="balao via-memoria">
+          <small>{`${t.fromMemory} · ${message.data.text ?? ''}`}</small>
+          {message.data.body}
+        </span>
+        <span className="hora">{clock(message.ms)}</span>
+      </div>
+    )
   }
   if (message.author === 'you') {
     return (
@@ -174,6 +226,27 @@ function Line({ bot, message, isLatest, approvable, onApprove }: LineProps) {
             )}
           </div>
         )}
+        {reply?.to?.map((note) => {
+          const done = sent.has(`${message.ms}|${note.project}`)
+          return (
+            <div key={note.project} className="correio">
+              <span className="correio-rotulo">{t.mailTo.replace('{p}', note.project)}</span>
+              <Markdown text={note.text} />
+              <span className="acao">
+                {done ? (
+                  <span className="estado">
+                    <i className="ponto ok" />
+                    {t.sentMail}
+                  </span>
+                ) : (
+                  <button className="vidro-btn" disabled={bot.busy} onClick={() => onSend(note.project)}>
+                    {t.sendMail}
+                  </button>
+                )}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

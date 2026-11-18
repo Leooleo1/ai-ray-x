@@ -5,7 +5,7 @@ import { nowStamp, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 
-export type Tab = 'xray' | 'efficiency' | 'agents'
+export type Tab = 'xray' | 'efficiency' | 'agents' | 'settings'
 export type RoomView = 'channel' | AgentId
 export type ChatView = RoomView | 'bots' | `bot:${string}`
 
@@ -20,15 +20,15 @@ interface SidebarProps {
   updatedAt: Date
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
-  onSetup: () => void
 }
 
 /** The one navigation of the panel: sections, this project's channel and the agents' threads. */
-export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, onChat, onSetup }: SidebarProps) {
-  const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' }[] = [
+export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, onChat }: SidebarProps) {
+  const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
     { id: 'agents', label: t.tabAgents, icon: 'agents' },
+    { id: 'settings', label: t.settingsTitle, icon: 'sliders' },
   ]
   const inChat = (view: ChatView) => tab === 'agents' && chat === view
   return (
@@ -83,7 +83,7 @@ export function Sidebar({ tab, chat, project, typing, bots, updatedAt, onTab, on
           {t.updated}
         </span>
         <span className="lado-nota">{t.roomRule}</span>
-        <button className="lado-link" onClick={onSetup}>
+        <button className="lado-link" onClick={() => onTab('settings')}>
           {t.setupAgain}
         </button>
       </footer>

@@ -11,6 +11,8 @@ export interface Bots {
   error: string | null
   /** Runs one action; resolves with the new state, or null when it failed (see `error`). */
   act: (action: BotAction, body: Record<string, unknown>) => Promise<BotsState | null>
+  /** Asks for the bots' state again (after settings change which CLIs are on). */
+  refresh: () => void
 }
 
 export function useBots(initial: BotsState): Bots {
@@ -41,5 +43,11 @@ export function useBots(initial: BotsState): Bots {
     }
   }, [])
 
-  return { state, error, act }
+  const refresh = useCallback(() => {
+    fetchBots()
+      .then(setState)
+      .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)))
+  }, [])
+
+  return { state, error, act, refresh }
 }

@@ -7,6 +7,7 @@ import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
 import { ContextRuler } from './components/ContextRuler'
 import { EfficiencyView } from './components/Efficiency'
+import { SettingsPage } from './components/SettingsPage'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
 import { Room } from './components/Room'
@@ -18,11 +19,17 @@ import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
-const PATHS: Record<Tab, string[]> = { xray: ['/'], efficiency: ['/eficiencia', '/efficiency'], agents: ['/agentes', '/agents'] }
+const PATHS: Record<Tab, string[]> = {
+  xray: ['/'],
+  efficiency: ['/eficiencia', '/efficiency'],
+  agents: ['/agentes', '/agents'],
+  settings: ['/configuracoes', '/settings'],
+}
 const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   xray: { title: t.title, subtitle: t.subtitle },
   efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
   agents: { title: t.roomTitle, subtitle: t.roomSubtitle },
+  settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
 }
 
 const BOTS_PATH = '/bots'
@@ -149,7 +156,6 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         updatedAt={at}
         onTab={go}
         onChat={openChat}
-        onSetup={onSetup}
       />
       <div className="principal">
         <div className="titulo">
@@ -163,6 +169,9 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />
         )}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
+        {tab === 'settings' && (
+          <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} />
+        )}
         {tab === 'xray' && (
           <main className="grade">
             <Hero

@@ -1,0 +1,221 @@
+/* Settings: one column of cards, each a list of rows with one action. */
+
+.config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vao);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.config > * {
+  flex: none;
+}
+
+.config-bloco {
+  gap: 10px;
+}
+
+.config-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.config-topo b {
+  font: 500 15px/20px var(--sans);
+}
+
+.config-topo small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.config-lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.config-lista > li {
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.config-lista > li:last-child {
+  box-shadow: none;
+}
+
+.config-conexao {
+  display: grid;
+  grid-template-columns: auto 132px 84px minmax(0, 1fr) auto 96px;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 52px;
+  padding: 6px 0;
+}
+
+.config-conexao b,
+.config-bot b {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.config-conexao .bv-comando {
+  grid-column: 2 / -1;
+}
+
+.config-mono {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A CLI that is not here: a quiet dot, no status color. */
+.config-lista .ponto:not(.ok, .alerta) {
+  color: var(--nevoa);
+  opacity: 0.5;
+}
+
+.config-estado {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-estado.alerta {
+  color: var(--alerta);
+}
+
+.config-pode {
+  justify-self: end;
+}
+
+/* On/off switch with its state written next to it. */
+.config-chave {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.config-chave i {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  transition: background 160ms ease;
+}
+
+.config-chave i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--nevoa);
+  content: '';
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.config-chave.ligada {
+  color: var(--giz);
+}
+
+.config-chave.ligada i {
+  background: var(--ok);
+}
+
+.config-chave.ligada i::after {
+  background: var(--noite);
+  transform: translateX(12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .config-chave i,
+  .config-chave i::after {
+    transition: none;
+  }
+}
+
+.config-padrao {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 16px;
+  padding: 8px 0;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.config-padrao:last-child {
+  box-shadow: none;
+}
+
+.config-cli {
+  align-self: center;
+  font-weight: 500;
+}
+
+.config-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--giz);
+}
+
+.config-comandos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-bot {
+  display: grid;
+  grid-template-columns: 28px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+}
+
+.config-bot .acao {
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+
+.config-refazer {
+  margin: 4px 0 8px;
+}
+
+@media (max-width: 760px) {
+  .config-conexao {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .config-conexao > .config-mono,
+  .config-conexao > .config-estado {
+    display: none;
+  }
+
+  .config-padrao {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

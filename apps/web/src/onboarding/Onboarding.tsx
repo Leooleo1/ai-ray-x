@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { type Bot, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup } from '../api'
+import { type Bot, type BotAgent, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup } from '../api'
 import { AGENT_LABEL, faceOf, stageLight } from '../avatars'
 import { Avatar, type AvatarState } from '../components/Avatar'
 import { Mark } from '../components/Sidebar'
@@ -45,8 +45,9 @@ export function Onboarding({ onFinish }: OnboardingProps) {
       setSetup(next)
       // First load: start with the most recently used project and an AI that is signed in.
       setSelected((current) => (current.length > 0 || !next.projects[0] ? current : [next.projects[0].project]))
-      const ready = next.ais.find((ai) => ai.logged_in)
-      if (ready) setDesign((current) => (next.ais.some((ai) => ai.id === current.agent && ai.logged_in) ? current : { ...current, agent: ready.id }))
+      const usable = next.ais.filter((ai) => ai.bots && ai.enabled && ai.logged_in === true)
+      const ready = usable[0]
+      if (ready) setDesign((current) => (usable.some((ai) => ai.id === current.agent) ? current : { ...current, agent: ready.id as BotAgent }))
     } catch (failure: unknown) {
       setError(errorText(failure))
     } finally {
@@ -93,7 +94,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     setError(null)
     setStep(next)
   }
-  const anyAi = setup?.ais.some((ai) => ai.logged_in) ?? false
+  const anyAi = setup?.ais.some((ai) => ai.bots && ai.enabled && ai.logged_in === true) ?? false
 
   const createBots = async () => {
     setLoading(true)

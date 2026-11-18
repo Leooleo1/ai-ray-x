@@ -151,11 +151,17 @@ export interface Outcome {
 
 export type AgentAuthor = 'raio' | 'dieta' | 'memo'
 
-export type BotAgent = 'claude' | 'codex'
+export type BotAgent = 'claude' | 'codex' | 'cursor'
+
+export interface BotNote {
+  project: string
+  text: string
+}
 
 export interface BotReply {
   text: string
   proposal: string | null
+  to?: BotNote[]
   read_tokens: number
   output_tokens: number
   cost_usd: number | null
@@ -165,8 +171,20 @@ export interface BotReply {
 export interface BotMessage {
   ms: number
   author: 'you' | 'bot'
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset'
-  data: { text?: string; proposal?: string; mode?: 'talk' | 'edit'; reply?: BotReply; error?: string }
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent'
+  data: {
+    text?: string
+    proposal?: string
+    mode?: 'talk' | 'edit'
+    reply?: BotReply
+    error?: string
+    /** An ask that came from the ai-memory inbox. */
+    via?: 'ai-memory'
+    body?: string
+    /** A suggestion sent on: which answer and which project. */
+    answer_ms?: number
+    project?: string
+  }
 }
 
 export interface Persona {
@@ -204,10 +222,46 @@ export interface BotCandidate {
 export interface BotsState {
   bots: Bot[]
   candidates: BotCandidate[]
+  /** The CLIs the person turned on that can run bots. */
+  agents: { id: BotAgent; name: string }[]
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle'
+
+export interface InboxMessage {
+  id: string
+  subject: string | null
+  body: string
+  created_at: string
+}
+
+export interface Inbox {
+  known: boolean
+  messages: InboxMessage[]
+}
+
+export interface Connection {
+  id: string
+  name: string
+  installed: boolean
+  version: string | null
+  logged_in: boolean | null
+  method: string | null
+  plan: string | null
+  sessions: number
+  requests: number
+  install: string
+  login: string
+  bots: boolean
+  xray: boolean
+  enabled: boolean
+}
+
+export interface SettingsState {
+  connections: Connection[]
+  defaults: Record<string, { model: string | null; effort: string | null }>
+}
 
 export interface UsageRow {
   name: string
@@ -226,20 +280,6 @@ export interface BotUsage {
   offered_efforts: string[]
 }
 
-export interface AiStatus {
-  id: BotAgent
-  name: string
-  installed: boolean
-  version: string | null
-  logged_in: boolean
-  method: string | null
-  plan: string | null
-  sessions: number
-  requests: number
-  install: string
-  login: string
-}
-
 export interface LocalProject {
   project: string
   name: string
@@ -251,7 +291,7 @@ export interface LocalProject {
 
 export interface SetupState {
   done: boolean
-  ais: AiStatus[]
+  ais: Connection[]
   clone_to: string
   clones: { running: string[]; failed: Record<string, string> }
   projects: LocalProject[]
@@ -333,6 +373,18 @@ export function finishSetup(): Promise<{ done: boolean }> {
 
 export function botUsage(id: string): Promise<BotUsage> {
   return request<BotUsage>('/api/bot/usage', { id })
+}
+
+export function botInbox(id: string): Promise<Inbox> {
+  return request<Inbox>('/api/bot/inbox', { id })
+}
+
+export function fetchSettings(): Promise<SettingsState> {
+  return request<SettingsState>('/api/settings')
+}
+
+export function saveSettings(change: Record<string, unknown>): Promise<SettingsState> {
+  return request<SettingsState>('/api/settings', change)
 }
 
 export function fetchBots(): Promise<BotsState> {

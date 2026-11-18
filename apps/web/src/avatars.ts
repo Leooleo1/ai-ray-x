@@ -62,7 +62,7 @@ export const SHAPE_IDS: string[] = SHAPE_LIST.map((shape) => shape.id)
 /** Bot colors; each has a stage light engraved in public/luz/palco-<hex>.webp. */
 export const COLORS: string[] = ['#e8754a', '#6f95f2', '#5fd08a', '#b4a3f5', '#d9c29a', '#ec7fb0']
 
-export const DEFAULT_COLOR: Record<BotAgent, string> = { claude: '#e8754a', codex: '#6f95f2' }
+export const DEFAULT_COLOR: Record<BotAgent, string> = { claude: '#e8754a', codex: '#6f95f2', cursor: '#d9c29a' }
 
 export function stageLight(color: string): string {
   const known = COLORS.includes(color) ? color : COLORS[0]
@@ -81,7 +81,7 @@ export function faceOf(shape: string, color: string, name: string, finish: Finis
   return face
 }
 
-export const AGENT_LABEL: Record<BotAgent, string> = { claude: 'Claude Code', codex: 'Codex' }
+export const AGENT_LABEL: Record<BotAgent, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' }
 
 /** The bot's own look if the person gave it one, else the monitor in its CLI's color. */
 export function faceForBot(bot: Pick<Bot, 'agent' | 'persona'>): Face {

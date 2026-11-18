@@ -17,10 +17,11 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::bot_marks::{self, PROPOSAL_MARK, TO_MARK};
+
 /// A bot that thinks longer than this is stopped.
 const TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const POLL: Duration = Duration::from_millis(200);
-const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 /// Characters of the CLI's error output kept for the chat.
 const ERROR_TAIL: usize = 400;
 
@@ -34,6 +35,9 @@ pub enum Mode {
 pub struct Reply {
     pub text: String,
     pub proposal: Option<String>,
+    /// Messages for other projects' bots, as the bot wrote them.
+    #[serde(default)]
+    pub to: Vec<crate::bot_marks::Note>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Tokens the CLI read to answer (fresh input, cache reads and writes).
@@ -57,7 +61,7 @@ pub struct Target<'a> {
 
 /// What the bot is told on every turn: how raiox works, how to propose a
 /// change, and the personality the person gave it (may be empty).
-pub fn guide(project: &str, persona: &str) -> String {
+pub fn guide(project: &str, persona: &str, others: &[String]) -> String {
     let base = format!(
         "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
          In this turn you can only read: do not edit files or run commands that change anything. \
@@ -69,7 +73,18 @@ pub fn guide(project: &str, persona: &str) -> String {
          holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
          \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
     );
-    if persona.trim().is_empty() { base } else { format!("{base}\n\n{}", persona.trim()) }
+    let mail = if others.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\nOther projects with a raiox bot: {}. If something you found matters to one of them, end with one line \
+             per project:\n{TO_MARK} <project>: <a self-contained message for that project's AI>\n\
+             raiox shows it as a suggestion and sends it through ai-memory only if the person approves.",
+            others.join(", ")
+        )
+    };
+    let persona = persona.trim();
+    format!("{base}{mail}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
 
 fn edit_prompt(proposal: &str) -> String {
@@ -133,6 +148,29 @@ fn codex(target: &Target, mode: Mode) -> Command {
     command
 }
 
+/// Cursor's agent: ask mode (read-only) for talk, resumed; an approved edit is
+/// a fresh agent-mode session, because a resumed session keeps its mode.
+/// Shell commands stay denied (no --force).
+fn cursor(target: &Target, mode: Mode) -> Command {
+    let mut command = Command::new("cursor-agent");
+    command.current_dir(target.dir).args(["-p", "--output-format", "json", "--trust", "--workspace"]).arg(target.dir);
+    if mode == Mode::Talk {
+        command.args(["--mode", "ask"]);
+        if let Some(id) = target.session {
+            command.args(["--resume", id]);
+        }
+    }
+    if let Some(model) = target.model {
+        command.args(["--model", model]);
+    }
+    command
+}
+
+/// Whether a turn's session becomes the bot's conversation (Cursor's edit sessions do not).
+pub fn keeps_session(agent: &str, mode: Mode) -> bool {
+    !(agent == "cursor" && mode == Mode::Edit)
+}
+
 /// Runs one turn and waits for it, up to the timeout.
 pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Reply> {
     let agent = target.agent;
@@ -141,6 +179,9 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Re
         // Codex has no system-prompt flag: the guide opens the first message of a thread.
         "codex" if target.session.is_none() => (codex(target, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
         "codex" => (codex(target, mode), prompt_for(mode, text)),
+        // Cursor, too: the guide opens the read-only talk session; an approved edit runs in its own session.
+        "cursor" if mode == Mode::Talk && target.session.is_none() => (cursor(target, mode), format!("{}\n\n---\n\n{}", target.guide, text)),
+        "cursor" => (cursor(target, mode), prompt_for(mode, text)),
         other => bail!("unknown agent {other}"),
     };
     fs::create_dir_all(scratch)?;
@@ -169,8 +210,8 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path) -> Result<Re
     let out = fs::read_to_string(&out_path).unwrap_or_default();
     let duration_ms = started.elapsed().as_millis() as u64;
     let parsed = match agent {
-        "claude" => parse_claude(&out),
-        _ => parse_codex(&out),
+        "codex" => parse_codex(&out),
+        _ => parse_result(agent, &out),
     };
     match parsed {
         Ok(reply) => Ok(Reply { duration_ms, ..reply }),
@@ -189,20 +230,25 @@ fn number(value: &Value, key: &str) -> u64 {
     value.get(key).and_then(Value::as_u64).unwrap_or(0)
 }
 
-pub fn parse_claude(out: &str) -> Result<Reply> {
-    let value: Value = serde_json::from_str(out.trim()).context("Claude Code did not answer in JSON")?;
+/// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.
+pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
+    let value: Value = serde_json::from_str(out.trim()).with_context(|| format!("{agent} did not answer in JSON"))?;
     let text = value.get("result").and_then(Value::as_str).unwrap_or("").to_string();
     if value.get("is_error").and_then(Value::as_bool).unwrap_or(false) {
-        bail!("Claude Code: {}", if text.is_empty() { "error without a message" } else { &text });
+        bail!("{agent}: {}", if text.is_empty() { "error without a message" } else { &text });
     }
     let usage = value.get("usage").cloned().unwrap_or(Value::Null);
-    let (clean, proposal) = split_proposal(&text);
+    let either = |a: &str, b: &str| number(&usage, a) + number(&usage, b);
+    let marked = bot_marks::split(&text);
     Ok(Reply {
-        text: clean,
-        proposal,
+        text: marked.text,
+        proposal: marked.proposal,
+        to: marked.notes,
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
-        read_tokens: number(&usage, "input_tokens") + number(&usage, "cache_read_input_tokens") + number(&usage, "cache_creation_input_tokens"),
-        output_tokens: number(&usage, "output_tokens"),
+        read_tokens: either("input_tokens", "inputTokens")
+            + either("cache_read_input_tokens", "cacheReadTokens")
+            + either("cache_creation_input_tokens", "cacheWriteTokens"),
+        output_tokens: either("output_tokens", "outputTokens"),
         cost_usd: value.get("total_cost_usd").and_then(Value::as_f64),
         duration_ms: 0,
     })
@@ -231,10 +277,11 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         .filter(|e| e.get("type").and_then(Value::as_str) == Some("turn.completed"))
         .filter_map(|e| e.get("usage"))
         .fold((0, 0), |(read, wrote), u| (read + number(u, "input_tokens"), wrote + number(u, "output_tokens")));
-    let (clean, proposal) = split_proposal(text);
+    let marked = bot_marks::split(text);
     Ok(Reply {
-        text: clean,
-        proposal,
+        text: marked.text,
+        proposal: marked.proposal,
+        to: marked.notes,
         session: events.iter().find_map(|e| e.get("thread_id").and_then(Value::as_str)).map(str::to_string),
         read_tokens: usage.0,
         output_tokens: usage.1,
@@ -243,42 +290,36 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
     })
 }
 
-/// Takes the proposal line out of the answer; the panel shows it as a card.
-pub fn split_proposal(text: &str) -> (String, Option<String>) {
-    let proposal = text
-        .lines()
-        .rev()
-        .find_map(|line| line.trim().strip_prefix(PROPOSAL_MARK))
-        .map(|p| p.trim().trim_matches('`').trim().to_string())
-        .filter(|p| !p.is_empty());
-    let clean: Vec<&str> = text.lines().filter(|line| !line.trim().starts_with(PROPOSAL_MARK)).collect();
-    (clean.join("\n").trim().to_string(), proposal)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn the_persona_follows_the_raiox_guide() {
-        let plain = guide("app", "");
-        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.");
+        let plain = guide("app", "", &[]);
+        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.", &[]);
         assert!(plain.contains(PROPOSAL_MARK) && !plain.contains("Reviewer"));
         assert!(with_persona.starts_with(&plain) && with_persona.ends_with("Look for bugs."));
     }
 
     #[test]
-    fn the_proposal_line_becomes_a_card() {
-        let (text, proposal) = split_proposal("I would rename it.\n\nRAIOX-PROPOSAL: rename soma to add\n");
-        assert_eq!(text, "I would rename it.");
-        assert_eq!(proposal.as_deref(), Some("rename soma to add"));
+    fn cursor_json_counts_its_camel_case_usage() {
+        let out = r#"{"type":"result","is_error":false,"result":"ok","session_id":"c1","usage":{"inputTokens":10,"outputTokens":4,"cacheReadTokens":90,"cacheWriteTokens":0}}"#;
+        let reply = parse_result("cursor", out).unwrap();
+        assert_eq!((reply.session.as_deref(), reply.read_tokens, reply.output_tokens), (Some("c1"), 100, 4));
+    }
+
+    #[test]
+    fn the_guide_lists_the_other_bots_only_when_there_are_some() {
+        assert!(!guide("app", "", &[]).contains(TO_MARK));
+        assert!(guide("app", "", &["shop".into()]).contains("Other projects with a raiox bot: shop."));
     }
 
     #[test]
     fn claude_json_gives_text_session_and_tokens() {
         let out = r#"{"type":"result","is_error":false,"result":"ok","session_id":"s1","total_cost_usd":0.01,
             "usage":{"input_tokens":6,"cache_creation_input_tokens":100,"cache_read_input_tokens":900,"output_tokens":20}}"#;
-        let reply = parse_claude(out).unwrap();
+        let reply = parse_result("claude", out).unwrap();
         assert_eq!((reply.text.as_str(), reply.session.as_deref(), reply.read_tokens, reply.output_tokens), ("ok", Some("s1"), 1006, 20));
     }
 
