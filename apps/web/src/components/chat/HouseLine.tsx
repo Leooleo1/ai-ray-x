@@ -104,6 +104,7 @@ function HouseCuts({ bot, data, report, onChanged }: { bot: Bot; data: Data; rep
               outcome={report.outcomes.find((o) => o.change_id === change?.id)}
               onChanged={onChanged}
               bot={bot.id}
+              project={bot.name}
             />
           </div>
         )

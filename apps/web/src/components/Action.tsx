@@ -13,12 +13,14 @@ interface ActionProps {
   onChanged: () => void
   /** Acts on this bot's project instead of the one `raiox open` started in. */
   bot?: string
+  /** The project the change goes to, named in the confirmation. */
+  project: string
 }
 
 type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
 
 /** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
-export function Action({ id, value, source, change, outcome, onChanged, bot }: ActionProps) {
+export function Action({ id, value, source, change, outcome, onChanged, bot, project }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const box = useRef<HTMLDivElement>(null)
   // The control grows when it asks for confirmation; keep it in view (the chat scrolls).
@@ -60,7 +62,7 @@ export function Action({ id, value, source, change, outcome, onChanged, bot }: A
         <button className="link" onClick={() => setStep({ kind: 'idle' })}>
           {t.cancel}
         </button>
-        <span className="nota explica">{fill(t.applyTarget, id === 'compact-earlier' ? `CLAUDE_CODE_AUTO_COMPACT_WINDOW=${value ?? '400000'}` : id)}</span>
+        <span className="nota explica">{fill(t.applyTarget, id === 'compact-earlier' ? `CLAUDE_CODE_AUTO_COMPACT_WINDOW=${value ?? '400000'}` : id).replace('{project}', project)}</span>
       </div>
     )
   }

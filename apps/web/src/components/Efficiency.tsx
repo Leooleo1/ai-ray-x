@@ -17,14 +17,25 @@ interface EfficiencyViewProps {
   onChanged: () => void
 }
 
+/** Where a cut can go: the project raiox was opened in, and every project with a bot. */
+function targetsOf(report: Report): { dir: string; name: string; bot?: string }[] {
+  const here = { dir: report.project_dir, name: report.project_dir.split('/').pop() ?? report.project_dir }
+  const others = [...new Map(report.bots.bots.filter((b) => b.dir !== report.project_dir).map((b) => [b.dir, { dir: b.dir, name: b.name, bot: b.id }])).values()]
+  return [here, ...others.sort((a, b) => a.name.localeCompare(b.name))]
+}
+
 export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
   const [source, setSource] = useState<Source>(report.sources[0]?.overview.source ?? 'claude')
+  const targets = targetsOf(report)
+  const [targetDir, setTargetDir] = useState(targets[0].dir)
+  const target = targets.find((x) => x.dir === targetDir) ?? targets[0]
+  const inTarget = (file: string) => file.startsWith(`${target.dir}/`)
   const selected = report.sources.find((s) => s.overview.source === source) ?? report.sources[0]
   const lines = selected ? dietLines(selected) : []
   const best = Math.max(0, ...report.sources.flatMap((s) => s.suggestions.map((x) => x.saving_share)))
   const count = report.sources.reduce((sum, s) => sum + s.suggestions.length, 0)
   const status = report.context_status
-  const open = report.changes.filter((c) => c.undone_ms === null)
+  const open = report.changes.filter((c) => c.undone_ms === null && inTarget(c.file))
   const lessons = report.changes.filter((c) => c.lesson !== null).length
   const applicable = report.applicable[source] ?? []
   return (
@@ -42,6 +53,18 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
             onChange={setSource}
             options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
           />
+          {targets.length > 1 && (
+            <label className="alvo-projeto">
+              <small>{t.applyIn}</small>
+              <select value={target.dir} onChange={(event) => setTargetDir(event.target.value)}>
+                {targets.map((x) => (
+                  <option key={x.dir} value={x.dir}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </h2>
         <ol className="sugestoes">
           {lines.map((line) => (
@@ -65,6 +88,8 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
                   change={open.find((c) => c.suggestion === line.id)}
                   outcome={report.outcomes.find((o) => o.change_id === open.find((c) => c.suggestion === line.id)?.id)}
                   onChanged={onChanged}
+                  bot={target.bot}
+                  project={target.name}
                 />
               )}
             </li>
