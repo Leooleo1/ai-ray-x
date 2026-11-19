@@ -83,6 +83,12 @@ export function faceOf(shape: string, color: string, name: string, finish: Finis
 
 export const AGENT_LABEL: Record<BotAgent, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' }
 
+/** The name the person gave a bot, when it is not just its CLI's name. */
+export function personaName(bot: { agent: BotAgent; persona: { name: string } | null }): string | undefined {
+  const name = bot.persona?.name.trim()
+  return name && name !== AGENT_LABEL[bot.agent] ? name : undefined
+}
+
 /** The bot's own look if the person gave it one, else the monitor in its CLI's color. */
 export function faceForBot(bot: Pick<Bot, 'agent' | 'persona'>): Face {
   const persona = bot.persona

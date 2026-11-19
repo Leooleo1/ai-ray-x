@@ -1,6 +1,15 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  roleLabel: 'Role in your team',
+  roleHint: 'e.g. Frontend, Security review, Docs',
+  deskTeam: 'Team',
+  deskWorkingNow: 'working',
+  deskIdleSince: 'idle',
+  deskWeek: '{n} this week',
+  deskRoutines: '{n} routines',
+  deskRoutine: '1 routine',
+  deskNoRole: 'no role yet',
   settingsShort: 'Settings',
   deskTab: 'Desk',
   deskTitle: 'Desk',
@@ -8,7 +17,6 @@ const en = {
   deskWorking: 'Working now',
   deskEmpty: 'No agent is working now. When one starts, it shows here with each step.',
   deskWaiting: 'Waiting for you',
-  deskIdle: 'Idle',
   deskReviewing: 'reviewing a proposal',
   deskOpen: 'Open',
   deskPath: 'whole path',
@@ -389,6 +397,15 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  roleLabel: 'Cargo na sua equipe',
+  roleHint: 'ex.: Frontend, Revisão de segurança, Docs',
+  deskTeam: 'Equipe',
+  deskWorkingNow: 'trabalhando',
+  deskIdleSince: 'parado',
+  deskWeek: '{n} na semana',
+  deskRoutines: '{n} rotinas',
+  deskRoutine: '1 rotina',
+  deskNoRole: 'sem cargo',
   settingsShort: 'Ajustes',
   deskTab: 'Mesa',
   deskTitle: 'Mesa',
@@ -396,7 +413,6 @@ const pt: Texts = {
   deskWorking: 'Trabalhando agora',
   deskEmpty: 'Nenhum agente trabalhando agora. Quando um começar, ele aparece aqui com cada passo.',
   deskWaiting: 'Esperando você',
-  deskIdle: 'Parados',
   deskReviewing: 'revisando uma proposta',
   deskOpen: 'Abrir',
   deskPath: 'caminho todo',

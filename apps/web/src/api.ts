@@ -309,6 +309,8 @@ export interface Persona {
   color: string
   shape: string
   finish: Finish
+  /** Its role in the person's team. */
+  role?: string
 }
 
 export type Finish = 'solid' | 'flat' | 'pixel'

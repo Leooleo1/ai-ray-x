@@ -44,12 +44,13 @@ interface DeskProps {
   nav: ChatNav
 }
 
-/** Every agent working now, ordered by project, then what waits for the person, then who is idle. */
+/** Every agent working now, ordered by project, then what waits for the person, then the whole team. */
 export function Desk({ bots, nav }: DeskProps) {
   const now = useNow()
   const all = bots.state.bots
   const working = all.filter((b) => b.busy)
-  const idle = all.filter((b) => !b.busy)
+  // The team: by project, then by CLI.
+  const team = [...all].sort((a, b) => a.name.localeCompare(b.name) || a.agent.localeCompare(b.agent))
   const waiting = all.flatMap(waitingOf).sort((a, b) => b.ms - a.ms)
   // One grid, ordered by project: cards of a project sit together without a row each.
   const ordered = [...working].sort((a, b) => a.name.localeCompare(b.name) || a.agent.localeCompare(b.agent))
@@ -95,27 +96,51 @@ export function Desk({ bots, nav }: DeskProps) {
         </section>
       )}
 
-      {idle.length > 0 && (
-        <details className="mesa-secao mesa-parados">
-          <summary>
-            {t.deskIdle}
-            <small>{idle.length}</small>
-          </summary>
-          <div className="mesa-parados-lista">
-            {idle.map((bot) => (
-              <button key={bot.id} type="button" onClick={() => nav.openBot(bot.id)}>
-                <Avatar agent={faceForBot(bot)} size={22} state="still" />
-                <span>
+      <section className="mesa-secao">
+        <h2>
+          {t.deskTeam}
+          <small>{all.length}</small>
+        </h2>
+        <ul className="mesa-equipe">
+          {team.map((bot) => (
+            <li key={bot.id}>
+              <button type="button" onClick={() => nav.openBot(bot.id)}>
+                <Avatar agent={faceForBot(bot)} size={28} state={bot.busy ? 'thinking' : 'still'} />
+                <span className="mesa-equipe-quem">
+                  <b>{bot.persona?.name ?? AGENT_LABEL[bot.agent]}</b>
+                  <small className={bot.persona?.role ? '' : 'sem-cargo'}>{bot.persona?.role || t.deskNoRole}</small>
+                </span>
+                <span className="mesa-equipe-onde">
                   <b>{bot.name}</b>
-                  <small>{[AGENT_LABEL[bot.agent], when(lastActivity(bot))].filter(Boolean).join(' · ')}</small>
+                  <small>{[AGENT_LABEL[bot.agent], bot.model].filter(Boolean).join(' · ')}</small>
+                </span>
+                <span className="mesa-equipe-numeros">
+                  <span className={`mesa-estado ${bot.busy ? 'ativo' : ''}`}>
+                    <i className="ponto" />
+                    {bot.busy ? t.deskWorkingNow : [t.deskIdleSince, when(lastActivity(bot))].filter(Boolean).join(' · ')}
+                  </span>
+                  <small>
+                    {[weekTokens(bot, now) ? t.deskWeek.replace('{n}', compact(weekTokens(bot, now))) : '', bot.routines.length === 1 ? t.deskRoutine : bot.routines.length > 1 ? t.deskRoutines.replace('{n}', String(bot.routines.length)) : '']
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </small>
                 </span>
               </button>
-            ))}
-          </div>
-        </details>
-      )}
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   )
+}
+
+const WEEK_MS = 7 * 86_400_000
+
+/** What this agent read and wrote through raiox in the last seven days, across its conversations. */
+function weekTokens(bot: Bot, now: number): number {
+  return [...bot.messages, ...bot.threads.flatMap((x) => x.messages)]
+    .filter((m) => m.author === 'bot' && m.ms >= now - WEEK_MS)
+    .reduce((sum, m) => sum + (m.data.reply?.read_tokens ?? 0) + (m.data.reply?.output_tokens ?? 0), 0)
 }
 
 const lastActivity = (bot: Bot): number | undefined =>

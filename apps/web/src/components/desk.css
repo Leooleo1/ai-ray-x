@@ -20,8 +20,7 @@
     inset 0 1px 0 rgb(255 255 255 / 6%);
 }
 
-.mesa-secao > h2,
-.mesa-parados > summary {
+.mesa-secao > h2 {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -29,8 +28,7 @@
   font: 500 15px/20px var(--sans);
 }
 
-.mesa-secao > h2 small,
-.mesa-parados > summary small {
+.mesa-secao > h2 small {
   color: var(--nevoa);
   font: 12px/16px var(--mono);
 }
@@ -237,58 +235,78 @@
   flex: none;
 }
 
-.mesa-parados > summary {
-  cursor: pointer;
+
+/* The team: who each agent is, its role, where it works, and how busy it was. */
+.mesa-equipe {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.mesa-parados > summary::-webkit-details-marker {
-  display: none;
-}
-
-.mesa-parados > summary::after {
-  content: '▸';
-  color: var(--nevoa);
-  font-size: 12px;
-}
-
-.mesa-parados[open] > summary::after {
-  content: '▾';
-}
-
-.mesa-parados-lista {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.mesa-parados-lista button {
-  display: flex;
+.mesa-equipe button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 6px;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
   border: 0;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 4%);
+  border-radius: 12px;
+  background: transparent;
   color: var(--giz);
   text-align: left;
   cursor: pointer;
 }
 
-.mesa-parados-lista span {
+.mesa-equipe button:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.mesa-equipe-quem,
+.mesa-equipe-onde,
+.mesa-equipe-numeros {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
-.mesa-parados-lista b {
-  font: 500 12px/16px var(--sans);
-}
-
-.mesa-parados-lista small {
-  color: var(--nevoa);
-  font-size: 11px;
+.mesa-equipe b {
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mesa-equipe small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-equipe .sem-cargo {
+  font-style: italic;
+}
+
+.mesa-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.mesa-estado.ativo {
+  color: var(--giz);
+}
+
+.mesa-estado.ativo .ponto {
+  background: var(--ok);
 }
 
 /* On a phone the waiting rows stack: who and what on one line, the detail below. */
@@ -319,5 +337,14 @@
   .mesa-espera code {
     flex: 1 1 0;
     order: 5;
+  }
+
+  /* The team on a phone: who and where on the first line, the numbers below. */
+  .mesa-equipe button {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .mesa-equipe-numeros {
+    grid-column: 2 / -1;
   }
 }

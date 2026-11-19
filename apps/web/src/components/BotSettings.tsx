@@ -10,6 +10,7 @@ import './settings.css'
 
 const MAX_NAME = 32
 const MAX_MANNER = 1200
+const MAX_ROLE = 40
 
 /** "claude-opus-5-5" reads as "Opus 5.5"; other names stay as they are. */
 export function modelName(model: string): string {
@@ -32,6 +33,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
   const [look, setLook] = useState<Look>({ shape: bot.persona?.shape ?? 'monitor', color: face.color, finish: bot.persona?.finish ?? 'solid' })
   const [name, setName] = useState(bot.persona?.name ?? AGENT_LABEL[bot.agent])
   const [manner, setManner] = useState(bot.persona?.instructions ?? '')
+  const [role, setRole] = useState(bot.persona?.role ?? '')
 
   useEffect(() => {
     let alive = true
@@ -52,6 +54,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     color: look.color,
     shape: look.shape,
     finish: look.finish,
+    role: role.trim(),
   }
   const changed = JSON.stringify(persona) !== JSON.stringify(bot.persona)
   const days = usage?.days ?? 30
@@ -177,6 +180,10 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
         <label className="ajustes-campo">
           <span>{t.nameLabel}</span>
           <input value={name} maxLength={MAX_NAME} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className="ajustes-campo">
+          <span>{t.roleLabel}</span>
+          <input value={role} maxLength={MAX_ROLE} placeholder={t.roleHint} onChange={(event) => setRole(event.target.value)} />
         </label>
         <label className="ajustes-campo">
           <span>{t.mannerLabel}</span>

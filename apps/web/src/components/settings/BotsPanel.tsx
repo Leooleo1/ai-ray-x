@@ -1,5 +1,5 @@
 import type { Bot } from '../../api'
-import { AGENT_LABEL, faceForBot, stageLight } from '../../avatars'
+import { AGENT_LABEL, faceForBot, stageLight, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
 import { Avatar } from '../Avatar'
@@ -33,7 +33,7 @@ export function BotsPanel({ bots, onOpenBot, onAddBot }: BotsPanelProps) {
             </div>
             <div className="cfg-bot-texto">
               <b>{bot.name}</b>
-              <small>{[bot.persona?.name, AGENT_LABEL[bot.agent], bot.model ? modelName(bot.model) : '', bot.effort ?? ''].filter(Boolean).join(' · ')}</small>
+              <small>{[personaName(bot), AGENT_LABEL[bot.agent], bot.model ? modelName(bot.model) : '', bot.effort ?? ''].filter(Boolean).join(' · ')}</small>
               <small>{[count(bot.threads.length + 1, t.conversationsCount), count(bot.routines.length, t.routinesCount), count(wiresOf(bot), t.wiresCount)].join(' · ')}</small>
             </div>
             <footer>

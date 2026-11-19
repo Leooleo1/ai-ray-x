@@ -80,6 +80,9 @@ pub struct Persona {
     /// "solid", "flat" or "pixel".
     #[serde(default = "solid")]
     pub finish: String,
+    /// Its role in the person's team ("Frontend", "Security review"…); empty when none was given.
+    #[serde(default)]
+    pub role: String,
 }
 
 fn solid() -> String {
@@ -122,6 +125,7 @@ pub fn check_effort(agent: &str, effort: Option<&str>) -> Result<Option<String>>
 
 const MAX_NAME: usize = 32;
 const MAX_INSTRUCTIONS: usize = 1200;
+const MAX_ROLE: usize = 40;
 const MAX_SLUG: usize = 40;
 
 impl Persona {
@@ -135,6 +139,9 @@ impl Persona {
         if self.instructions.chars().count() > MAX_INSTRUCTIONS {
             bail!("instructions have at most {MAX_INSTRUCTIONS} characters");
         }
+        if self.role.trim().chars().count() > MAX_ROLE || self.role.contains('\n') {
+            bail!("a role is one line of at most {MAX_ROLE} characters");
+        }
         if !slug(&self.preset) || !slug(&self.shape) || !color || !FINISHES.contains(&self.finish.as_str()) {
             bail!("invalid preset, shape, color or finish");
         }
@@ -143,7 +150,9 @@ impl Persona {
 
     /// What the CLI is told about its role here.
     fn prompt(&self) -> String {
-        format!("Your name in this project is {}. {}", self.name.trim(), self.instructions.trim())
+        let role = self.role.trim();
+        let role = if role.is_empty() { String::new() } else { format!(" Your role in the person's team: {role}.") };
+        format!("Your name in this project is {}.{role} {}", self.name.trim(), self.instructions.trim())
     }
 }
 

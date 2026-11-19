@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Bot, BotMessage } from '../../api'
-import { AGENT_LABEL, faceForBot } from '../../avatars'
+import { AGENT_LABEL, faceForBot, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
 import { exchanges } from '../../exchanges'
 import { t } from '../../i18n'
@@ -78,7 +78,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
         <>
           {team.map((bot) => (
             <section key={bot.id} className="conversas-ia">
-              {team.length > 1 && <span className="conversas-grupo">{[AGENT_LABEL[bot.agent], bot.persona?.name].filter(Boolean).join(' · ')}</span>}
+              {team.length > 1 && <span className="conversas-grupo">{[AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</span>}
               <ul>
                 {rowsOf(bot).map((row) => {
                   const key = `${bot.id}:${row.thread}`

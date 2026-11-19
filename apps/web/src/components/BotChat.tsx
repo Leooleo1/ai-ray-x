@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { type Bot, type Inbox, type Place, type Report, botInbox } from '../api'
-import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
+import { AGENT_LABEL, faceForBot, speakerOf, personaName } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
@@ -152,7 +152,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             <Avatar agent={face} size={24} state={busyHere ? 'thinking' : 'still'} />
             <span>
               <b>{side ? side.title : t.mainConversation}</b>
-              <small>{[bot.name, AGENT_LABEL[bot.agent], bot.persona?.name].filter(Boolean).join(' · ')}</small>
+              <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
             </span>
           </span>
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />

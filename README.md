@@ -55,7 +55,9 @@ about 0.9 s instead of 1.7 s for a short answer, with the same tokens.
 **Desk.** Every agent working now in one grid, ordered by project: what it
 does, for how long, the tokens so far (Claude Code), its last steps, and Stop,
 Correct and Open. Below, what waits for you across all projects (proposals to
-approve, drafts to apply, commands asked) and who is idle.
+approve, drafts to apply, commands asked), and the team: each agent with the
+role you gave it (it knows its role), its project, CLI, model and what it used
+through raiox this week.
 
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
