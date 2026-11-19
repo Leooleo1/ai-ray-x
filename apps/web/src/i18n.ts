@@ -1,6 +1,16 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  grantsTitle: 'Permissions',
+  grantDevices: 'Reachable from your phone',
+  grantDevicesNote: 'off: paired devices do not see it, nor the channels it is in, and its notes stay on the computer',
+  grantWeb: 'Reads the web',
+  grantWebNote: 'it may open web pages and search while it works',
+  grantMcp: 'Uses your MCP servers',
+  grantMcpNote: 'it acts in them without asking (mail, calendar, drive…): only for a bot you trust with them',
+  weekLimit: 'Weekly ceiling',
+  usedThisWeek: '{used} tokens in seven days',
+  usedOfWeek: '{used} of {limit} tokens in seven days',
   wikiTab: 'Wiki',
   wikiTitle: 'Wiki',
   wikiSubtitle: 'what every AI of yours should know, and what reading it costs',
@@ -531,6 +541,16 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  grantsTitle: 'Permissões',
+  grantDevices: 'Fala pelo celular',
+  grantDevicesNote: 'desligado: os aparelhos pareados não o veem, nem os canais em que ele está, e os avisos dele ficam no computador',
+  grantWeb: 'Lê a web',
+  grantWebNote: 'pode abrir páginas e pesquisar enquanto trabalha',
+  grantMcp: 'Usa seus MCPs',
+  grantMcpNote: 'age neles sem perguntar (e-mail, agenda, drive…): só para um bot em que você confia com eles',
+  weekLimit: 'Teto da semana',
+  usedThisWeek: '{used} tokens em sete dias',
+  usedOfWeek: '{used} de {limit} tokens em sete dias',
   wikiTab: 'Wiki',
   wikiTitle: 'Wiki',
   wikiSubtitle: 'o que todas as suas IAs devem saber, e quanto custa ler',

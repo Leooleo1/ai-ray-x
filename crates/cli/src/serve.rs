@@ -132,12 +132,12 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => Answer::Now(reply),
         },
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
-        _ => Answer::Now(dispatch(panel, request, path, port)),
+        _ => Answer::Now(dispatch(panel, request, path, port, remote)),
     }
 }
 
 /// The requests answered on the panel's own thread (they read or change its state).
-fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> Reply {
+fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, remote: bool) -> Reply {
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
@@ -195,10 +195,12 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> 
             Err(reply) => reply,
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
-        (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)),
+        (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
             match body(request) {
+                // A paired device reaches only the bots (and channels) that are not kept on this computer.
+                Ok(input) if remote => respond(crate::grants::device_may(&panel.state_dir, &input).and_then(|()| bot_action(panel, &action, &input)).map(|state| seen_by(panel, remote, state))),
                 Ok(input) => respond(bot_action(panel, &action, &input)),
                 Err(reply) => reply,
             }
@@ -206,6 +208,11 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> 
         (Method::Get, _) => static_file(&panel.web_dir, path),
         _ => text(405, "method not allowed"),
     }
+}
+
+/// The bots state for whoever asks: a paired device does not see the bots kept on this computer.
+fn seen_by(panel: &Panel, remote: bool, state: Value) -> Value {
+    if remote { crate::grants::for_device(&panel.state_dir, state) } else { state }
 }
 
 /// The project a change goes to: a bot's folder when the panel names the bot,
@@ -275,6 +282,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "routine_changed" => crate::routines::set_only_if_changed(state_dir, field("routine"), input.get("on").and_then(Value::as_bool).unwrap_or(false)),
         "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
+        "grants" => bots::set_grants(state_dir, jobs, field("id"), input),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
         "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),

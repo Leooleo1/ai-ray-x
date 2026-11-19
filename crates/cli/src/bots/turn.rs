@@ -232,7 +232,18 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
     let guide = format!("{}{}{}", setup.stable, setup.team, if live.is_some() { "" } else { &setup.related });
     // Talk can read the bot's screenshots; an edit works in its draft only.
     let shots = (mode == Mode::Talk).then_some(setup.shots.as_path());
-    let target = bot_run::Target { agent: &bot.agent, dir, guide, session, model: setup.model.as_deref(), effort: setup.effort.as_deref(), shots, images };
+    let target = bot_run::Target {
+        agent: &bot.agent,
+        dir,
+        guide,
+        session,
+        model: setup.model.as_deref(),
+        effort: setup.effort.as_deref(),
+        shots,
+        images,
+        web: bot.grants.web,
+        mcp: bot.grants.mcp,
+    };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
     if let Some(conversation) = live {

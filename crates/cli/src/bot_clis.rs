@@ -55,7 +55,10 @@ pub fn opencode(target: &Target, mode: Mode) -> Command {
     // PWD too: opencode takes its project folder from it, and the panel's points elsewhere.
     command.current_dir(target.dir).env("PWD", target.dir).args(["run", "--standalone", "--format", "json"]);
     command.args(["--agent", if mode == Mode::Talk { "plan" } else { "build" }]);
-    command.env("OPENCODE_CONFIG_CONTENT", if mode == Mode::Talk { OPENCODE_TALK } else { OPENCODE_EDIT });
+    let config = if mode == Mode::Talk { OPENCODE_TALK } else { OPENCODE_EDIT };
+    // A bot allowed the web reads it (webfetch), the rest stays as it is.
+    let config = if target.web { config.replace(r#""webfetch":"deny""#, r#""webfetch":"allow""#) } else { config.to_string() };
+    command.env("OPENCODE_CONFIG_CONTENT", config);
     if let Some(id) = target.session {
         command.args(["--session", id]);
     }

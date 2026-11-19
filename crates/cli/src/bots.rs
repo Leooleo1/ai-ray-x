@@ -64,6 +64,9 @@ pub struct Bot {
     /// Another bot of the project that reviews every proposal of this one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reviewer: Option<String>,
+    /// What it may do beyond reading its project (phone, web, MCP, weekly ceiling).
+    #[serde(default)]
+    pub grants: crate::grants::Grants,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -372,6 +375,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         allowed: Vec::new(),
         talk_model: None,
         reviewer: None,
+        grants: crate::grants::Grants::default(),
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -613,6 +617,16 @@ pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
 }
 
 /// Sets or clears the daily token limit of this bot's project (0 clears it).
+/// Changes what a bot may do (phone, web, MCP, weekly ceiling).
+pub fn set_grants(state_dir: &Path, jobs: &Jobs, id: &str, input: &Value) -> Result<()> {
+    if jobs.is_busy(id) {
+        bail!("the bot is answering; change it when it is done");
+    }
+    let bot = find(state_dir, id)?;
+    let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
+    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))
+}
+
 pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
     let bot = find(state_dir, id)?;
     crate::budget::set(state_dir, &bot.name, (tokens > 0).then_some(tokens))
@@ -669,6 +683,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
     }
     let bot = find(state_dir, id)?;
     crate::budget::check(state_dir, &bot.name)?;
+    crate::grants::check_week(state_dir, &bot)?;
     let session = thread_session(state_dir, &bot, thread)?;
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
@@ -709,6 +724,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "model": bot.model,
                 "effort": bot.effort,
                 "allowed": bot.allowed,
+                "grants": crate::grants::state(state_dir, &bot),
                 "week": crate::room::week_of(store, home, &bot.dir),
                 "talk_model": bot.talk_model,
                 "reviewer": bot.reviewer,

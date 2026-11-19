@@ -20,6 +20,7 @@ pub mod connections;
 pub mod commands;
 pub mod data;
 pub mod devices;
+pub mod grants;
 pub mod drafts;
 pub mod links;
 pub mod live;

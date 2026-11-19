@@ -349,6 +349,17 @@ export interface Bot {
   reviewer?: string | null
   /** The project's daily token limit for its bots and what they used today. */
   budget?: { limit: number | null; used: number; choices: number[] }
+  /** What it may do beyond reading its project, and its week so far. */
+  grants?: {
+    devices: boolean
+    web: boolean
+    mcp: boolean
+    week_limit: number | null
+    week_used: number
+    week_choices: number[]
+    web_possible: boolean
+    mcp_possible: boolean
+  }
   name: string
   dir: string
   has_session: boolean
@@ -406,7 +417,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants'
 
 export interface InboxMessage {
   id: string

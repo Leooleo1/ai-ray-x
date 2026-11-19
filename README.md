@@ -60,6 +60,13 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Permissions per AI.** In each AI's settings: whether it is reachable from
+your paired phone (off keeps it, and the channels it is in, on the computer,
+with its notifications), whether it reads the web (Claude Code, opencode),
+whether it uses your own MCP servers (Claude Code; it then acts in them
+without asking, so only for an AI you trust with them), and a weekly token
+ceiling of its own, next to the project's daily one.
+
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
 of things. A page goes with every question, or only when the question shares
 its words; raiox hands the pages over itself, so the Wiki tab shows how many

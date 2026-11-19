@@ -156,6 +156,8 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
           </>
         )}
 
+        {bot.grants && <GrantsBlock bot={bot} bots={bots} />}
+
         <span className="ajustes-grupo">{t.allowedCommands}</span>
         {(bot.allowed ?? []).length === 0 ? (
           <p className="ajustes-nota">{t.allowedNone}</p>
@@ -266,5 +268,50 @@ function LongChoice({ label, current, fallback, options, busy, onPick }: ChoiceP
         ))}
       </datalist>
     </label>
+  )
+}
+
+/** What the bot may do beyond reading its project: the phone, the web, MCP servers, a weekly ceiling. */
+function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
+  const grants = bot.grants
+  if (!grants) return null
+  const set = (change: Record<string, unknown>) => void bots.act('grants', { id: bot.id, ...change })
+  const rows: { key: 'devices' | 'web' | 'mcp'; label: string; note: string; shown: boolean }[] = [
+    { key: 'devices', label: t.grantDevices, note: t.grantDevicesNote, shown: true },
+    { key: 'web', label: t.grantWeb, note: t.grantWebNote, shown: grants.web_possible },
+    { key: 'mcp', label: t.grantMcp, note: t.grantMcpNote, shown: grants.mcp_possible },
+  ]
+  return (
+    <>
+      <span className="ajustes-grupo">{t.grantsTitle}</span>
+      {rows
+        .filter((row) => row.shown)
+        .map((row) => (
+          <label key={row.key} className="permissao">
+            <button type="button" className={`config-chave ${grants[row.key] ? 'ligada' : ''}`} role="switch" aria-checked={grants[row.key]} disabled={bot.busy} onClick={() => set({ [row.key]: !grants[row.key] })}>
+              <i />
+            </button>
+            <span>
+              <b>{row.label}</b>
+              <small className={row.key === 'mcp' && grants.mcp ? 'permissao-alerta' : ''}>{row.note}</small>
+            </span>
+          </label>
+        ))}
+      <Choice
+        label={t.weekLimit}
+        current={grants.week_limit === null ? null : String(grants.week_limit)}
+        fallback={null}
+        options={grants.week_choices.map(String)}
+        busy={bot.busy}
+        show={(tokens) => compact(Number(tokens))}
+        nullLabel={t.noLimit}
+        onPick={(tokens) => set({ week_limit: tokens === null ? 0 : Number(tokens) })}
+      />
+      <p className="ajustes-nota">
+        {grants.week_limit === null
+          ? t.usedThisWeek.replace('{used}', compact(grants.week_used))
+          : t.usedOfWeek.replace('{used}', compact(grants.week_used)).replace('{limit}', compact(grants.week_limit))}
+      </p>
+    </>
   )
 }

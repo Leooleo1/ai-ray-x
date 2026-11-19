@@ -83,6 +83,10 @@ pub struct Target<'a> {
     pub shots: Option<&'a Path>,
     /// Images handed to the CLI with the prompt (Codex's --image).
     pub images: &'a [std::path::PathBuf],
+    /// The bot may read the web (its grants).
+    pub web: bool,
+    /// The bot may use the person's own MCP servers (its grants).
+    pub mcp: bool,
 }
 
 /// What the bot is told on every turn: how raiox works, how to propose a
@@ -172,15 +176,23 @@ pub fn prompt_for(mode: Mode, text: &str) -> String {
 
 /// The Claude Code command for a turn (a live session adds its streaming input).
 pub fn claude_command(target: &Target, mode: Mode) -> Command {
-    let tools = match mode {
+    let base = match mode {
         Mode::Talk => "Read,Grep,Glob",
         Mode::Edit => "Read,Grep,Glob,Edit,Write",
     };
+    let tools = if target.web { format!("{base},WebFetch,WebSearch") } else { base.to_string() };
     let mut command = crate::procs::command("claude");
     command
         .current_dir(target.dir)
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
-        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", tools, "--strict-mcp-config"]);
+        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", &tools]);
+    // MCP servers stay out unless the person let this bot use theirs.
+    if !target.mcp {
+        command.arg("--strict-mcp-config");
+    }
+    if target.web {
+        command.args(["--allowedTools", "WebFetch", "WebSearch"]);
+    }
     if let Some(shots) = target.shots {
         command.arg("--add-dir").arg(shots);
     }
@@ -193,7 +205,11 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     if let Some(effort) = target.effort {
         command.args(["--effort", effort]);
     }
-    if mode == Mode::Edit {
+    // A print-mode call cannot ask: a bot allowed the person's MCP servers uses them without asking
+    // (its built-in tools are still the list above, and the secrets rules still deny).
+    if target.mcp {
+        command.args(["--permission-mode", "bypassPermissions"]);
+    } else if mode == Mode::Edit {
         command.args(["--permission-mode", "acceptEdits"]);
     }
     if let Some(id) = target.session {

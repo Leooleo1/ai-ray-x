@@ -54,18 +54,16 @@ fn tokens(message: &room::Message) -> u64 {
     count("read_tokens") + count("output_tokens")
 }
 
+/// What one bot read and wrote since a moment, across all its conversations.
+pub fn bot_used_since(state_dir: &Path, bot: &str, since: i64) -> u64 {
+    let files = std::iter::once(bots::chat_file(state_dir, bot)).chain(threads::list(state_dir, bot).into_iter().map(|t| threads::chat_file(state_dir, bot, &t.id)));
+    files.map(|file| room::read_messages(&file).iter().filter(|m| m.author == "bot" && m.ms >= since).map(tokens).sum::<u64>()).sum()
+}
+
 /// What the project's bots read and wrote since midnight, across all their conversations.
 pub fn used_today(state_dir: &Path, project: &str) -> u64 {
     let since = midnight_ms();
-    let mut used = 0;
-    for bot in bots::list(state_dir).into_iter().filter(|b| b.name == project) {
-        let files = std::iter::once(bots::chat_file(state_dir, &bot.id))
-            .chain(threads::list(state_dir, &bot.id).into_iter().map(|t| threads::chat_file(state_dir, &bot.id, &t.id)));
-        for file in files {
-            used += room::read_messages(&file).iter().filter(|m| m.author == "bot" && m.ms >= since).map(tokens).sum::<u64>();
-        }
-    }
-    used
+    bots::list(state_dir).into_iter().filter(|b| b.name == project).map(|bot| bot_used_since(state_dir, &bot.id, since)).sum()
 }
 
 /// Refuses a new turn once the project reached its limit today.

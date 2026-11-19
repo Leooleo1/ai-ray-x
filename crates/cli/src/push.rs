@@ -199,7 +199,8 @@ pub fn on_turn_end(listener: impl Fn(&Value) + Send + Sync + 'static) {
 /// After a turn: the app around the panel and the paired devices hear how it ended.
 pub fn after_turn(state_dir: &Path, bot: &crate::bots::Bot, thread: &str) {
     let listener = LISTENER.get();
-    let to_devices = !devices::pushes(state_dir).is_empty();
+    // A bot kept on this computer tells the computer only.
+    let to_devices = bot.grants.devices && !devices::pushes(state_dir).is_empty();
     if listener.is_none() && !to_devices {
         return;
     }

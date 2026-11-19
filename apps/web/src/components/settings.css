@@ -395,3 +395,37 @@
   font-size: 13px;
   cursor: pointer;
 }
+
+/* A bot's permission: a switch, what it allows, and what it costs in trust. */
+.permissao {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.permissao .config-chave {
+  flex: none;
+  margin-top: 2px;
+}
+
+.permissao span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.permissao b {
+  font: 500 13px/18px var(--sans);
+}
+
+.permissao small {
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.permissao small.permissao-alerta {
+  color: var(--alerta);
+}
