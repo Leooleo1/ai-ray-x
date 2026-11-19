@@ -1,4 +1,3 @@
-import { AGENTS, type AgentId } from '../agents'
 import type { Bot } from '../api'
 import { faceForBot } from '../avatars'
 import { nowStamp, t } from '../i18n'
@@ -6,16 +5,11 @@ import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'settings'
-export type RoomView = 'channel' | AgentId
-export type ChatView = RoomView | 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}`
-
-const ORDER: AgentId[] = ['raio', 'dieta', 'memo']
+export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}`
 
 interface SidebarProps {
   tab: Tab
   chat: ChatView
-  project: string
-  typing: AgentId | null
   bots: Bot[]
   /** Bots with an answer not seen yet. */
   unread: Set<string>
@@ -24,15 +18,14 @@ interface SidebarProps {
   onChat: (view: ChatView) => void
 }
 
-/** The one navigation of the panel: sections, this project's channel and the agents' threads. */
-export function Sidebar({ tab, chat, project, typing, bots, unread, updatedAt, onTab, onChat }: SidebarProps) {
+/** The one navigation of the panel: the sections, then a row per project with a bot. */
+export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: SidebarProps) {
   const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
     { id: 'agents', label: t.tabAgents, icon: 'agents' },
     { id: 'settings', label: t.settingsTitle, icon: 'sliders' },
   ]
-  const inChat = (view: ChatView) => tab === 'agents' && chat === view
   return (
     <aside className="lateral">
       <span className="marca">
@@ -47,23 +40,6 @@ export function Sidebar({ tab, chat, project, typing, bots, unread, updatedAt, o
           </button>
         ))}
       </nav>
-      <div className="lado-grupo">
-        <span className="lado-titulo">{t.channels}</span>
-        <button className={`lado-item ${inChat('channel') ? 'ativo' : ''}`} onClick={() => onChat('channel')}>
-          <Icon name="hash" />
-          <span className="nome">{project}</span>
-        </button>
-      </div>
-      <div className="lado-grupo">
-        <span className="lado-titulo">{t.directs}</span>
-        {ORDER.map((id) => (
-          <button key={id} className={`lado-item ${inChat(id) ? 'ativo' : ''}`} onClick={() => onChat(id)}>
-            <Avatar agent={AGENTS[id]} size={22} state={typing === id ? 'thinking' : 'idle'} />
-            <span className="nome">{AGENTS[id].name}</span>
-            <span className={`presenca ${typing === id ? 'digitando' : ''}`}>{typing === id ? t.typingShort : ''}</span>
-          </button>
-        ))}
-      </div>
       <div className="lado-grupo">
         <span className="lado-titulo">{t.projects}</span>
         {/* One row per project; a project can have bots on several CLIs, the newest one opens. */}

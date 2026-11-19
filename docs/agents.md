@@ -17,6 +17,11 @@ lightbulb, sprout) or shapes copied from its gallery into `assets/avatars/`
 
 ## How they work together
 
+In the panel they live inside each project's bot chat: three chips above the
+composer. They answer from the logs, without AI and without spending the
+person's plan, about that bot's project; turning a bot on is that project's
+opt-in, and Dieta's Apply writes to that project, with a backup and an undo.
+
 1. Raio answers "how much context am I carrying and what is in it" for the
    current session, and "what weighs most" over a period.
 2. Dieta turns that into ranked suggestions. It never changes a setting: a

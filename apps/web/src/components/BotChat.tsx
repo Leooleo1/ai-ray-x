@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type BotMessage, type Inbox, type Place, botInbox } from '../api'
+import { type Bot, type BotMessage, type Inbox, type Place, type Report, botInbox } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -14,6 +14,7 @@ import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
 import { PinsLine } from './chat/PinsLine'
+import { HouseAsk, HouseLine, isHouse } from './chat/HouseLine'
 import type { ChatNav } from './chat/nav'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
@@ -35,10 +36,13 @@ interface BotChatProps {
   focus: { thread: string; ms: number } | null
   onConnections: () => void
   unread: Set<string>
+  /** For Dieta's cuts: the suggestions as computed now and the changes applied. */
+  report: Report
+  onChanged: () => void
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, nav, focus, onConnections, unread }: BotChatProps) {
+export function BotChat({ bot, bots, nav, focus, onConnections, unread, report, onChanged }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [thread, setThread] = useState(focus?.thread ?? MAIN)
   useEffect(() => {
@@ -144,7 +148,10 @@ export function BotChat({ bot, bots, nav, focus, onConnections, unread }: BotCha
               </div>
             </div>
           )}
-          {messages.map((message, index) => (
+          {messages.map((message, index) =>
+            isHouse(message.author) ? (
+              <HouseLine key={`${message.ms}-${index}`} bot={bot} message={message} messages={messages} report={report} onChanged={onChanged} />
+            ) : (
             <BotLine
               key={`${message.ms}-${index}`}
               bot={bot}
@@ -159,7 +166,8 @@ export function BotChat({ bot, bots, nav, focus, onConnections, unread }: BotCha
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
             />
-          ))}
+            ),
+          )}
           {mail.length > 0 && !bot.busy && (
             <div className="caixa" id={INBOX_ID}>
               {mail.map((item) => (
@@ -194,6 +202,7 @@ export function BotChat({ bot, bots, nav, focus, onConnections, unread }: BotCha
             </button>
           </div>
         )}
+        {!busyHere && <HouseAsk onAsk={(agent) => void bots.act('house', { id: bot.id, thread: current, agent })} />}
         <Composer
           draftKey={`${bot.id}:${current}`}
           placeholder={`${t.composeBot} ${speaker}`}
@@ -231,7 +240,7 @@ function useInbox(bot: Bot) {
 function pendingProposal(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]
-    if (m.kind === 'failed' || m.kind === 'sent' || m.kind === 'stopped') continue
+    if (m.kind === 'failed' || m.kind === 'sent' || m.kind === 'stopped' || m.kind === 'house') continue
     if (m.kind === 'approve') return -1
     return m.kind === 'answer' && m.data.reply?.proposal ? i : -1
   }

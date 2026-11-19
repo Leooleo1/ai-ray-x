@@ -79,13 +79,13 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         (_, p) if p.starts_with("/api/") && !authorized(request, token) => text(401, "missing or wrong session token"),
         (Method::Get, "/api/report") => respond(report(panel)),
         (Method::Post, "/api/apply") => match body(request) {
-            Ok(input) => respond(actions::apply_suggestion(
+            Ok(input) => respond(target(panel, &input).and_then(|dir| actions::apply_suggestion(
                 &panel.store,
                 &panel.state_dir,
-                &panel.project_dir,
+                &dir,
                 input.get("id").and_then(Value::as_str).unwrap_or(""),
                 input.get("source").and_then(Value::as_str).unwrap_or("claude"),
-            )),
+            ))),
             Err(reply) => reply,
         },
         (Method::Post, "/api/ask") => match body(request) {
@@ -103,12 +103,12 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => reply,
         },
         (Method::Post, "/api/undo") => match body(request) {
-            Ok(input) => respond(actions::undo_change(
+            Ok(input) => respond(target(panel, &input).and_then(|dir| actions::undo_change(
                 &panel.store,
                 &panel.state_dir,
-                &panel.project_dir,
+                &dir,
                 input.get("change").and_then(Value::as_str).unwrap_or(""),
-            )),
+            ))),
             Err(reply) => reply,
         },
         (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
@@ -136,6 +136,15 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         }
         (Method::Get, _) => static_file(&panel.web_dir, path),
         _ => text(405, "method not allowed"),
+    }
+}
+
+/// The project a change goes to: a bot's folder when the panel names the bot,
+/// else the folder `raiox open` started in.
+fn target(panel: &Panel, input: &Value) -> anyhow::Result<std::path::PathBuf> {
+    match input.get("bot").and_then(Value::as_str).filter(|id| !id.is_empty()) {
+        Some(id) => bots::dir_of(&panel.state_dir, id),
+        None => Ok(panel.project_dir.clone()),
     }
 }
 
@@ -169,6 +178,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_delete" => crate::routines::delete(state_dir, field("routine")),
         "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
         "thread_delete" => crate::threads::delete(state_dir, field("id"), thread),
+        "house" => {
+            let dir = bots::dir_of(state_dir, field("id"))?;
+            let data = crate::room::answer(&panel.store, &panel.roots, state_dir, &dir, field("agent"))?;
+            bots::house(state_dir, field("id"), thread, field("agent"), data)
+        }
         "stop" => jobs.stop(field("id")),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
@@ -271,19 +285,18 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
     let mut value = data::refresh_and_collect(&mut panel.store, &panel.roots)?;
     if let Some(object) = value.as_object_mut() {
         object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
-        let measured = crate::room::outcomes(&panel.store, &panel.roots, &panel.state_dir, &panel.project_dir)?;
-        object.insert("outcomes".into(), json!(measured.iter().map(|(_, o)| o).collect::<Vec<_>>()));
+        // Before/after for changes in the panel's project and in every bot's project.
+        let dirs: std::collections::BTreeSet<std::path::PathBuf> =
+            std::iter::once(panel.project_dir.clone()).chain(bots::list(&panel.state_dir).into_iter().map(|bot| bot.dir)).collect();
+        let mut measured = Vec::new();
+        for dir in &dirs {
+            measured.extend(crate::room::outcomes(&panel.store, &panel.roots, &panel.state_dir, dir)?.into_iter().map(|(_, outcome)| outcome));
+        }
+        object.insert("outcomes".into(), json!(measured));
         object.insert("applicable".into(), json!({ "claude": apply::applicable("claude"), "codex": apply::applicable("codex") }));
         object.insert("project_dir".into(), json!(panel.project_dir.to_string_lossy()));
         object.insert("setup".into(), json!({ "done": setup::is_done(&panel.state_dir) }));
         object.insert("bots".into(), bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)?);
-        object.insert(
-            "room".into(),
-            json!({
-                "opted_in": crate::room::opted_in(&panel.project_dir),
-                "messages": crate::room::messages(&panel.state_dir, &panel.project_dir),
-            }),
-        );
     }
     Ok(value)
 }

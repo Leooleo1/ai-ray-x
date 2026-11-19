@@ -1,7 +1,8 @@
-// How each agent talks. The answers are data from the server; the voice is here.
-// Raio reads like a report, Dieta like a nutritionist, Memo like an archivist.
+// How the house agents talk in a project's chat. The answers are data from the
+// server, computed without AI; the voice is here. Raio reads like a report,
+// Dieta like a nutritionist, Memo like an archivist.
 
-import type { RoomMessage } from './api'
+import type { AgentId } from './agents'
 import type { Outcome } from './api'
 import { suggestionTitle } from './diet'
 import { describeOutcome } from './outcome'
@@ -10,23 +11,24 @@ import { compact, locale, percent, t } from './i18n'
 const pt = locale === 'pt-BR'
 const HEAVY = 400_000
 
-type Data = Record<string, unknown>
+export type Data = Record<string, unknown>
 
 const num = (d: Data, key: string): number => Number(d[key] ?? 0)
 
-const ASK: Record<string, [string, string]> = {
-  raio: ['Raio, como está a sessão?', 'Raio, how is the session?'],
-  dieta: ['Dieta, o que dá para cortar?', 'Dieta, what can we cut?'],
-  memo: ['Memo, o que guardamos?', 'Memo, what did we keep?'],
+const ASK: Record<AgentId, [string, string]> = {
+  raio: ['quanto pesa?', 'how heavy?'],
+  dieta: ['o que cortar?', 'what to cut?'],
+  memo: ['o que guardamos?', 'what did we keep?'],
 }
 
-export function askLabel(agent: string): string {
-  const [ptText, enText] = ASK[agent] ?? ['', '']
+/** The short question each house agent answers, as its chip says it. */
+export function houseAsk(agent: AgentId): string {
+  const [ptText, enText] = ASK[agent]
   return pt ? ptText : enText
 }
 
 function raio(d: Data): string {
-  if (!d.found) return pt ? 'Ainda não achei nenhuma sessão deste projeto nos registros.' : 'No session of this project in the logs yet.'
+  if (!d.found) return pt ? 'Ainda não achei nenhuma sessão do Claude Code neste projeto.' : 'No Claude Code session in this project yet.'
   const ctx = num(d, 'context_tokens')
   const top = (d.top as { name: string; tokens: number }[] | undefined) ?? []
   const named: Record<string, string> = { 'your prompts': t.yourPrompts, 'injected text': t.injected }
@@ -36,8 +38,8 @@ function raio(d: Data): string {
       ? pt ? 'Passou de 400 mil: feche o passo atual e rode /compact.' : 'Over 400K: finish the current step and run /compact.'
       : pt ? 'Está leve, pode seguir.' : 'Light enough, carry on.'
   return pt
-    ? `Laudo da sessão: ${compact(ctx)} de contexto, ${compact(num(d, 'startup_tokens'))} vieram da partida, ${num(d, 'requests')} pedidos desde a última compactação. Mais pesado: ${heavy}. ${verdict}`
-    : `Session report: ${compact(ctx)} of context, ${compact(num(d, 'startup_tokens'))} from startup, ${num(d, 'requests')} requests since the last compaction. Heaviest: ${heavy}. ${verdict}`
+    ? `Laudo da última sessão neste projeto: ${compact(ctx)} de contexto, ${compact(num(d, 'startup_tokens'))} vieram da partida, ${num(d, 'requests')} pedidos desde a última compactação. Mais pesado: ${heavy}. ${verdict}`
+    : `Report on this project's latest session: ${compact(ctx)} of context, ${compact(num(d, 'startup_tokens'))} from startup, ${num(d, 'requests')} requests since the last compaction. Heaviest: ${heavy}. ${verdict}`
 }
 
 function dieta(d: Data): string {
@@ -77,20 +79,7 @@ function memo(d: Data): string {
     : `I archived ${lessons.length} lesson${lessons.length === 1 ? '' : 's'} here; the last was ${lastTitle}${last.undone ? ', later undone' : ''}.${result}${kept} Also, ${stateEn}`
 }
 
-export function speak(message: RoomMessage): string {
-  const d = message.data
-  switch (message.kind) {
-    case 'ask':
-      return typeof d.text === 'string' && d.text ? d.text : askLabel(String(d.agent))
-    case 'answer':
-      return message.author === 'raio' ? raio(d) : message.author === 'dieta' ? dieta(d) : memo(d)
-    case 'applied':
-      return pt ? `Apliquei ${d.key}=${d.value} neste projeto. Para voltar, é só desfazer.` : `Applied ${d.key}=${d.value} in this project. Undo brings it back.`
-    case 'undone':
-      return pt ? `Desfiz ${d.key}; voltou ao valor de antes.` : `Undid ${d.key}; the previous value is back.`
-    case 'kept':
-      return pt ? `Arquivei a lição no ai-memory (${d.kept}).` : `Kept the lesson in ai-memory (${d.kept}).`
-    case 'kept_failed':
-      return pt ? `Não consegui arquivar no ai-memory: ${d.error}.` : `Could not keep it in ai-memory: ${d.error}.`
-  }
+/** What a house agent says, from the data it computed about the project. */
+export function houseText(agent: AgentId, data: Data): string {
+  return agent === 'raio' ? raio(data) : agent === 'dieta' ? dieta(data) : memo(data)
 }

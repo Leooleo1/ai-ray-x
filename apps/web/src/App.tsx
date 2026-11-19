@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { AgentId } from './agents'
 import { fetchReport, sessionToken, type Report } from './api'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
@@ -16,8 +15,7 @@ import { BatchView } from './components/chat/BatchView'
 import type { ChatNav } from './components/chat/nav'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
-import { Room } from './components/Room'
-import { type ChatView, type RoomView, Sidebar, type Tab } from './components/Sidebar'
+import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
@@ -34,7 +32,7 @@ const PATHS: Record<Tab, string[]> = {
 const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   xray: { title: t.title, subtitle: t.subtitle },
   efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
-  agents: { title: t.roomTitle, subtitle: t.roomSubtitle },
+  agents: { title: t.botsTitle, subtitle: t.botsHint },
   settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
 }
 
@@ -50,7 +48,7 @@ function chatFromPath(): ChatView {
   if (path.startsWith(`${GROUP_PATH}/`)) return `grupo:${path.slice(GROUP_PATH.length + 1)}`
   if (path.startsWith(`${EXCHANGE_PATH}/`)) return `troca:${decodeURIComponent(path.slice(EXCHANGE_PATH.length + 1))}`
   if (path.startsWith(`${BOTS_PATH}/`)) return `bot:${path.slice(BOTS_PATH.length + 1)}`
-  return 'channel'
+  return 'bots'
 }
 
 function chatPath(view: ChatView): string {
@@ -58,8 +56,7 @@ function chatPath(view: ChatView): string {
   if (view === 'grupo') return GROUP_PATH
   if (view.startsWith('grupo:')) return `${GROUP_PATH}/${view.slice(6)}`
   if (view.startsWith('bot:')) return `${BOTS_PATH}/${view.slice(4)}`
-  if (view.startsWith('troca:')) return `${EXCHANGE_PATH}/${encodeURIComponent(view.slice(6))}`
-  return PATHS.agents[0]
+  return `${EXCHANGE_PATH}/${encodeURIComponent(view.slice(6))}`
 }
 
 function tabFromPath(): Tab {
@@ -129,7 +126,6 @@ interface DashboardProps {
 function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
-  const [typing, setTyping] = useState<AgentId | null>(null)
   const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
   const bots = useBots(report.bots)
   useEffect(() => {
@@ -178,15 +174,12 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     add: () => openChat('bots'),
   }
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
-  const inBots = tab === 'agents' && (chat === 'bots' || chat.startsWith('bot:') || chat.startsWith('troca:') || chat.startsWith('grupo'))
-  const heading = inBots ? { title: t.botsTitle, subtitle: t.botsHint } : HEADINGS[tab]
+  const heading = HEADINGS[tab]
   return (
     <div className="app">
       <Sidebar
         tab={tab}
         chat={chat}
-        project={report.project_dir.split('/').pop() ?? ''}
-        typing={typing}
         bots={bots.state.bots}
         unread={unread}
         updatedAt={at}
@@ -199,16 +192,13 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onConnections={() => go('settings')} nav={nav} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onConnections={() => go('settings')} nav={nav} report={report} onChanged={onChanged} />}
         {tab === 'agents' && openExchange && (
           <ExchangeView exchange={openExchange} bots={bots} unread={unread} nav={nav} />
         )}
         {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} unread={unread} nav={nav} />}
         {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} unread={unread} nav={nav} />}
-        {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && inBots && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
-        {tab === 'agents' && !inBots && (
-          <Room report={report} view={chat as RoomView} onView={openChat} onTyping={setTyping} onChanged={onChanged} />
-        )}
+        {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} />

@@ -7,8 +7,8 @@ disable-model-invocation: true
 # Token diet
 
 Most of an agent's cost is re-reading its own context on every request.
-Ask the three raiox agents, from the project root, in this order. Each answer
-is also kept in the project's agents room (`raiox open`, Agents tab).
+Ask the three raiox agents, from the project root, in this order. In the
+panel (`raiox open`) the same three answer inside each project's bot chat.
 
 1. **Raio, this session:** `./target/release/raiox ask raio`. Report the
    context carried, what weighs most since the last compaction, and, above

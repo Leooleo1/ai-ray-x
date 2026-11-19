@@ -11,12 +11,14 @@ interface ActionProps {
   change: Change | undefined
   outcome: Outcome | undefined
   onChanged: () => void
+  /** Acts on this bot's project instead of the one `raiox open` started in. */
+  bot?: string
 }
 
 type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
 
 /** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
-export function Action({ id, value, source, change, outcome, onChanged }: ActionProps) {
+export function Action({ id, value, source, change, outcome, onChanged, bot }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const box = useRef<HTMLDivElement>(null)
   // The control grows when it asks for confirmation; keep it in view (the chat scrolls).
@@ -41,7 +43,7 @@ export function Action({ id, value, source, change, outcome, onChanged }: Action
           <i className="ponto ok" />
           {t.applied} · {settingLabel(change)}
         </span>
-        <button className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id), () => t.undo)}>
+        <button className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id, bot), () => t.undo)}>
           {t.undo}
         </button>
         {outcome && <span className={`nota resultado ${outcome.conclusive ? 'medido' : ''}`}>{describeOutcome(outcome)}</span>}
@@ -52,7 +54,7 @@ export function Action({ id, value, source, change, outcome, onChanged }: Action
   if (step.kind === 'confirm') {
     return (
       <div className="acao" ref={box}>
-        <button className="cheio" onClick={() => void run(() => applySuggestion(id, source), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
+        <button className="cheio" onClick={() => void run(() => applySuggestion(id, source, bot), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
           {t.confirm}
         </button>
         <button className="link" onClick={() => setStep({ kind: 'idle' })}>

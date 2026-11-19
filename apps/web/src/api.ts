@@ -129,7 +129,6 @@ export interface Report {
   changes: Change[]
   applicable: Record<Source, string[]>
   project_dir: string
-  room: { opted_in: boolean; messages: RoomMessage[] }
   outcomes: Outcome[]
 }
 
@@ -207,8 +206,9 @@ export interface BotReply {
 
 export interface BotMessage {
   ms: number
-  author: 'you' | 'bot'
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped'
+  /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
+  author: 'you' | 'bot' | AgentAuthor
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house'
   data: {
     text?: string
     proposal?: string
@@ -275,7 +275,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house'
 
 export interface InboxMessage {
   id: string
@@ -360,13 +360,6 @@ export interface GitHubState {
   repos: GitHubRepo[]
   install: string
   connect: string
-}
-
-export interface RoomMessage {
-  ms: number
-  author: AgentAuthor | 'you'
-  kind: 'ask' | 'answer' | 'applied' | 'undone' | 'kept' | 'kept_failed'
-  data: Record<string, unknown>
 }
 
 const TOKEN_KEY = 'raiox.session'
@@ -475,14 +468,12 @@ async function post(path: string, body: Record<string, string>): Promise<{ error
   return data
 }
 
-export function applySuggestion(id: string, source: Source): ReturnType<typeof post> {
-  return post('/api/apply', { id, source })
+/** A change goes to the bot's project when `bot` is given, else to the project `raiox open` started in. */
+export function applySuggestion(id: string, source: Source, bot?: string): ReturnType<typeof post> {
+  return post('/api/apply', bot ? { id, source, bot } : { id, source })
 }
 
-export function undoChange(change: string): ReturnType<typeof post> {
-  return post('/api/undo', { change })
+export function undoChange(change: string, bot?: string): ReturnType<typeof post> {
+  return post('/api/undo', bot ? { change, bot } : { change })
 }
 
-export function askAgent(agent: AgentAuthor, text?: string): ReturnType<typeof post> {
-  return post('/api/ask', text ? { agent, text } : { agent })
-}

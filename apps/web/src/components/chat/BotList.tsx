@@ -5,6 +5,9 @@ import type { Bots } from '../../bots'
 import { exchanges } from '../../exchanges'
 import { locale, t } from '../../i18n'
 import { Avatar } from '../Avatar'
+import { AGENTS } from '../../agents'
+import { houseAsk } from '../../voices'
+import { isHouse } from './HouseLine'
 import type { ChatNav } from './nav'
 
 const DAY_MS = 86_400_000
@@ -21,6 +24,7 @@ const MIN_QUERY = 3
 /** The last thing said, as one line for the list. */
 function preview(m: BotMessage | undefined): string {
   if (!m) return t.noMessagesYet
+  if (isHouse(m.author)) return `${AGENTS[m.author].name} · ${houseAsk(m.author)}`
   const text = m.data.reply?.text ?? m.data.text ?? m.data.proposal ?? m.data.error ?? ''
   return text.replace(/[`*#>]/g, '').split('\n').find((l) => l.trim()) ?? ''
 }

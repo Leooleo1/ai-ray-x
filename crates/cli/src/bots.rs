@@ -363,6 +363,26 @@ fn set_session(state_dir: &Path, id: &str, session: Option<String>) -> Result<()
     })
 }
 
+/// Raio, Dieta or Memo answering in a bot's conversation: no CLI runs, the
+/// answer is data about the bot's project, and the bot's session never sees it.
+pub fn house(state_dir: &Path, id: &str, thread: &str, agent: &str, data: Value) -> Result<()> {
+    if !threads::valid(thread) || !HOUSE.contains(&agent) {
+        bail!("invalid conversation or agent");
+    }
+    let bot = find(state_dir, id)?;
+    thread_session(state_dir, &bot, thread)?;
+    let message = Message { ms: room::now_ms(), author: agent.into(), kind: "house".into(), data };
+    room::append_messages(&threads::chat_file(state_dir, id, thread), vec![message])
+}
+
+/// The project's house agents.
+pub const HOUSE: [&str; 3] = ["raio", "dieta", "memo"];
+
+/// The folder of a bot, for actions the house agents take in its project.
+pub fn dir_of(state_dir: &Path, id: &str) -> Result<PathBuf> {
+    find(state_dir, id).map(|bot| bot.dir)
+}
+
 fn note(kind: &str, data: Value) -> Message {
     Message { ms: room::now_ms(), author: "bot".into(), kind: kind.into(), data }
 }

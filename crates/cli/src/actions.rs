@@ -25,7 +25,7 @@ fn current(store: &Store, suggestion: &str, source: &str) -> (String, Option<Str
 }
 
 pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, suggestion: &str, source: &str) -> Result<Value> {
-    room::require_opt_in(project_dir)?;
+    room::require_opt_in(state_dir, project_dir)?;
     let (evidence, value) = current(store, suggestion, source);
     let plan = apply::plan(suggestion, source, project_dir, value.as_deref())
         .ok_or_else(|| anyhow!("{suggestion} for {source} has no setting to apply; it is a habit"))?;
@@ -42,7 +42,7 @@ pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, sug
 }
 
 pub fn undo_change(store: &Store, state_dir: &Path, project_dir: &Path, change_id: &str) -> Result<Value> {
-    room::require_opt_in(project_dir)?;
+    room::require_opt_in(state_dir, project_dir)?;
     let change = apply::undo(change_id, state_dir, now_ms())?;
     let memo = match memo::keep_lesson(project_dir, &change, &current(store, &change.suggestion, "claude").0, None) {
         Ok(path) => json!({ "kept": path }),

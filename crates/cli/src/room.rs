@@ -34,21 +34,34 @@ pub fn opted_in(project_dir: &Path) -> bool {
     project_dir.join(OPT_IN).exists()
 }
 
+/// A project opts in by installing the token-diet skill or by turning on a
+/// bot in it: Raio, Dieta and Memo answer inside each bot's chat.
+pub fn allowed(state_dir: &Path, project_dir: &Path) -> bool {
+    opted_in(project_dir) || crate::bots::list(state_dir).iter().any(|bot| bot.dir == project_dir)
+}
+
 /// Refuses to act outside projects that opted in.
-pub fn require_opt_in(project_dir: &Path) -> Result<()> {
-    if !opted_in(project_dir) {
-        bail!("raiox agents only act in projects with {OPT_IN}; {} has none", project_dir.display());
+pub fn require_opt_in(state_dir: &Path, project_dir: &Path) -> Result<()> {
+    if !allowed(state_dir, project_dir) {
+        bail!("raiox agents only act in projects with {OPT_IN} or a bot; {} has neither", project_dir.display());
     }
     Ok(())
+}
+
+/// What one of the house agents says about a project, computed now from the logs.
+pub fn answer(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, agent: &str) -> Result<Value> {
+    require_opt_in(state_dir, project_dir)?;
+    match agent {
+        "raio" => raio(store, roots, project_dir),
+        "dieta" => dieta(store),
+        "memo" => memo(store, roots, state_dir, project_dir),
+        other => bail!("unknown agent {other}"),
+    }
 }
 
 fn room_file(state_dir: &Path, project_dir: &Path) -> PathBuf {
     let hash = project_dir.to_string_lossy().bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
     state_dir.join("rooms").join(format!("{hash:016x}.json"))
-}
-
-pub fn messages(state_dir: &Path, project_dir: &Path) -> Vec<Message> {
-    read_messages(&room_file(state_dir, project_dir))
 }
 
 pub fn append(state_dir: &Path, project_dir: &Path, new: Vec<Message>) -> Result<()> {
@@ -109,13 +122,7 @@ pub fn current_session(store: &Store, roots: &Roots, project_dir: &Path) -> Opti
 
 /// The person asks one agent; the answer is computed now from this project.
 pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, agent: &str, text: Option<&str>) -> Result<Vec<Message>> {
-    require_opt_in(project_dir)?;
-    let data = match agent {
-        "raio" => raio(store, roots, project_dir)?,
-        "dieta" => dieta(store)?,
-        "memo" => memo(store, roots, state_dir, project_dir)?,
-        other => bail!("unknown agent {other}"),
-    };
+    let data = answer(store, roots, state_dir, project_dir, agent)?;
     let now = now_ms();
     let new = vec![
         Message {
@@ -160,11 +167,11 @@ fn dieta(store: &Store) -> Result<Value> {
 
 /// Before/after for every change applied in this project.
 pub fn outcomes(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path) -> Result<Vec<(apply::Change, Outcome)>> {
-    let here = project_dir.to_string_lossy();
     let label = raiox_core::project_label(project_dir, &roots.home);
     apply::ledger(&state_dir.join("changes.json"))?
         .into_iter()
-        .filter(|c| c.file.starts_with(here.as_ref()))
+        // Component-wise: a project named like the start of another (app, app-v2) keeps its own changes.
+        .filter(|c| Path::new(&c.file).starts_with(project_dir))
         .map(|c| {
             let source = apply::source_of(&c.suggestion).unwrap_or("claude");
             let measured = outcome::measure(store.conn(), &c, source, &label, now_ms())?;
