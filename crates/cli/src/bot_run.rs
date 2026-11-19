@@ -130,7 +130,10 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
     let places = format!(
         "\n\nWhen the person asks about the model or effort you run on, your look, this project's ai-memory memories or \
          which AI tools are connected, you can end with one line {OPEN_MARK} model | settings | memories | connections; \
-         raiox shows a card that opens that place."
+         raiox shows a card that opens that place. \
+         When the person asks to start, run or see the project's app (its dev server, localhost), do not propose it as \
+         a change and do not try a shell: say so in one line and end with {OPEN_MARK} app; raiox opens See the app \
+         (\"Ver o app\" in Portuguese), which runs the project's dev command and shows the page."
     );
     // Projects with a bot that are not wired here: named so a request to talk to one gets the way to wire it.
     let wire = if unwired.is_empty() {
@@ -153,7 +156,9 @@ fn edit_prompt(proposal: &str) -> String {
     format!(
         "Approved by the person: {proposal}\n\
          Make this change now in the files of this folder, a working copy of the project: the person reviews the \
-         differences before they reach the project. End with a short list of the files you changed."
+         differences before they reach the project. There is no shell here: do not try to run commands, install \
+         packages or start servers, and never give the person this folder's path (name files by their path in the \
+         project). End with a short list of the files you changed."
     )
 }
 

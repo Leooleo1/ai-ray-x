@@ -21,7 +21,7 @@ const VERDICTS: [&str; 3] = ["ok", "concerns", "reject"];
 /// Most commands one answer can ask for.
 const MAX_RUNS: usize = 2;
 /// Places in the panel a bot can point to with a card.
-pub const PLACES: [&str; 5] = ["model", "settings", "memories", "connections", "wires"];
+pub const PLACES: [&str; 6] = ["model", "settings", "memories", "connections", "wires", "app"];
 /// Longest message for another bot, in characters.
 const MAX_NOTE: usize = 1200;
 
@@ -124,6 +124,12 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn starting_the_app_opens_see_the_app() {
+        let m = split("I cannot start servers from a chat.\nRAIOX-OPEN: app\nRAIOX-OPEN: terminal\n");
+        assert_eq!(m.open, vec!["app".to_string()], "only the places raiox has");
     }
 
     #[test]

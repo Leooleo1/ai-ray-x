@@ -79,6 +79,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const openPlace = (place: Place) => {
     if (place === 'model') setModelSignal((n) => n + 1)
     else if (place === 'settings') setSettingsOpen(true)
+    else if (place === 'app') setPreviewOpen(true)
     else if (place === 'memories') setMemorySignal((n) => n + 1)
     else onSettings(place === 'wires' ? 'fios' : 'conexoes')
   }

@@ -20,6 +20,7 @@ const PLACE_ICONS: Record<Place, string> = {
   memories: 'M6 4h12v16l-6-4-6 4z',
   connections: 'M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8',
   wires: 'M6 6a2 2 0 1 0 0 .01M18 18a2 2 0 1 0 0 .01M18 6a2 2 0 1 0 0 .01M7.5 7.5l9 9M8 6h8',
+  app: 'M4 5h16v11H4zM9 20h6M12 16v4',
 }
 
 export const clock = (ms: number) => new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })

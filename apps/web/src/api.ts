@@ -220,7 +220,7 @@ export interface Week {
   top: { tool: string; tokens: number } | null
 }
 
-export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires'
+export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' | 'app'
 
 export interface BotReply {
   text: string
