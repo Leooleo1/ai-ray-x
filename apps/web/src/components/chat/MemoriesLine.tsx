@@ -16,8 +16,9 @@ export function MemoriesLine({ bot, openSignal = 0 }: { bot: Bot; openSignal?: n
     setOpen(false)
     botMemories(bot.id).then(setMemories).catch(() => setMemories(null))
   }, [bot.id])
-  if (!memories?.known) return null
-  const count = memories.count ?? 0
+  const count = memories?.count ?? 0
+  // Nothing to show takes no room, unless the person asked to see the memories.
+  if (!memories?.known || (count === 0 && openSignal === 0)) return null
   return (
     <div className="memorias">
       <button type="button" className="memorias-linha" aria-expanded={open} disabled={count === 0} onClick={() => setOpen(!open)}>

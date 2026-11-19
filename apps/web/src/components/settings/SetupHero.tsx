@@ -34,13 +34,13 @@ export function SetupHero({ steps, summary, face, onNext, onTour, onRedo }: Setu
     <section className="cartao cfg-heroi">
       <div className="cfg-heroi-corpo">
         <div className="cfg-heroi-topo">
-          <span className="cfg-progresso" aria-label={`${done}/${steps.length}`}>
-            {done}
+          <span className="cfg-progresso" aria-label={checking ? t.probing : `${done}/${steps.length}`}>
+            {checking ? '–' : done}
             <small>{`/${steps.length}`}</small>
           </span>
           <span className="cfg-heroi-titulo">
             <h2>{title}</h2>
-            <small>{summary}</small>
+            <small>{checking ? '' : summary}</small>
           </span>
         </div>
         <ol className="cfg-trilha">

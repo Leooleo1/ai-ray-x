@@ -70,9 +70,6 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
           {t.updated}
         </span>
         <span className="lado-nota">{t.roomRule}</span>
-        <button className="lado-link" onClick={() => onTab('settings')}>
-          {t.setupAgain}
-        </button>
       </footer>
     </aside>
   )

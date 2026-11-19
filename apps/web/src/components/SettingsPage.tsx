@@ -81,8 +81,9 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
       if (step === 'github') window.setTimeout(() => document.getElementById('cfg-github')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
     }
   }
-  const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'conexoes', label: t.tabConnections, count: aisOn },
+  // A count shows once it is known: no '0 connections' while the machine is still being checked.
+  const tabs: { id: Tab; label: string; count: number | null }[] = [
+    { id: 'conexoes', label: t.tabConnections, count: settings ? aisOn : null },
     { id: 'bots', label: t.tabBots, count: projects },
     { id: 'fios', label: t.tabWires, count: links },
   ]
@@ -106,7 +107,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
               {ICONS[item.id]}
             </svg>
             {item.label}
-            <small>{item.count}</small>
+            {item.count !== null && <small>{item.count}</small>}
           </button>
         ))}
       </div>
