@@ -37,7 +37,7 @@ struct Setup {
 }
 
 impl Setup {
-    fn new(state_dir: &Path, bot: &Bot, question: &str) -> Self {
+    fn new(state_dir: &Path, bot: &Bot, question: &str, mode: Mode) -> Self {
         // Only the projects wired to this one: the bot names no others and can message no others.
         let others = crate::links::linked(state_dir, &bot.name);
         let mut unwired: Vec<String> = list(state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
@@ -53,7 +53,8 @@ impl Setup {
         Setup {
             guide,
             others,
-            model: bot.model.clone().or(defaults.model),
+            // Talk can run on a lighter model; changes always on the bot's own.
+            model: if mode == Mode::Talk { bot.talk_model.clone() } else { None }.or_else(|| bot.model.clone()).or(defaults.model),
             effort: bot.effort.clone().or(defaults.effort),
             scratch: state_dir.join("bots").join(format!("{}.run", bot.id)),
         }
@@ -74,7 +75,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         },
         _ => None,
     };
-    let setup = Setup::new(state_dir, bot, &turn.text);
+    let setup = Setup::new(state_dir, bot, &turn.text, turn.mode);
     let mut text = turn.text;
     if let Some(command) = &turn.command {
         let Some(output) = command_output(jobs, bot, command, false, &say) else { return };
@@ -104,7 +105,9 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         if let Some(work) = &work {
             return say(drafted(state_dir, &bot.id, work, &reply));
         }
-        let next = if runs < MAX_AUTO_RUNS { allowed_command(state_dir, bot, &reply) } else { None };
+        // Past the project's daily limit, allowed commands wait for a click like any other.
+        let within = runs < MAX_AUTO_RUNS && crate::budget::check(state_dir, &bot.name).is_ok();
+        let next = if within { allowed_command(state_dir, bot, &reply) } else { None };
         say(note("answer", json!({ "mode": "talk", "reply": reply })));
         let Some(command) = next else { return };
         runs += 1;

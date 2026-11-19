@@ -1,5 +1,6 @@
 import { AGENTS, type AgentId } from '../../agents'
-import type { Bot, BotMessage, Report } from '../../api'
+import { useEffect, useState } from 'react'
+import { type Bot, type BotMessage, type ProjectDiet, type Report, botDiet } from '../../api'
 import { suggestionTitle } from '../../diet'
 import { compact, percent, t } from '../../i18n'
 import { type Data, houseAsk, houseText } from '../../voices'
@@ -80,13 +81,19 @@ interface SuggestionData {
 function HouseCuts({ bot, data, report, onChanged }: { bot: Bot; data: Data; report: Report; onChanged: () => void }) {
   const named = (data.suggestions as SuggestionData[] | undefined) ?? []
   const applicable = (data.applicable as string[] | undefined) ?? []
-  const claude = report.sources.find((source) => source.overview.source === 'claude')
-  // The buttons act on the suggestion as computed now, never on numbers saved in an old message.
-  const items = named.filter((s) => applicable.includes(s.id)).flatMap((s) => claude?.suggestions.filter((now) => now.id === s.id) ?? [])
-  if (items.length === 0) return null
+  const [diet, setDiet] = useState<ProjectDiet | null>(null)
+  // Again after each apply or undo, which reloads the report.
+  useEffect(() => {
+    botDiet(bot.id).then(setDiet).catch(() => setDiet(null))
+  }, [bot.id, report.changes.length])
+  // The buttons act on the project's suggestion as computed now, never on numbers saved in an old message.
+  const items = named.filter((s) => applicable.includes(s.id)).flatMap((s) => diet?.suggestions.filter((now) => now.id === s.id) ?? [])
+  if (!diet || items.length === 0) return null
   const here = `${bot.dir}/`
+  const scope = diet.scope.own ? t.dietOwn.replace('{n}', compact(diet.scope.calls)) : t.dietAll.replace('{n}', compact(diet.scope.calls)).replace('{m}', compact(diet.scope.minimum))
   return (
     <div className="aprovacoes">
+      <small className="casa-meta">{scope}</small>
       {items.map((s) => {
         const change = report.changes.find((c) => c.suggestion === s.id && c.undone_ms === null && c.file.startsWith(here))
         return (
@@ -95,7 +102,7 @@ function HouseCuts({ bot, data, report, onChanged }: { bot: Bot; data: Data; rep
               <b>{suggestionTitle(s.id, s.title)}</b>
               <span className="num">{`~${percent(s.saving_share)}`}</span>
             </div>
-            {s.id === 'compact-earlier' && claude && <CompactionBreakdown model={claude.efficiency.compaction} />}
+            {s.id === 'compact-earlier' && <CompactionBreakdown model={diet.compaction} />}
             <Action
               id={s.id}
               value={s.value}

@@ -15,18 +15,20 @@ fn now_ms() -> i64 {
         .map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
-/// Dieta's suggestion as computed now: its evidence and the value to apply.
-fn current(store: &Store, suggestion: &str, source: &str) -> (String, Option<String>) {
-    efficiency::efficiency(store.conn(), source)
-        .map(|e| advice::suggestions(&e, None))
+/// Dieta's suggestion as computed now for this project (all projects when it has few requests):
+/// its evidence and the value to apply, the same the project's Dieta card shows.
+fn current(store: &Store, home: &Path, project_dir: &Path, suggestion: &str, source: &str) -> (String, Option<String>) {
+    let project = raiox_core::project_label(project_dir, home);
+    efficiency::for_project(store.conn(), source, &project)
+        .map(|scoped| advice::suggestions(&scoped.efficiency, None))
         .ok()
         .and_then(|list| list.into_iter().find(|s| s.id == suggestion))
         .map_or_else(|| (String::new(), None), |s| (s.evidence, s.value))
 }
 
-pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, suggestion: &str, source: &str) -> Result<Value> {
+pub fn apply_suggestion(store: &Store, home: &Path, state_dir: &Path, project_dir: &Path, suggestion: &str, source: &str) -> Result<Value> {
     room::require_opt_in(state_dir, project_dir)?;
-    let (evidence, value) = current(store, suggestion, source);
+    let (evidence, value) = current(store, home, project_dir, suggestion, source);
     let plan = apply::plan(suggestion, source, project_dir, value.as_deref())
         .ok_or_else(|| anyhow!("{suggestion} for {source} has no setting to apply; it is a habit"))?;
     let change = apply::apply(&plan, state_dir, now_ms())?;
@@ -41,10 +43,10 @@ pub fn apply_suggestion(store: &Store, state_dir: &Path, project_dir: &Path, sug
     Ok(json!({ "change": change, "effect": plan.effect, "memo": memo }))
 }
 
-pub fn undo_change(store: &Store, state_dir: &Path, project_dir: &Path, change_id: &str) -> Result<Value> {
+pub fn undo_change(store: &Store, home: &Path, state_dir: &Path, project_dir: &Path, change_id: &str) -> Result<Value> {
     room::require_opt_in(state_dir, project_dir)?;
     let change = apply::undo(change_id, state_dir, now_ms())?;
-    let memo = match memo::keep_lesson(project_dir, &change, &current(store, &change.suggestion, "claude").0, None) {
+    let memo = match memo::keep_lesson(project_dir, &change, &current(store, home, project_dir, &change.suggestion, "claude").0, None) {
         Ok(path) => json!({ "kept": path }),
         Err(error) => json!({ "error": format!("{error:#}") }),
     };

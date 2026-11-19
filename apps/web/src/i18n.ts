@@ -1,6 +1,15 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  talkModelLabel: 'For talk',
+  sameModel: 'Same',
+  talkModelNote: 'questions can run on a lighter model; changes always use the model above',
+  dailyLimit: 'Daily limit for this project',
+  noLimit: 'None',
+  usedToday: 'Today: {used} tokens',
+  usedOfLimit: 'Today: {used} of {limit} tokens',
+  dietOwn: 'From this project alone: {n} requests',
+  dietAll: 'From all projects: this one has {n} requests, under {m}',
   remember: 'Keep in ai-memory',
   remembered: 'Kept',
   rememberedLine: 'Kept in ai-memory as a project decision',
@@ -338,6 +347,15 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  talkModelLabel: 'Na conversa',
+  sameModel: 'Igual',
+  talkModelNote: 'perguntas podem usar um modelo mais leve; mudanças usam sempre o modelo acima',
+  dailyLimit: 'Teto diário deste projeto',
+  noLimit: 'Sem teto',
+  usedToday: 'Hoje: {used} tokens',
+  usedOfLimit: 'Hoje: {used} de {limit} tokens',
+  dietOwn: 'Calculado só com este projeto: {n} pedidos',
+  dietAll: 'Calculado com todos os projetos: este tem {n} pedidos, menos de {m}',
   remember: 'Guardar no ai-memory',
   remembered: 'Guardada',
   rememberedLine: 'Guardada no ai-memory como decisão do projeto',

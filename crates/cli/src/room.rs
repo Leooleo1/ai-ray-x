@@ -53,7 +53,7 @@ pub fn answer(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path
     require_opt_in(state_dir, project_dir)?;
     match agent {
         "raio" => raio(store, roots, project_dir),
-        "dieta" => dieta(store),
+        "dieta" => dieta(store, roots, project_dir),
         "memo" => memo(store, roots, state_dir, project_dir),
         other => bail!("unknown agent {other}"),
     }
@@ -154,15 +154,31 @@ fn raio(store: &Store, roots: &Roots, project_dir: &Path) -> Result<Value> {
     }))
 }
 
-fn dieta(store: &Store) -> Result<Value> {
-    let eff = efficiency::efficiency(store.conn(), "claude")?;
+/// The cuts as computed now for a bot's project, with what the Dieta card draws: the full
+/// suggestions, the compaction model and where the numbers come from.
+pub fn project_diet(store: &Store, roots: &Roots, project_dir: &Path) -> Result<Value> {
+    let scoped = efficiency::for_project(store.conn(), "claude", &raiox_core::project_label(project_dir, &roots.home))?;
+    let eff = &scoped.efficiency;
     let listed = eff.snapshots.get("skill_listing_items").and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
-    let top: Vec<Value> = advice::suggestions(&eff, listed)
+    Ok(json!({
+        "suggestions": advice::suggestions(eff, listed),
+        "compaction": eff.compaction,
+        "scope": { "own": scoped.own, "calls": scoped.project_calls, "minimum": efficiency::MIN_PROJECT_CALLS },
+    }))
+}
+
+/// The cuts for this project, from its own requests when it has enough of them.
+fn dieta(store: &Store, roots: &Roots, project_dir: &Path) -> Result<Value> {
+    let scoped = efficiency::for_project(store.conn(), "claude", &raiox_core::project_label(project_dir, &roots.home))?;
+    let eff = &scoped.efficiency;
+    let listed = eff.snapshots.get("skill_listing_items").and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
+    let top: Vec<Value> = advice::suggestions(eff, listed)
         .into_iter()
         .take(TOP)
         .map(|s| json!({ "id": s.id, "title": s.title, "share": s.saving_share, "confidence": s.confidence, "value": s.value }))
         .collect();
-    Ok(json!({ "suggestions": top, "applicable": apply::applicable("claude") }))
+    let scope = json!({ "own": scoped.own, "calls": scoped.project_calls, "minimum": efficiency::MIN_PROJECT_CALLS });
+    Ok(json!({ "suggestions": top, "applicable": apply::applicable("claude"), "scope": scope }))
 }
 
 /// Before/after for every change applied in this project.

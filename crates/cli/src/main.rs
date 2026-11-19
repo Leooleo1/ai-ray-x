@@ -8,6 +8,7 @@ mod batches;
 mod bot_steps;
 mod bot_usage;
 mod bots;
+mod budget;
 mod connections;
 mod commands;
 mod data;
@@ -142,14 +143,14 @@ fn main() -> Result<()> {
         Command::Mcp => mcp::run(store, roots),
         Command::Apply { suggestion, source } => {
             raiox_core::refresh(&mut store, &roots)?;
-            emit(actions::apply_suggestion(&store, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
+            emit(actions::apply_suggestion(&store, &roots.home, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
         }
         Command::Ask { agent, text } => {
             raiox_core::refresh(&mut store, &roots)?;
             let messages = room::ask(&store, &roots, &state_dir(&db), &std::env::current_dir()?, &agent, text.as_deref())?;
             emit(serde_json::to_value(messages)?)
         }
-        Command::Undo { change } => emit(actions::undo_change(&store, &state_dir(&db), &std::env::current_dir()?, &change)?),
+        Command::Undo { change } => emit(actions::undo_change(&store, &roots.home, &state_dir(&db), &std::env::current_dir()?, &change)?),
         Command::Context { session, dir } => {
             raiox_core::refresh(&mut store, &roots)?;
             let dir = dir.map_or_else(std::env::current_dir, Ok)?;

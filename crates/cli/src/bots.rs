@@ -53,6 +53,9 @@ pub struct Bot {
     /// Exact commands the person lets this bot run without asking.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub allowed: Vec<String>,
+    /// A lighter model for talk; changes still run on `model`. None uses `model` for both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub talk_model: Option<String>,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -224,7 +227,7 @@ fn update(state_dir: &Path, change: impl FnOnce(Vec<Bot>) -> Result<Vec<Bot>>) -
     save(state_dir, &change(list(state_dir))?)
 }
 
-fn find(state_dir: &Path, id: &str) -> Result<Bot> {
+pub fn find(state_dir: &Path, id: &str) -> Result<Bot> {
     list(state_dir).into_iter().find(|b| b.id == id).with_context(|| format!("no bot {id}"))
 }
 
@@ -297,6 +300,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         effort: None,
         created_ms: room::now_ms(),
         allowed: Vec::new(),
+        talk_model: None,
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -498,6 +502,22 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command) })
 }
 
+/// Sets the model the bot talks on (empty: the same as for changes).
+pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>) -> Result<()> {
+    if jobs.is_busy(id) {
+        bail!("the bot is answering; wait for it to finish");
+    }
+    find(state_dir, id)?;
+    let talk_model = check_model(model)?;
+    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { talk_model: talk_model.clone(), ..b } } else { b }).collect()))
+}
+
+/// Sets or clears the daily token limit of this bot's project (0 clears it).
+pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
+    let bot = find(state_dir, id)?;
+    crate::budget::set(state_dir, &bot.name, (tokens > 0).then_some(tokens))
+}
+
 /// Lets an exact command run without asking in this bot's project, or stops letting it.
 pub fn allow(state_dir: &Path, id: &str, command: &str, on: bool) -> Result<()> {
     let bot = find(state_dir, id)?;
@@ -548,6 +568,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
         bail!("invalid conversation");
     }
     let bot = find(state_dir, id)?;
+    crate::budget::check(state_dir, &bot.name)?;
     let session = thread_session(state_dir, &bot, thread)?;
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
@@ -587,6 +608,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "model": bot.model,
                 "effort": bot.effort,
                 "allowed": bot.allowed,
+                "talk_model": bot.talk_model,
+                "budget": { "limit": crate::budget::limit(state_dir, &bot.name), "used": crate::budget::used_today(state_dir, &bot.name), "choices": crate::budget::CHOICES },
                 "busy": jobs.is_busy(&bot.id),
                 "busy_thread": jobs.thread_of(&bot.id),
                 "step": jobs.step_of(&bot.id),

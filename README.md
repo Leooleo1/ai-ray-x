@@ -16,7 +16,9 @@ prompts, system text), tokens per project, and how often a secrets file such as
 
 **Efficiency.** Ranked cuts with the estimated saving, measured from your own
 logs: compacting earlier, loading less at startup, keeping screenshots out of
-the main session. The ones that are a setting apply to the project you pick,
+the main session. In a project's chat, Dieta computes them from that
+project's own requests once it has enough. The ones that are a setting apply
+to the project you pick,
 with a backup and an undo, and raiox measures the result afterwards.
 
 **Chats.** Turn on a project and talk to the CLI you already use there (Claude
@@ -34,7 +36,9 @@ Code, Codex or Cursor), with the project's context:
   (reading a file, searching, running a command);
 - parallel conversations, pinned answers, routines on a schedule, one
   question to several projects at once with the answers side by side;
-- model and effort per project.
+- model and effort per project, optionally a lighter model just for talk
+  (changes keep the main one), and a daily token limit per project for its
+  bots.
 
 Each message runs the real CLI with your own login, so it counts against your
 plan.

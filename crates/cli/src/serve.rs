@@ -83,6 +83,7 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         (Method::Post, "/api/apply") => match body(request) {
             Ok(input) => respond(target(panel, &input).and_then(|dir| actions::apply_suggestion(
                 &panel.store,
+                &panel.roots.home,
                 &panel.state_dir,
                 &dir,
                 input.get("id").and_then(Value::as_str).unwrap_or(""),
@@ -111,6 +112,7 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         (Method::Post, "/api/undo") => match body(request) {
             Ok(input) => respond(target(panel, &input).and_then(|dir| actions::undo_change(
                 &panel.store,
+                &panel.roots.home,
                 &panel.state_dir,
                 &dir,
                 input.get("change").and_then(Value::as_str).unwrap_or(""),
@@ -188,6 +190,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
         }
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
+        "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
+        "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
         "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
@@ -225,6 +229,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
         "inbox" => return crate::bot_mail::inbox(state_dir, field("id")),
         "memories" => return crate::bot_mail::memories(state_dir, field("id")),
+        "diet" => {
+            let bot = bots::find(state_dir, field("id"))?;
+            return crate::room::project_diet(&panel.store, &panel.roots, &bot.dir);
+        }
         "send" => crate::bot_mail::send(state_dir, field("id"), input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("project")),
         "handle" => crate::bot_mail::handle(state_dir, jobs, field("id"), field("message")),
         other => Err(anyhow!("unknown bot action {other}")),

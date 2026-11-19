@@ -130,6 +130,39 @@ pub fn efficiency(conn: &Connection, source: &str) -> Result<Efficiency> {
     })
 }
 
+/// Below this many requests a project's own numbers are too few, and the diet uses all projects.
+pub const MIN_PROJECT_CALLS: u64 = 500;
+/// The indexed tables that hold a project's work, besides `calls`.
+const PROJECT_TABLES: [&str; 4] = ["tool_calls", "tool_results", "prompts", "compactions"];
+
+/// The analysis behind the diet for one project, or for all when the project has too few requests.
+#[derive(Debug, Serialize)]
+pub struct Scoped {
+    pub efficiency: Efficiency,
+    /// The project's own requests for this source.
+    pub project_calls: u64,
+    /// Whether the numbers are the project's own (else they are all projects').
+    pub own: bool,
+}
+
+/// The same analysis restricted to one project. A separate connection gets temporary tables
+/// named like the indexed ones, holding only that project's rows; SQLite reads a temporary
+/// table before a main one of the same name, so every query stays as it is.
+pub fn for_project(conn: &Connection, source: &str, project: &str) -> Result<Scoped> {
+    let project_calls: u64 = single(conn, "SELECT COUNT(*) FROM calls WHERE source = ?1 AND project = ?2", [source, project])?;
+    let path = conn.path().filter(|p| !p.is_empty());
+    let (Some(path), true) = (path, project_calls >= MIN_PROJECT_CALLS) else {
+        return Ok(Scoped { efficiency: efficiency(conn, source)?, project_calls, own: false });
+    };
+    let scoped = Connection::open(path)?;
+    scoped.execute("CREATE TEMP TABLE calls AS SELECT * FROM main.calls WHERE project = ?1", [project])?;
+    scoped.execute_batch("CREATE INDEX temp.scoped_calls ON calls(file, segment, seq);")?;
+    for table in PROJECT_TABLES {
+        scoped.execute_batch(&format!("CREATE TEMP TABLE {table} AS SELECT * FROM main.{table} WHERE file IN (SELECT DISTINCT file FROM temp.calls);"))?;
+    }
+    Ok(Scoped { efficiency: efficiency(&scoped, source)?, project_calls, own: true })
+}
+
 /// Shell output limits worth simulating, in characters.
 pub const OUTPUT_LIMITS: [u64; 2] = [15_000, 10_000];
 
@@ -294,5 +327,37 @@ mod tests {
         assert!((result[0].share_of_calls - 1.0 / 3.0).abs() < 1e-9);
         // 900K of the 1M tokens sit above the last edge.
         assert!((result.last().unwrap().share_of_tokens - 0.9).abs() < 1e-9);
+    }
+
+    fn index_with(calls: &[(&str, u64)]) -> (crate::Store, std::path::PathBuf) {
+        let path = std::env::temp_dir().join(format!("raiox-scoped-{}-{}.sqlite", std::process::id(), calls.len()));
+        let _ = std::fs::remove_file(&path);
+        let store = crate::Store::open(&path).unwrap();
+        let mut n = 0;
+        for (project, count) in calls {
+            for _ in 0..*count {
+                n += 1;
+                store.conn().execute(
+                    "INSERT INTO calls(id, source, file, session, project, model, is_sub, input, cache_read, cache_write_5m, cache_write_1h,
+                     output, thinking, web_searches, seq, segment, is_first) VALUES (?1, 'claude', ?2, 's', ?2, 'm', 0, 1000, 0, 0, 0, 10, 0, 0, ?3, 0, 0)",
+                    rusqlite::params![format!("c{n}"), project, n],
+                ).unwrap();
+            }
+        }
+        (store, path)
+    }
+
+    #[test]
+    fn a_project_with_enough_requests_gets_its_own_numbers() {
+        let (store, path) = index_with(&[("Projects/big", MIN_PROJECT_CALLS), ("Projects/small", 10), ("Projects/other", 700)]);
+        let big = for_project(store.conn(), "claude", "Projects/big").unwrap();
+        assert!(big.own);
+        assert_eq!(big.efficiency.context.calls, MIN_PROJECT_CALLS);
+        let small = for_project(store.conn(), "claude", "Projects/small").unwrap();
+        assert!(!small.own && small.project_calls == 10);
+        assert_eq!(small.efficiency.context.calls, MIN_PROJECT_CALLS + 710, "too few: all projects");
+        // The main connection still sees everything afterwards.
+        assert_eq!(efficiency(store.conn(), "claude").unwrap().context.calls, MIN_PROJECT_CALLS + 710);
+        let _ = std::fs::remove_file(&path);
     }
 }

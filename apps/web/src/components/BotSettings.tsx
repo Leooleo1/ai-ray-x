@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { type Bot, type BotUsage, type Persona, botUsage } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
-import { t } from '../i18n'
+import { compact, t } from '../i18n'
 import { type Look, AvatarEditor } from './AvatarEditor'
 import { Bars } from './Bars'
 import { RoutinesEditor } from './RoutinesEditor'
@@ -100,7 +100,38 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               onPick={(effort) => run(bot.model, effort, null)}
             />
             )}
-            <p className="ajustes-nota">{t.nextMessages}</p>
+            <Choice
+              label={t.talkModelLabel}
+              current={bot.talk_model ?? null}
+              fallback={bot.model ?? usage.default.model}
+              options={usage.offered_models}
+              busy={bot.busy}
+              show={modelName}
+              nullLabel={t.sameModel}
+              onPick={(model) => void bots.act('talk_model', { id: bot.id, model: model ?? '' })}
+            />
+            <p className="ajustes-nota">{`${t.talkModelNote}; ${t.nextMessages}`}</p>
+          </>
+        )}
+
+        {bot.budget && (
+          <>
+            <span className="ajustes-grupo">{t.dailyLimit}</span>
+            <Choice
+              label={t.dailyLimit}
+              current={bot.budget.limit === null ? null : String(bot.budget.limit)}
+              fallback={null}
+              options={bot.budget.choices.map(String)}
+              busy={false}
+              show={(tokens) => compact(Number(tokens))}
+              nullLabel={t.noLimit}
+              onPick={(tokens) => void bots.act('limit', { id: bot.id, tokens: tokens === null ? 0 : Number(tokens) })}
+            />
+            <p className="ajustes-nota">
+              {bot.budget.limit === null
+                ? t.usedToday.replace('{used}', compact(bot.budget.used))
+                : t.usedOfLimit.replace('{used}', compact(bot.budget.used)).replace('{limit}', compact(bot.budget.limit))}
+            </p>
           </>
         )}
 
@@ -157,17 +188,19 @@ interface ChoiceProps {
   busy: boolean
   show: (value: string) => string
   onPick: (value: string | null) => void
+  /** What the first option says; the CLI's default unless given. */
+  nullLabel?: string
 }
 
 /** One grouped selector: the CLI's default first, then each option. */
-export function Choice({ label, current, fallback, options, free = false, busy, show, onPick }: ChoiceProps) {
+export function Choice({ label, current, fallback, options, free = false, busy, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
   if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} busy={busy} show={show} onPick={onPick} />
   return (
     <div className="ajustes-campo">
       <span>{label}</span>
       <div className="ajustes-grade" role="radiogroup" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }}>
         <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} disabled={busy} onClick={() => onPick(null)}>
-          <b>{t.defaultOption}</b>
+          <b>{nullLabel}</b>
           {fallback && <small>{show(fallback)}</small>}
         </button>
         {options.map((option) => (

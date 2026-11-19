@@ -282,6 +282,10 @@ export interface Bot {
   effort: string | null
   /** Exact commands this bot may run without asking. */
   allowed?: string[]
+  /** A lighter model for talk; changes run on `model`. */
+  talk_model?: string | null
+  /** The project's daily token limit for its bots and what they used today. */
+  budget?: { limit: number | null; used: number; choices: number[] }
   name: string
   dir: string
   has_session: boolean
@@ -316,7 +320,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit'
 
 export interface InboxMessage {
   id: string
@@ -473,6 +477,17 @@ export interface Memories {
   count?: number
   pages: MemoryPage[]
   web?: string
+}
+
+/** Dieta's cuts for one bot's project: its own numbers, or all projects' when it has few requests. */
+export interface ProjectDiet {
+  suggestions: Suggestion[]
+  compaction: CompactionModel
+  scope: { own: boolean; calls: number; minimum: number }
+}
+
+export function botDiet(id: string): Promise<ProjectDiet> {
+  return request<ProjectDiet>('/api/bot/diet', { id })
 }
 
 export function botMemories(id: string): Promise<Memories> {
