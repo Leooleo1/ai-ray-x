@@ -15,6 +15,7 @@ mod commands;
 mod data;
 mod drafts;
 mod links;
+mod live;
 mod memory;
 mod memo;
 mod pins;

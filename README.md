@@ -48,7 +48,9 @@ Code, Codex or Cursor), with the project's context:
   bots.
 
 Each message runs the real CLI with your own login, so it counts against your
-plan.
+plan. With Claude Code, a conversation keeps its CLI process open between
+messages (closed after ten idle minutes), so a follow-up skips the CLI's start:
+about 0.9 s instead of 1.7 s for a short answer, with the same tokens.
 
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session

@@ -134,6 +134,8 @@ fn is_due(r: &Routine, now: chrono::DateTime<Local>) -> bool {
 
 /// Runs what is due; a busy bot is tried again on the next tick.
 fn tick(state_dir: &Path, jobs: &Jobs) {
+    // Live sessions unused for a while close here too, not only when another turn starts.
+    crate::live::reap();
     let now = Local::now();
     for routine in list(state_dir).into_iter().filter(|r| is_due(r, now)) {
         if jobs.is_busy(&routine.bot) {

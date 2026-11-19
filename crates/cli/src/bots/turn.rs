@@ -29,7 +29,12 @@ pub(super) struct Turn {
 
 /// How this bot's CLI is called, the same for every round of the turn.
 pub(super) struct Setup {
-    guide: String,
+    /// The guide that stays the same between messages: how raiox works, the persona, the wiring.
+    stable: String,
+    /// What the other bots here and in wired projects did lately, from ai-memory.
+    team: String,
+    /// The project's pages that relate to this question.
+    related: String,
     others: Vec<String>,
     model: Option<String>,
     effort: Option<String>,
@@ -46,12 +51,11 @@ impl Setup {
         let defaults = crate::settings::Settings::load(state_dir).defaults_for(&bot.agent);
         let persona = bot.persona.as_ref().map(Persona::prompt).unwrap_or_default();
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
-        let guide = bot_run::guide(&bot.name, &persona, &others, &unwired)
-            + &crate::team::context_for(state_dir, bot)
-            // The project's own pages that relate to the question, kept decisions included.
-            + &crate::memory::related(&bot.dir, question);
         Setup {
-            guide,
+            stable: bot_run::guide(&bot.name, &persona, &others, &unwired),
+            team: crate::team::context_for(state_dir, bot),
+            // The project's own pages that relate to the question, kept decisions included.
+            related: crate::memory::related(&bot.dir, question),
             others,
             // Talk can run on a lighter model; changes always on the bot's own.
             model: if mode == Mode::Talk { bot.talk_model.clone() } else { None }.or_else(|| bot.model.clone()).or(defaults.model),
@@ -86,7 +90,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     let mut runs = 0;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
-        let reply = match ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text) {
+        let reply = match ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id))) {
             Ok(reply) => reply,
             Err(error) => {
                 let stopped = error.to_string() == bot_run::STOPPED;
@@ -142,17 +146,26 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
 }
 
 /// One answer from the CLI; when it lost the session (its history was cleared), talk goes on in a fresh one.
-pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str) -> anyhow::Result<Reply> {
-    let target = bot_run::Target {
-        agent: &bot.agent,
-        dir,
-        guide: setup.guide.clone(),
-        session,
-        model: setup.model.as_deref(),
-        effort: setup.effort.as_deref(),
-    };
+/// One answer from the CLI. A Claude Code talk turn in a conversation runs on its live session
+/// (`conversation` names it): the related pages then go with the message, as the process keeps the
+/// guide it started with. When the CLI lost the session (its history was cleared), talk goes on in
+/// a fresh one.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str, conversation: Option<&str>) -> anyhow::Result<Reply> {
+    let live = conversation.filter(|_| bot.agent == "claude" && mode == Mode::Talk);
+    let guide = format!("{}{}{}", setup.stable, setup.team, if live.is_some() { "" } else { &setup.related });
+    let target = bot_run::Target { agent: &bot.agent, dir, guide, session, model: setup.model.as_deref(), effort: setup.effort.as_deref() };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
+    if let Some(conversation) = live {
+        let text = if setup.related.is_empty() { text.to_string() } else { format!("{}\n\n{text}", setup.related.trim()) };
+        return match crate::live::ask(conversation, &setup.stable, &target, &text, &setup.scratch, &stop, &on_trail) {
+            Err(error) if session.is_some() && bot_run::session_lost(&error) => {
+                crate::live::ask(conversation, &setup.stable, &bot_run::Target { session: None, ..target }, &text, &setup.scratch, &stop, &on_trail)
+            }
+            other => other,
+        };
+    }
     match bot_run::run(&target, mode, text, &setup.scratch, &stop, &on_trail) {
         Err(error) if session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
             bot_run::run(&bot_run::Target { session: None, ..target }, mode, text, &setup.scratch, &stop, &on_trail)

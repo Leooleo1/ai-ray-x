@@ -157,7 +157,8 @@ pub fn prompt_for(mode: Mode, text: &str) -> String {
     }
 }
 
-fn claude(target: &Target, mode: Mode) -> Command {
+/// The Claude Code command for a turn (a live session adds its streaming input).
+pub fn claude_command(target: &Target, mode: Mode) -> Command {
     let tools = match mode {
         Mode::Talk => "Read,Grep,Glob",
         Mode::Edit => "Read,Grep,Glob,Edit,Write",
@@ -245,7 +246,7 @@ pub const STOPPED: &str = "stopped by the person";
 pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool, on_trail: &dyn Fn(&Trail)) -> Result<Reply> {
     let agent = target.agent;
     let (mut command, prompt) = match agent {
-        "claude" => (claude(target, mode), prompt_for(mode, text)),
+        "claude" => (claude_command(target, mode), prompt_for(mode, text)),
         // Codex has no system-prompt flag: the guide opens the first message of a thread.
         "codex" if target.session.is_none() => (codex(target, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
         "codex" => (codex(target, mode), prompt_for(mode, text)),
@@ -319,7 +320,7 @@ fn final_result(out: &str) -> &str {
 }
 
 /// Reads the lines a running CLI appended to its output file since last time.
-struct Tail {
+pub struct Tail {
     path: std::path::PathBuf,
     offset: u64,
     partial: String,
@@ -327,10 +328,15 @@ struct Tail {
 
 impl Tail {
     fn new(path: &Path) -> Tail {
-        Tail { path: path.to_path_buf(), offset: 0, partial: String::new() }
+        Tail::from(path, 0)
     }
 
-    fn read_new(&mut self) -> Vec<String> {
+    /// From a point of the file on: a live session's output holds every turn before this one.
+    pub fn from(path: &Path, offset: u64) -> Tail {
+        Tail { path: path.to_path_buf(), offset, partial: String::new() }
+    }
+
+    pub fn read_new(&mut self) -> Vec<String> {
         use std::io::{Read, Seek, SeekFrom};
         let Ok(mut file) = File::open(&self.path) else { return Vec::new() };
         if file.seek(SeekFrom::Start(self.offset)).is_err() {
@@ -347,7 +353,6 @@ impl Tail {
     }
 }
 
-/// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.
 /// cursor-agent joins the messages of a turn with nothing between them ("I will read it.The
 /// change…"): a sentence end right before a capital, outside code, starts a new paragraph.
 fn separate_messages(text: &str) -> String {
@@ -371,6 +376,7 @@ fn separate_messages(text: &str) -> String {
     out
 }
 
+/// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.
 pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
     let value: Value = serde_json::from_str(out.trim()).with_context(|| format!("{agent} did not answer in JSON"))?;
     let text = value.get("result").and_then(Value::as_str).unwrap_or("").to_string();

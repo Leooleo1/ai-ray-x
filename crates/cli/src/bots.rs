@@ -401,6 +401,7 @@ pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()
         bail!("the bot is answering; wait for it to finish");
     }
     set_thread_session(state_dir, id, thread, None)?;
+    crate::live::end(&format!("{id}:{thread}"));
     room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("reset", json!({}))])
 }
 

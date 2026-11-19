@@ -223,7 +223,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_toggle" => crate::routines::set_enabled(state_dir, field("routine"), input.get("enabled").and_then(Value::as_bool).unwrap_or(false)),
         "routine_delete" => crate::routines::delete(state_dir, field("routine")),
         "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
-        "thread_delete" => crate::threads::delete(state_dir, field("id"), thread),
+        "thread_delete" => {
+            crate::live::end(&format!("{}:{thread}", field("id")));
+            crate::threads::delete(state_dir, field("id"), thread)
+        }
         "house" => {
             let dir = bots::dir_of(state_dir, field("id"))?;
             let data = crate::room::answer(&panel.store, &panel.roots, state_dir, &dir, field("agent"))?;
