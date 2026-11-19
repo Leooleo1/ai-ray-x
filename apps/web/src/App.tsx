@@ -5,6 +5,7 @@ import { exchanges } from './exchanges'
 import { useUnread } from './unread'
 import { ExchangeView } from './components/chat/Exchange'
 import { BotChat } from './components/BotChat'
+import { Desk } from './components/Desk'
 import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
 import { ContextRuler } from './components/ContextRuler'
@@ -28,12 +29,14 @@ const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
   efficiency: ['/eficiencia', '/efficiency'],
   agents: ['/agentes', '/agents'],
+  desk: ['/mesa', '/desk'],
   settings: ['/configuracoes', '/settings'],
 }
 const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   xray: { title: t.title, subtitle: t.subtitle },
   efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
   agents: { title: t.botsTitle, subtitle: t.botsHint },
+  desk: { title: t.deskTitle, subtitle: t.deskSubtitle },
   settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
 }
 
@@ -208,6 +211,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} nav={nav} />}
         {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} nav={nav} />}
         {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} />}
+        {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />

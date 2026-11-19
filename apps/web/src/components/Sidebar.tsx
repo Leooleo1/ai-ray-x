@@ -4,7 +4,7 @@ import { nowStamp, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 
-export type Tab = 'xray' | 'efficiency' | 'agents' | 'settings'
+export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}`
 
 interface SidebarProps {
@@ -20,11 +20,12 @@ interface SidebarProps {
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
 export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: SidebarProps) {
-  const nav: { id: Tab; label: string; icon: 'xray' | 'efficiency' | 'agents' | 'sliders' }[] = [
+  const nav: { id: Tab; label: string; short?: string; icon: 'xray' | 'efficiency' | 'agents' | 'desk' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
     { id: 'agents', label: t.tabAgents, icon: 'agents' },
-    { id: 'settings', label: t.settingsTitle, icon: 'sliders' },
+    { id: 'desk', label: t.deskTab, icon: 'desk' },
+    { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders' },
   ]
   return (
     <aside className="lateral">
@@ -37,6 +38,7 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
           <button key={item.id} className={`lado-item ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => onTab(item.id)}>
             <Icon name={item.icon} />
             <span className="nome">{item.label}</span>
+            {item.short && <span className="nome curto">{item.short}</span>}
           </button>
         ))}
       </nav>

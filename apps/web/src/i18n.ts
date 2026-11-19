@@ -1,6 +1,19 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  settingsShort: 'Settings',
+  deskTab: 'Desk',
+  deskTitle: 'Desk',
+  deskSubtitle: 'every agent working now, and what waits for you',
+  deskWorking: 'Working now',
+  deskEmpty: 'No agent is working now. When one starts, it shows here with each step.',
+  deskWaiting: 'Waiting for you',
+  deskIdle: 'Idle',
+  deskReviewing: 'reviewing a proposal',
+  deskOpen: 'Open',
+  deskPath: 'whole path',
+  deskLess: 'fewer steps',
+  waitingKinds: { proposal: 'proposal to approve', draft: 'draft to apply', command: 'command asked' } as Record<string, string>,
   trailLine: '1 line',
   trailLines: '{n} lines',
   trailFile: '1 file',
@@ -376,6 +389,19 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  settingsShort: 'Ajustes',
+  deskTab: 'Mesa',
+  deskTitle: 'Mesa',
+  deskSubtitle: 'todos os agentes trabalhando agora, e o que espera você',
+  deskWorking: 'Trabalhando agora',
+  deskEmpty: 'Nenhum agente trabalhando agora. Quando um começar, ele aparece aqui com cada passo.',
+  deskWaiting: 'Esperando você',
+  deskIdle: 'Parados',
+  deskReviewing: 'revisando uma proposta',
+  deskOpen: 'Abrir',
+  deskPath: 'caminho todo',
+  deskLess: 'menos passos',
+  waitingKinds: { proposal: 'proposta para aprovar', draft: 'rascunho para aplicar', command: 'comando pedido' },
   trailLine: '1 linha',
   trailLines: '{n} linhas',
   trailFile: '1 arquivo',

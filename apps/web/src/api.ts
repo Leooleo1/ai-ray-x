@@ -172,6 +172,8 @@ export interface Trail {
   items: TrailItem[]
   dropped: number
   partial: string
+  /** Tokens read and written so far, when the CLI says as it goes. */
+  tokens?: number
 }
 
 export interface BotStep {
@@ -337,6 +339,8 @@ export interface Bot {
   step: BotStep | null
   /** The running turn's path so far. */
   trail?: Trail | null
+  /** When the running turn started. */
+  started_ms?: number | null
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]

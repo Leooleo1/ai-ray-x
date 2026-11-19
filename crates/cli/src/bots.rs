@@ -160,12 +160,13 @@ struct Job {
     trail: Option<crate::bot_trail::Trail>,
     /// What the person wants changed: the turn stops and goes on with it.
     correction: Option<String>,
+    started_ms: i64,
 }
 
 impl Jobs {
     /// One turn at a time per bot, whichever conversation it is in.
     fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), Job { thread: thread.to_string(), ..Job::default() }).is_none())
+        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() }).is_none())
     }
 
     fn thread_of(&self, id: &str) -> Option<String> {
@@ -191,6 +192,10 @@ impl Jobs {
             job.step = trail.current();
             job.trail = Some(trail.clone());
         }
+    }
+
+    fn started_of(&self, id: &str) -> Option<i64> {
+        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.started_ms))
     }
 
     fn trail_of(&self, id: &str) -> Option<crate::bot_trail::Trail> {
@@ -686,6 +691,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "busy_thread": jobs.thread_of(&bot.id),
                 "step": jobs.step_of(&bot.id),
                 "trail": jobs.trail_of(&bot.id),
+                "started_ms": jobs.started_of(&bot.id),
                 "messages": messages,
                 "threads": side,
                 "pins": crate::pins::list(state_dir, &bot.id),

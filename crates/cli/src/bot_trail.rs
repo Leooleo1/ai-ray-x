@@ -4,6 +4,7 @@
 //! it is writing right now. The person sees the path while it runs, not only
 //! once the answer is done, and the answer keeps it for later.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::Serialize;
@@ -48,6 +49,10 @@ pub struct Trail {
     /// The CLI's session, as soon as it says which: a stopped turn can be corrected in it.
     #[serde(skip)]
     pub session: Option<String>,
+    /// Tokens read and written so far, when the CLI says as it goes (Claude Code does, per model call).
+    pub tokens: u64,
+    #[serde(skip)]
+    by_call: HashMap<String, u64>,
 }
 
 fn cut(text: &str, max: usize) -> String {
@@ -156,6 +161,13 @@ impl Trail {
                 }
             }
             Some("assistant") => {
+                // Each model call repeats its usage on every block it sends: counted once per call.
+                if let (Some(id), Some(usage)) = (event.pointer("/message/id").and_then(Value::as_str), event.pointer("/message/usage")) {
+                    let count = |key: &str| usage.get(key).and_then(Value::as_u64).unwrap_or(0);
+                    let used = count("input_tokens") + count("cache_read_input_tokens") + count("cache_creation_input_tokens") + count("output_tokens");
+                    self.by_call.insert(id.to_string(), used);
+                    self.tokens = self.by_call.values().sum();
+                }
                 for block in event.pointer("/message/content").and_then(Value::as_array).into_iter().flatten() {
                     match block.get("type").and_then(Value::as_str) {
                         Some("text") => self.said(block.get("text").and_then(Value::as_str).unwrap_or("")),
@@ -246,11 +258,11 @@ impl Trail {
 
 /// Reads the given new lines into the trail; says whether anything changed.
 pub fn read(trail: &mut Trail, agent: &str, lines: &[String], dir: &Path) -> bool {
-    let before = (trail.items.len(), trail.dropped, trail.partial.len(), trail.items.last().map(|i| i.detail.clone()));
+    let before = (trail.items.len(), trail.dropped, trail.partial.len(), trail.tokens, trail.items.last().map(|i| i.detail.clone()));
     for line in lines {
         trail.feed(agent, line, dir);
     }
-    before != (trail.items.len(), trail.dropped, trail.partial.len(), trail.items.last().map(|i| i.detail.clone()))
+    before != (trail.items.len(), trail.dropped, trail.partial.len(), trail.tokens, trail.items.last().map(|i| i.detail.clone()))
 }
 
 #[cfg(test)]
@@ -280,8 +292,8 @@ mod tests {
                 r#"{"type":"system","subtype":"init","session_id":"s1"}"#,
                 r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Vou "}}}"#,
                 r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"ler."}}}"#,
-                r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Vou ler."}]}}"#,
-                r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/p/soma.js"}}]}}"#,
+                r#"{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":2,"cache_read_input_tokens":1000,"output_tokens":8},"content":[{"type":"text","text":"Vou ler."}]}}"#,
+                r#"{"type":"assistant","message":{"id":"m1","usage":{"input_tokens":2,"cache_read_input_tokens":1000,"output_tokens":20},"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/p/soma.js"}}]}}"#,
                 r#"{"type":"user","message":{"content":[{"tool_use_id":"t1","type":"tool_result","content":"1\texport const somar\n2\t"}]}}"#,
                 r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"npm test"}}]}}"#,
                 r#"{"type":"user","message":{"content":[{"tool_use_id":"t2","type":"tool_result","is_error":true,"content":[{"type":"text","text":"a\nb\nc\nd failed"}]}]}}"#,
@@ -294,6 +306,7 @@ mod tests {
             vec![("say", "Vou ler.", None, None, None), ("read", "soma.js", None, Some(1), Some(true)), ("run", "npm test", Some("b · c · d failed"), None, Some(false))]
         );
         assert_eq!(t.partial, "O teste");
+        assert_eq!(t.tokens, 1022, "one model call, counted once with its latest usage");
         assert_eq!(t.current(), Some(Step { kind: "run", target: "npm test".into() }));
     }
 

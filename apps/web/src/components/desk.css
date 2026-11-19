@@ -1,0 +1,323 @@
+/* The desk: every agent at work in a grid that orders itself, then what waits, then who is idle. */
+.mesa {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vao);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.mesa-secao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--lateral);
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.mesa-secao > h2,
+.mesa-parados > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font: 500 15px/20px var(--sans);
+}
+
+.mesa-secao > h2 small,
+.mesa-parados > summary small {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+.mesa-vazio {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.mesa-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.mesa-cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: #16161c;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+/* An opened card takes the whole row, so its path reads like a log. */
+.mesa-cartao.aberto {
+  grid-column: 1 / -1;
+}
+
+.mesa-cartao > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mesa-quem {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mesa-quem b {
+  font: 500 13px/18px var(--sans);
+}
+
+.mesa-quem small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-tempo {
+  flex: none;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.mesa-passo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+}
+
+.mesa-passo code {
+  min-width: 0;
+  overflow: hidden;
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-formando {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 19px;
+}
+
+.mesa-corrigir input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--giz);
+  font: 13px/16px var(--sans);
+}
+
+.mesa-cartao > footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mesa-cartao > footer button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mesa-cartao > footer .cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.mesa-cartao > footer .link {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  color: var(--nevoa);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mesa-espera {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mesa-espera li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.mesa-espera-onde {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 180px;
+  min-width: 0;
+}
+
+.mesa-espera-onde b {
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-espera-onde small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-espera-tipo {
+  flex: none;
+  font: 500 11px/14px var(--sans);
+  white-space: nowrap;
+}
+
+.mesa-espera-tipo.proposal {
+  color: var(--alerta);
+}
+
+.mesa-espera-tipo.draft {
+  color: var(--ok);
+}
+
+.mesa-espera-tipo.command {
+  color: var(--giz);
+}
+
+.mesa-espera code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-espera button {
+  flex: none;
+}
+
+.mesa-parados > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.mesa-parados > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mesa-parados > summary::after {
+  content: '▸';
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.mesa-parados[open] > summary::after {
+  content: '▾';
+}
+
+.mesa-parados-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mesa-parados-lista button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 4%);
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mesa-parados-lista span {
+  display: flex;
+  flex-direction: column;
+}
+
+.mesa-parados-lista b {
+  font: 500 12px/16px var(--sans);
+}
+
+.mesa-parados-lista small {
+  color: var(--nevoa);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* On a phone the waiting rows stack: who and what on one line, the detail below. */
+@media (max-width: 720px) {
+  .mesa-grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mesa-espera li {
+    flex-wrap: wrap;
+  }
+
+  /* Who and Open on the first line; what waits and its detail below. */
+  .mesa-espera-onde {
+    width: auto;
+    flex: 1 1 60%;
+  }
+
+  .mesa-espera button {
+    order: 3;
+  }
+
+  .mesa-espera-tipo {
+    order: 4;
+    padding-left: 32px;
+  }
+
+  .mesa-espera code {
+    flex: 1 1 0;
+    order: 5;
+  }
+}

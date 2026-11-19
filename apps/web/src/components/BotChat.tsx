@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type BotMessage, type Inbox, type Place, type Report, botInbox } from '../api'
+import { type Bot, type Inbox, type Place, type Report, botInbox } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
+import { latestAnswer, pendingProposal } from './chat/waiting'
 import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
 import { BotLine } from './chat/BotLine'
@@ -299,24 +300,3 @@ function useInbox(bot: Bot) {
 
 /** The answer whose proposal can still be approved: the latest one, if nothing but failures came after it. */
 /** The latest answer, when nothing came after it: the commands it asks for can still run. */
-/** Messages that leave the answer before them current: its proposal and commands still stand. */
-const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'house', 'remembered', 'review', 'review_asked']
-
-function latestAnswer(messages: BotMessage[]): number {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const m = messages[i]
-    if (ASIDE.includes(m.kind)) continue
-    return m.author === 'bot' && m.kind === 'answer' ? i : -1
-  }
-  return -1
-}
-
-function pendingProposal(messages: BotMessage[]): number {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const m = messages[i]
-    if (ASIDE.includes(m.kind)) continue
-    if (m.kind === 'approve') return -1
-    return m.kind === 'answer' && m.data.reply?.proposal ? i : -1
-  }
-  return -1
-}

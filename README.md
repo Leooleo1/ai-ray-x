@@ -52,6 +52,11 @@ plan. With Claude Code, a conversation keeps its CLI process open between
 messages (closed after ten idle minutes), so a follow-up skips the CLI's start:
 about 0.9 s instead of 1.7 s for a short answer, with the same tokens.
 
+**Desk.** Every agent working now in one grid, ordered by project: what it
+does, for how long, the tokens so far (Claude Code), its last steps, and Stop,
+Correct and Open. Below, what waits for you across all projects (proposals to
+approve, drafts to apply, commands asked) and who is idle.
+
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
 carries and how the project's week compares with the one before, Dieta lists
