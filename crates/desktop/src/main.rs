@@ -6,6 +6,7 @@
 
 mod texts;
 mod tray;
+mod update;
 
 use std::path::PathBuf;
 
@@ -110,6 +111,7 @@ fn main() {
         // A second launch brings the open window forward instead of a second panel.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show(app)))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
@@ -134,6 +136,7 @@ fn main() {
             });
             tray::build(app.handle())?;
             start(app.handle().clone());
+            update::watch(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())

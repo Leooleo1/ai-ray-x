@@ -4,6 +4,7 @@ import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 import { ProfileMenu } from './ProfileMenu'
+import { UpdateNote } from './UpdateNote'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
@@ -90,6 +91,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, o
         </button>
       </div>
       <footer className="lado-rodape">
+        <UpdateNote />
         <ProfileMenu bots={bots} updatedAt={updatedAt} onSettings={onSettings} onSetup={onSetup} />
       </footer>
     </aside>

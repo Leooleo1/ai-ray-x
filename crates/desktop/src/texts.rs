@@ -17,6 +17,11 @@ pub struct Texts {
     pub proposal: &'static str,
     pub draft: &'static str,
     pub broke: &'static str,
+    /// "{v}" is the new version.
+    pub update_ready: &'static str,
+    pub update_hint: &'static str,
+    /// "{e}" is the reason.
+    pub update_failed: &'static str,
 }
 
 const PT: Texts = Texts {
@@ -32,6 +37,9 @@ const PT: Texts = Texts {
     proposal: "Esperando sua aprovação",
     draft: "Rascunho pronto para revisar",
     broke: "Não deu certo",
+    update_ready: "raiox {v} disponível",
+    update_hint: "Abra o raiox para atualizar.",
+    update_failed: "Não deu para atualizar: {e}",
 };
 
 const EN: Texts = Texts {
@@ -47,6 +55,9 @@ const EN: Texts = Texts {
     proposal: "Waiting for your approval",
     draft: "Draft ready to review",
     broke: "It did not work",
+    update_ready: "raiox {v} is available",
+    update_hint: "Open raiox to update.",
+    update_failed: "Could not update: {e}",
 };
 
 pub fn texts() -> &'static Texts {

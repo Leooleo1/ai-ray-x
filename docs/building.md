@@ -64,3 +64,33 @@ pnpm --dir crates/desktop build    # target\release\bundle\nsis\*-setup.exe and 
 The Windows build is not signed yet either: SmartScreen asks once (More info ›
 Run anyway). In the panel, each CLI's install line is the Windows one there
 (PowerShell or npm).
+
+## Releasing a version (with updates)
+
+The desktop app updates itself from the latest GitHub release: it reads the
+release's `latest.json`, downloads the file for its system and checks it
+against the public key in `crates/desktop/tauri.conf.json` before installing.
+So every release is built with the matching private key, which never goes into
+the repository:
+
+```sh
+# the key: ~/.tauri/raiox-updater.key; its password: in the macOS Keychain
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/raiox-updater.key)"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(security find-generic-password -s raiox-updater-key -w)"
+CI=true pnpm --dir crates/desktop build      # also makes raiox.app.tar.gz and its .sig
+```
+
+On Windows, set the same two variables before `pnpm --dir crates/desktop build`;
+the NSIS `-setup.exe` gets its `.sig`. Then write the manifest and upload
+everything to the release (the installers, the `.tar.gz`, each `.sig` and
+`latest.json`):
+
+```sh
+scripts/update-manifest.py 0.1.1 "What changed" \
+  --mac target/release/bundle/macos/raiox.app.tar.gz \
+  --windows raiox_0.1.1_x64-setup.exe > latest.json
+```
+
+Bump the version first in `crates/desktop/tauri.conf.json` and the three
+`Cargo.toml` files. Lose the private key and the installed apps can no longer
+update: keep a copy somewhere safe.

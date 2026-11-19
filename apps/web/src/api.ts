@@ -817,6 +817,23 @@ export function telegramAction(action: 'connect' | 'pair' | 'forget', body: Reco
   return request<TelegramState>(`/api/telegram/${action}`, body)
 }
 
+/** The desktop app's version, and a newer one when the app found it. */
+export interface AppVersion {
+  version: string
+  available: string | null
+  installing: boolean
+  can_update: boolean
+}
+
+export function fetchAppVersion(): Promise<AppVersion> {
+  return request<AppVersion>('/api/app')
+}
+
+/** Downloads the new version, installs it and restarts the app. */
+export function updateApp(): Promise<AppVersion> {
+  return request<AppVersion>('/api/app/update', {})
+}
+
 export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'task'
 
 /** Something a bot produced: a change to its project, a screenshot, a routine's result, a finished task. */

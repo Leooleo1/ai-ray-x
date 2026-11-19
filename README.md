@@ -81,6 +81,9 @@ you ask it to or turn it on. These switches do, so read them before you flip the
   variables that look like secrets stay out of their environment, and values
   that look like secrets are hidden in their output.
 - Chats run your own CLI, which talks to its own provider under your account.
+- The desktop app checks the latest GitHub release for a new version (a request
+  with nothing about you), and installs it only when you press Update, after
+  checking its signature.
 
 ## Status
 

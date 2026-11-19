@@ -1,6 +1,9 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  updateReady: 'raiox {v} is available',
+  updateAction: 'Update',
+  updating: 'Updating… raiox restarts by itself',
   telegramTitle: 'Telegram',
   telegramHint: 'talk to your AIs from Telegram, through a bot of your own',
   telegramSteps: 'In Telegram, open @BotFather, send /newbot and follow it. Paste the token it gives you here.',
@@ -592,6 +595,9 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  updateReady: 'raiox {v} disponível',
+  updateAction: 'Atualizar',
+  updating: 'Atualizando… o raiox reabre sozinho',
   telegramTitle: 'Telegram',
   telegramHint: 'fale com suas IAs pelo Telegram, por um bot só seu',
   telegramSteps: 'No Telegram, abra o @BotFather, mande /newbot e siga. Cole aqui o token que ele der.',

@@ -151,6 +151,8 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
+        (Method::Get, "/api/app") => respond(Ok(crate::app_update::state())),
+        (Method::Post, "/api/app/update") => respond(crate::app_update::install()),
         (Method::Get, "/api/telegram") => respond(Ok(crate::telegram::state(&panel.state_dir))),
         (Method::Post, "/api/telegram/connect") => match body(request) {
             Ok(input) => respond(crate::telegram::connect(&panel.state_dir, input.get("token").and_then(Value::as_str).unwrap_or(""))),
