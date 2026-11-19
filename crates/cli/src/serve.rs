@@ -230,6 +230,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::house(state_dir, field("id"), thread, field("agent"), data)
         }
         "stop" => jobs.stop(field("id")),
+        "correct" => jobs.correct(field("id"), field("text")),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
             bots::configure(state_dir, jobs, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)

@@ -35,8 +35,10 @@ Code, Codex or Cursor), with the project's context:
   asks for it and raiox runs that exact command in the project folder, without
   a shell, after you approve it, or on its own once you allow it for the
   project;
-- every answer shows what it read, and the bar shows each step live
-  (reading a file, searching, running a command);
+- while the AI works you see its whole path live: each step with what came
+  back (lines read, files found, a command's last lines), what it says
+  between steps, and the answer as it is written; typing while it works
+  corrects its course in the same session, and every answer keeps its path;
 - parallel conversations, pinned answers, routines on a schedule (which can
   skip days when nothing in the project changed, and float their answer as a
   tip), one

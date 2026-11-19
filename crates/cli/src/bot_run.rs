@@ -18,7 +18,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, TO_MARK};
-use crate::bot_steps::{self, Step};
+use crate::bot_trail::{self, Trail};
 
 /// A bot that thinks longer than this is stopped.
 const TIMEOUT: Duration = Duration::from_secs(10 * 60);
@@ -45,6 +45,9 @@ pub struct Reply {
     /// Commands the bot asks raiox to run, each with why raiox refuses it, if it does.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub run: Vec<crate::commands::Request>,
+    /// The path the turn took: its steps with their results, and what the AI said between them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trail: Option<Trail>,
     /// A reviewer's conclusion about another bot's proposal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verdict: Option<String>,
@@ -163,7 +166,7 @@ fn claude(target: &Target, mode: Mode) -> Command {
     command
         .current_dir(target.dir)
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
-        .args(["-p", "--output-format", "stream-json", "--verbose", "--tools", tools, "--strict-mcp-config"])
+        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", tools, "--strict-mcp-config"])
         .args(["--append-system-prompt", &target.guide]);
     command.arg("--disallowedTools").args(secret_rules(mode));
     if let Some(model) = target.model {
@@ -208,12 +211,13 @@ fn codex(target: &Target, mode: Mode) -> Command {
 /// Shell commands stay denied (no --force).
 fn cursor(target: &Target, mode: Mode) -> Command {
     let mut command = Command::new("cursor-agent");
-    command.current_dir(target.dir).args(["-p", "--output-format", "stream-json", "--trust", "--workspace"]).arg(target.dir);
+    command.current_dir(target.dir).args(["-p", "--output-format", "stream-json", "--stream-partial-output", "--trust", "--workspace"]).arg(target.dir);
     if mode == Mode::Talk {
         command.args(["--mode", "ask"]);
-        if let Some(id) = target.session {
-            command.args(["--resume", id]);
-        }
+    }
+    // An edit resumes only its own session, when the person corrects it midway.
+    if let Some(id) = target.session {
+        command.args(["--resume", id]);
     }
     if let Some(model) = target.model {
         command.args(["--model", model]);
@@ -238,7 +242,7 @@ pub fn keeps_session(mode: Mode) -> bool {
 pub const STOPPED: &str = "stopped by the person";
 
 /// Runs one turn and waits for it, up to the timeout or until `stop` says so.
-pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool, on_step: &dyn Fn(Step)) -> Result<Reply> {
+pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn Fn() -> bool, on_trail: &dyn Fn(&Trail)) -> Result<Reply> {
     let agent = target.agent;
     let (mut command, prompt) = match agent {
         "claude" => (claude(target, mode), prompt_for(mode, text)),
@@ -264,9 +268,10 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
         stdin.write_all(prompt.as_bytes())?;
     }
     let mut events = Tail::new(&out_path);
+    let mut trail = Trail::default();
     let status = loop {
-        if let Some(step) = events.read_new().iter().rev().find_map(|line| bot_steps::from_line(agent, line, target.dir)) {
-            on_step(step);
+        if bot_trail::read(&mut trail, agent, &events.read_new(), target.dir) {
+            on_trail(&trail);
         }
         if let Some(status) = child.try_wait()? {
             break status;
@@ -289,7 +294,7 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
         _ => parse_result(agent, final_result(&out)),
     };
     match parsed {
-        Ok(reply) => Ok(Reply { duration_ms, ..reply }),
+        Ok(reply) => Ok(Reply { duration_ms, trail: Some(trail.finish()).filter(|t| !t.items.is_empty()), ..reply }),
         Err(error) if status.success() => Err(error),
         Err(_) => Err(anyhow!("{agent} failed: {}", tail(&fs::read_to_string(&err_path).unwrap_or_default()))),
     }
@@ -383,6 +388,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
+        trail: None,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
@@ -425,6 +431,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
+        trail: None,
         steps: Some(
             events
                 .iter()

@@ -89,10 +89,26 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         let reply = match ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text) {
             Ok(reply) => reply,
             Err(error) => {
+                let stopped = error.to_string() == bot_run::STOPPED;
+                // Stopped to be corrected: the same session goes on with the person's words.
+                if stopped && let Some((correction, reached)) = jobs.take_correction(&bot.id) {
+                    say(note("stopped", json!({})));
+                    say(said("ask", json!({ "text": correction, "correction": true })));
+                    text = match &reached {
+                        Some(_) => format!("(raiox: the person stopped you midway to correct the course.) {correction}"),
+                        None => format!("{text}\n\n(raiox: the person stopped you midway to correct the course.) {correction}"),
+                    };
+                    if reached.is_some() {
+                        session = reached;
+                        if bot_run::keeps_session(turn.mode) {
+                            let _ = set_thread_session(state_dir, &bot.id, thread, session.clone());
+                        }
+                    }
+                    continue;
+                }
                 if work.is_some() {
                     drafts::abandon(state_dir, &bot.id);
                 }
-                let stopped = error.to_string() == bot_run::STOPPED;
                 return say(if stopped { note("stopped", json!({})) } else { note("failed", json!({ "error": format!("{error:#}") })) });
             }
         };
@@ -136,10 +152,10 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
         effort: setup.effort.as_deref(),
     };
     let stop = || jobs.should_stop(&bot.id);
-    let on_step = |step| jobs.set_step(&bot.id, step);
-    match bot_run::run(&target, mode, text, &setup.scratch, &stop, &on_step) {
+    let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
+    match bot_run::run(&target, mode, text, &setup.scratch, &stop, &on_trail) {
         Err(error) if session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
-            bot_run::run(&bot_run::Target { session: None, ..target }, mode, text, &setup.scratch, &stop, &on_step)
+            bot_run::run(&bot_run::Target { session: None, ..target }, mode, text, &setup.scratch, &stop, &on_trail)
         }
         other => other,
     }

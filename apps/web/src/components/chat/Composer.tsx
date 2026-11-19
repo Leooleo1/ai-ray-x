@@ -16,10 +16,12 @@ interface ComposerProps {
   /** Resolves true when the message went out, so the draft clears. */
   onSend: (text: string) => Promise<boolean>
   onStop: () => void
+  /** While the bot works in this conversation: sends a correction of its course. */
+  onCorrect?: (text: string) => Promise<boolean>
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onStop }: ComposerProps) {
+export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onStop, onCorrect }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const field = useRef<HTMLTextAreaElement>(null)
 
@@ -35,9 +37,16 @@ export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onSto
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
   }, [draft, draftKey])
 
+  // While the bot works here, what is typed corrects its course instead of asking anew.
+  const correcting = busy && onCorrect !== undefined
   const send = async () => {
     const text = draft.trim()
-    if (!text || busy) return
+    if (!text) return
+    if (correcting) {
+      if (await onCorrect(text)) setDraft('')
+      return
+    }
+    if (busy) return
     if (await onSend(text)) setDraft('')
   }
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -63,12 +72,18 @@ export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onSto
         rows={1}
         value={draft}
         maxLength={maxLength}
-        placeholder={placeholder}
-        aria-label={placeholder}
+        placeholder={correcting ? t.correctPlaceholder : placeholder}
+        aria-label={correcting ? t.correctPlaceholder : placeholder}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKey}
       />
-      {busy ? (
+      {correcting && draft.trim() ? (
+        <button className="enviar corrigir" type="submit" aria-label={t.correctSend} title={t.correctSend}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3" />
+          </svg>
+        </button>
+      ) : busy ? (
         <button className="enviar parar" type="button" onClick={onStop} aria-label={t.stop} title={`${t.stop} (Esc)`}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="7" y="7" width="10" height="10" rx="2" />

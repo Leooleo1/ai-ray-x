@@ -1,6 +1,16 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  trailLine: '1 line',
+  trailLines: '{n} lines',
+  trailFile: '1 file',
+  trailFiles: '{n} files',
+  trailEarlier: 'see the {n} earlier steps',
+  trailDropped: '… {n} earlier steps not kept',
+  trailOpen: 'path: {n} steps',
+  trailOpenOne: 'path: 1 step',
+  correctPlaceholder: 'Correct the course: it stops and goes on with this',
+  correctSend: 'Correct',
   onlyIfChanged: 'Only if the project changed',
   routineAlways: 'always',
   routineIfChanged: 'if it changed',
@@ -366,6 +376,16 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  trailLine: '1 linha',
+  trailLines: '{n} linhas',
+  trailFile: '1 arquivo',
+  trailFiles: '{n} arquivos',
+  trailEarlier: 'ver os {n} passos anteriores',
+  trailDropped: '… {n} passos anteriores não guardados',
+  trailOpen: 'caminho: {n} passos',
+  trailOpenOne: 'caminho: 1 passo',
+  correctPlaceholder: 'Corrija o rumo: ela para e segue com isto',
+  correctSend: 'Corrigir',
   onlyIfChanged: 'Só se o projeto mudou',
   routineAlways: 'sempre',
   routineIfChanged: 'se mudou',

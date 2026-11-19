@@ -157,6 +157,23 @@ export interface BotNote {
   text: string
 }
 
+/** One step of a turn's path, or something the AI said between steps ("say"). */
+export interface TrailItem {
+  kind: BotStep['kind'] | 'say'
+  target: string
+  detail?: string
+  ok?: boolean
+  /** Lines read, or files found or changed. */
+  count?: number
+}
+
+/** The path of a turn: its steps with their results, and the text being written now. */
+export interface Trail {
+  items: TrailItem[]
+  dropped: number
+  partial: string
+}
+
 export interface BotStep {
   kind: 'read' | 'search' | 'list' | 'edit' | 'run' | 'web' | 'think' | 'tool'
   target: string
@@ -210,6 +227,8 @@ export interface BotReply {
   open?: Place[]
   /** Commands the AI asks raiox to run, each with why raiox refuses it, if it does. */
   run?: RunRequest[]
+  /** The path the turn took. */
+  trail?: Trail
   /** A reviewer's conclusion about another bot's proposal. */
   verdict?: 'ok' | 'concerns' | 'reject'
   steps?: number | null
@@ -316,6 +335,8 @@ export interface Bot {
   busy_thread: string | null
   /** What the running turn is doing now (read, search, run…). */
   step: BotStep | null
+  /** The running turn's path so far. */
+  trail?: Trail | null
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]
@@ -342,7 +363,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct'
 
 export interface InboxMessage {
   id: string

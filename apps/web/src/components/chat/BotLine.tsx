@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { Bot, BotMessage, Place } from '../../api'
+import type { Bot, BotMessage, Place, Trail } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
 import { RanBlock, RunRequestCard } from './RunCards'
+import { TrailView } from './TrailView'
 import { Expandable } from './Expandable'
 
 /** After a pause this long, the time stands above the next message again. */
@@ -143,7 +144,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   const reply = message.data.reply
   const meta = reply && [
     `${t.readWord} ${compact(reply.read_tokens)} tokens`,
-    reply.steps ? `${reply.steps} ${reply.steps === 1 ? t.stepOne : t.steps}` : '',
+    reply.steps && !reply.trail ? `${reply.steps} ${reply.steps === 1 ? t.stepOne : t.steps}` : '',
     `${Math.max(1, Math.round(reply.duration_ms / 1000))} s`,
   ]
   return (
@@ -160,7 +161,8 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
           {meta && (
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
-              {[clock(message.ms), ...meta].filter(Boolean).join(' · ')}
+              {/* Each part stays whole ("12 s", "62 mil tokens"); the line breaks only between parts. */}
+              {[clock(message.ms), ...meta].filter(Boolean).map((part) => part.replace(/ /g, '\u00a0')).join(' · ')}
               <CopyButton text={reply.text} />
               <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
                 {pinned ? t.pinned : t.pin}
@@ -173,6 +175,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
             </span>
           )}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}
+          {reply?.trail && <AnswerPath trail={reply.trail} />}
           {reply?.open?.map((place) => (
             <div key={place} className="cartao-acao">
               <span className="cartao-acao-icone" aria-hidden="true">
@@ -240,6 +243,17 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
         </div>
       </div>
     </>
+  )
+}
+
+/** The path an answer took, folded under it: opens on a tap. */
+function AnswerPath({ trail }: { trail: Trail }) {
+  const steps = trail.items.filter((item) => item.kind !== 'say').length + trail.dropped
+  return (
+    <details className="caminho">
+      <summary>{steps === 1 ? t.trailOpenOne : t.trailOpen.replace('{n}', String(steps))}</summary>
+      <TrailView trail={trail} live={false} />
+    </details>
   )
 }
 

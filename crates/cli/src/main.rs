@@ -6,6 +6,7 @@ mod bot_marks;
 mod bot_run;
 mod batches;
 mod bot_steps;
+mod bot_trail;
 mod bot_usage;
 mod bots;
 mod budget;

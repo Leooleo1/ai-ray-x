@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
+import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
 import { BotLine } from './chat/BotLine'
 import { ProjectList } from './chat/ProjectList'
@@ -68,7 +69,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const busyElsewhere = bot.busy && !busyHere
   // ai-memory mail always lands in the main conversation.
   const mail = current === MAIN ? (inbox.value?.messages ?? []) : []
-  const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + (busyHere ? 1 : 0), `${bot.id}:${current}`)
+  // The live path and the text being written grow while the bot works: the view follows them.
+  const growing = busyHere ? 1 + (bot.trail?.items.length ?? 0) + Math.floor((bot.trail?.partial.length ?? 0) / 60) : 0
+  const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + growing, `${bot.id}:${current}`)
   const openPlace = (place: Place) => {
     if (place === 'model') setModelSignal((n) => n + 1)
     else if (place === 'settings') setSettingsOpen(true)
@@ -212,6 +215,19 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             />
             ),
           )}
+          {busyHere && bot.trail && (bot.trail.items.length > 0 || bot.trail.partial) && (
+            <div className="linha de-agente ao-vivo" aria-live="polite">
+              <div className="corpo">
+                {bot.trail.items.length > 0 && <TrailView trail={bot.trail} live />}
+                {bot.trail.partial && (
+                  <p className="formando">
+                    {bot.trail.partial}
+                    <i aria-hidden="true" />
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
           {mail.length > 0 && !bot.busy && (
             <div className="caixa" id={INBOX_ID}>
               {mail.map((item) => (
@@ -254,6 +270,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           busy={bot.busy}
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id })}
+          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}

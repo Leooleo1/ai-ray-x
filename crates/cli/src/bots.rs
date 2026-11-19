@@ -156,6 +156,10 @@ struct Job {
     stop: bool,
     thread: String,
     step: Option<crate::bot_steps::Step>,
+    /// The path of the running turn, as the CLI reports it.
+    trail: Option<crate::bot_trail::Trail>,
+    /// What the person wants changed: the turn stops and goes on with it.
+    correction: Option<String>,
 }
 
 impl Jobs {
@@ -178,6 +182,44 @@ impl Jobs {
         {
             job.step = Some(step);
         }
+    }
+
+    fn set_trail(&self, id: &str, trail: &crate::bot_trail::Trail) {
+        if let Ok(mut map) = self.0.lock()
+            && let Some(job) = map.get_mut(id)
+        {
+            job.step = trail.current();
+            job.trail = Some(trail.clone());
+        }
+    }
+
+    fn trail_of(&self, id: &str) -> Option<crate::bot_trail::Trail> {
+        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.trail.clone()))
+    }
+
+    /// Stops the running turn so it goes on with the person's correction.
+    pub fn correct(&self, id: &str, text: &str) -> Result<()> {
+        let text = text.trim();
+        if text.is_empty() || text.chars().count() > MAX_TEXT {
+            bail!("a correction has 1 to {MAX_TEXT} characters");
+        }
+        let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
+        let job = map.get_mut(id).context("the bot is not answering")?;
+        job.stop = true;
+        job.correction = Some(text.to_string());
+        Ok(())
+    }
+
+    /// The correction a stopped turn goes on with, and the CLI session it had reached;
+    /// the turn is running again from here.
+    fn take_correction(&self, id: &str) -> Option<(String, Option<String>)> {
+        let mut map = self.0.lock().ok()?;
+        let job = map.get_mut(id)?;
+        let correction = job.correction.take()?;
+        let session = job.trail.take().and_then(|trail| trail.session);
+        job.stop = false;
+        job.step = None;
+        Some((correction, session))
     }
 
     fn finish(&self, id: &str) {
@@ -642,6 +684,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "busy": jobs.is_busy(&bot.id),
                 "busy_thread": jobs.thread_of(&bot.id),
                 "step": jobs.step_of(&bot.id),
+                "trail": jobs.trail_of(&bot.id),
                 "messages": messages,
                 "threads": side,
                 "pins": crate::pins::list(state_dir, &bot.id),
