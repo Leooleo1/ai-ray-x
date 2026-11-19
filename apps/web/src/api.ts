@@ -398,7 +398,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop'
 
 export interface InboxMessage {
   id: string
@@ -566,6 +566,32 @@ export interface ProjectDiet {
 
 export function botDiet(id: string): Promise<ProjectDiet> {
   return request<ProjectDiet>('/api/bot/diet', { id })
+}
+
+/** A project's app as raiox runs it: the suggested dev command, and whether it runs, where, and its last lines. */
+export interface Preview {
+  suggestion: string | null
+  running: boolean
+  command: string | null
+  started_ms: number | null
+  exit_code: number | null
+  url: string | null
+  log: string
+  /** A booted iOS simulator device, if any. */
+  simulator: string | null
+}
+
+export function botPreview(id: string): Promise<Preview> {
+  return request<Preview>('/api/bot/preview', { id })
+}
+
+/** A screenshot of a local page or of the simulator, as a data URL, with its file name. */
+export function botPreviewShot(id: string, target: 'page' | 'simulator', url: string, width: number, height: number): Promise<{ image: string; name: string }> {
+  return request('/api/bot/preview_shot', { id, target, url, width, height })
+}
+
+export function botShotImage(id: string, name: string): Promise<{ image: string }> {
+  return request('/api/bot/shot_image', { id, name })
 }
 
 export function botMemories(id: string): Promise<Memories> {

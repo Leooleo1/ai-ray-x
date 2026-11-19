@@ -7,6 +7,7 @@ import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
 import { CarryMenu } from './chat/Carry'
+import { PreviewPanel } from './chat/PreviewPanel'
 import { latestAnswer, pendingProposal } from './chat/waiting'
 import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
@@ -49,6 +50,7 @@ interface BotChatProps {
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
 export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onChanged }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   // On a phone the project's conversations open as a sheet.
   const [listOpen, setListOpen] = useState(false)
   const [thread, setThread] = useState(focus?.thread ?? MAIN)
@@ -156,6 +158,12 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
             </span>
           </span>
+          <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={() => setPreviewOpen(!previewOpen)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3.5" y="5" width="17" height="12" rx="2" />
+              <path d="M9 20h6M12 17v3" />
+            </svg>
+          </button>
           {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
           <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
@@ -277,6 +285,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}
+        {previewOpen && <PreviewPanel key={bot.id} bot={bot} bots={bots} onClose={() => setPreviewOpen(false)} />}
         </div>
       </section>
     </main>

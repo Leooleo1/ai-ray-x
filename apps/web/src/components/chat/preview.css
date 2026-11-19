@@ -1,0 +1,215 @@
+/* The project's app inside the panel: a wide drawer over the chat. */
+.ver {
+  position: absolute;
+  top: 57px;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  background: #101015;
+  box-shadow: inset 1px 0 0 var(--fio), -24px 0 48px rgb(0 0 0 / 45%);
+}
+
+.ver-topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.ver-topo > b {
+  font: 500 14px/20px var(--sans);
+}
+
+.ver-topo .voltar {
+  margin-left: auto;
+}
+
+.ver-abas {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.ver-abas button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ver-abas button.ativa {
+  background: rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.ver-corpo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.ver-comando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+}
+
+.ver-comando label {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.ver-comando input {
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--giz);
+  font: 13px/16px var(--mono);
+}
+
+.ver-comando button,
+.ver-barra button {
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ver-comando .cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.ver-comando .cheio:disabled {
+  opacity: 0.45;
+}
+
+.ver-comando small {
+  flex-basis: 100%;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.ver-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ver-barra a,
+.ver-esperando {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--giz);
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ver-esperando {
+  color: var(--nevoa);
+}
+
+.ver-tamanhos {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.ver-tamanhos button {
+  height: 28px;
+  padding: 0 12px;
+  background: none;
+  color: var(--nevoa);
+}
+
+.ver-tamanhos button.ativo {
+  background: rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+/* The page at the chosen width: a phone is drawn at its own width, a desktop fills the drawer. */
+.ver-moldura {
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.ver-moldura.desktop {
+  width: 100%;
+  height: 460px;
+}
+
+.ver-moldura.phone {
+  align-self: center;
+  width: 390px;
+  max-width: 100%;
+  height: 640px;
+  border-radius: 28px;
+}
+
+.ver-moldura iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.ver-log summary {
+  color: var(--nevoa);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ver-log pre {
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #0a0a0d;
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+  white-space: pre-wrap;
+}
+
+.ver-print {
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.ver-print.simulador {
+  align-self: center;
+  max-height: 640px;
+}

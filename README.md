@@ -68,6 +68,13 @@ Any conversation can be taken to another AI (as a new conversation) or into a
 channel: its last exchanges go along, at no token cost, and the next turn
 there reads them.
 
+**See the app.** In a project's chat, See the app runs your dev command (raiox
+suggests one from `package.json`; it starts only when you press Run), reads
+the address it prints and shows the page inside the panel at desktop or phone
+width, with the server's output, Stop and screenshots (headless Chrome, local
+pages only, never a secrets file). With an iOS simulator booted, it also takes
+screenshots of the simulator.
+
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
 carries and how the project's week compares with the one before, Dieta lists

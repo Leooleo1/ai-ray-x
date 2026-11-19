@@ -26,7 +26,7 @@ const SECURITY_HEADERS: [(&str, &str); 5] = [
     (
         "Content-Security-Policy",
         "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; \
-         connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+         connect-src 'self'; frame-src http://localhost:* http://127.0.0.1:* http://[::1]:*; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     ),
     ("X-Content-Type-Options", "nosniff"),
     ("Referrer-Policy", "no-referrer"),
@@ -64,6 +64,8 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
     // Drafts older than two weeks go, with their copies and backups.
     crate::drafts::cleanup(&panel.state_dir);
+    // Dev servers an earlier raiox left running stop now.
+    crate::preview::cleanup(&panel.state_dir);
     for mut request in server.incoming_requests() {
         let reply = route(&mut panel, &mut request, &token, &hosts);
         // The browser may have gone away; nothing to do about it.
@@ -256,6 +258,29 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
         "inbox" => return crate::bot_mail::inbox(state_dir, field("id")),
         "memories" => return crate::bot_mail::memories(state_dir, field("id")),
+        "preview" => {
+            let bot = bots::find(state_dir, field("id"))?;
+            return crate::preview::status(state_dir, &bot.id, &bot.dir);
+        }
+        "preview_start" => {
+            let bot = bots::find(state_dir, field("id"))?;
+            crate::preview::start(state_dir, &bot.id, &bot.dir, field("command"))
+        }
+        "preview_stop" => crate::preview::stop(state_dir, &bots::find(state_dir, field("id"))?.id),
+        "preview_shot" => {
+            let bot = bots::find(state_dir, field("id"))?;
+            let size = |name: &str, fallback: u64| input.get(name).and_then(Value::as_u64).unwrap_or(fallback) as u32;
+            let file = if field("target") == "simulator" {
+                crate::simulator::shot(state_dir, &bot.id)?
+            } else {
+                crate::preview::shot(state_dir, &bot.id, field("url"), size("width", 1280), size("height", 800))?
+            };
+            let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+            let mut image = crate::preview::image(state_dir, &bot.id, &name)?;
+            image["name"] = json!(name);
+            return Ok(image);
+        }
+        "shot_image" => return crate::preview::image(state_dir, &bots::find(state_dir, field("id"))?.id, field("name")),
         "diet" => {
             let bot = bots::find(state_dir, field("id"))?;
             return crate::room::project_diet(&panel.store, &panel.roots, &bot.dir);
