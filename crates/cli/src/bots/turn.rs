@@ -46,6 +46,8 @@ pub(super) struct Setup {
     scratch: PathBuf,
     /// The bot's screenshots folder, which its CLI may read.
     shots: PathBuf,
+    /// Where raiox keeps which rules each conversation read.
+    state_dir: PathBuf,
 }
 
 impl Setup {
@@ -59,6 +61,7 @@ impl Setup {
         let persona = bot.persona.as_ref().map(Persona::prompt).unwrap_or_default();
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
         Setup {
+            state_dir: state_dir.to_path_buf(),
             stable: bot_run::guide(&bot.name, &persona, &others, &unwired),
             team: crate::team::context_for(state_dir, bot),
             // The project's own pages that relate to the question, kept decisions included.
@@ -260,7 +263,18 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
     // Codex, Cursor, Antigravity and opencode read the guide only when a conversation starts:
     // in one already going, the question carries its own pages (project memory, the team's wiki).
     let carried = (bot.agent != "claude" && session.is_some() && !setup.related.trim().is_empty()).then(|| format!("{}\n\n{text}", setup.related.trim()));
-    match bot_run::run(&target, mode, carried.as_deref().unwrap_or(text), &setup.scratch, &stop, &on_trail) {
+    // When raiox's rules changed since this conversation read them, it reads the whole guide again, once.
+    let rules = crate::rules::version();
+    let key = conversation.unwrap_or("");
+    let stale = bot.agent != "claude" && mode == Mode::Talk && session.is_some() && !key.is_empty() && crate::rules::read_by(&setup.state_dir, key) != Some(rules);
+    let again = stale.then(|| format!("{}\n\n---\n\n{text}", target.guide));
+    let asked = again.as_deref().or(carried.as_deref()).unwrap_or(text);
+    let answered = bot_run::run(&target, mode, asked, &setup.scratch, &stop, &on_trail);
+    // A conversation that started now, or read the guide again, has today's rules.
+    if answered.is_ok() && bot.agent != "claude" && mode == Mode::Talk && !key.is_empty() && (session.is_none() || stale) {
+        crate::rules::remember(&setup.state_dir, key, rules);
+    }
+    match answered {
         // A fresh conversation gets the pages in its guide again.
         Err(error) if session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
             bot_run::run(&bot_run::Target { session: None, ..target }, mode, text, &setup.scratch, &stop, &on_trail)

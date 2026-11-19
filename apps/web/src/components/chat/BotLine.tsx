@@ -47,7 +47,8 @@ interface BotLineProps {
   sent: Set<string>
   onSend: (project: string) => void
   onOpenExchange: (a: string, b: string) => void
-  onOpenPlace: (place: Place) => void
+  /** Opens a place; for the app, `run` also starts its dev commands. */
+  onOpenPlace: (place: Place, run?: boolean) => void
   pinned: boolean
   onPin: () => void
   /** For a draft: whether it was applied, undone or discarded, and the way to do it. */
@@ -211,6 +212,11 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                 <b>{t.places[place]}</b>
                 <small>{`${bot.name} › ${t.placeWhere[place]}`}</small>
               </span>
+              {place === 'app' && (
+                <button type="button" className="cheio" onClick={() => onOpenPlace(place, true)}>
+                  {t.previewRun}
+                </button>
+              )}
               <button type="button" className="vidro-btn" onClick={() => onOpenPlace(place)}>
                 {t.open}
               </button>

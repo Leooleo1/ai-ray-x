@@ -12,11 +12,13 @@ type Size = keyof typeof SIZES
 interface PreviewPanelProps {
   bot: Bot
   bots: Bots
+  /** Grows when the person pressed Run on an AI's card: start the commands once they are known. */
+  runSignal?: number
   onClose: () => void
 }
 
 /** The project's app inside the panel: its dev command, the page, its output and screenshots. */
-export function PreviewPanel({ bot, bots, onClose }: PreviewPanelProps) {
+export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanelProps) {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [command, setCommand] = useState('')
   const [tab, setTab] = useState<'page' | 'simulator'>('page')
@@ -55,6 +57,13 @@ export function PreviewPanel({ bot, bots, onClose }: PreviewPanelProps) {
     }
   }
   const run = () => void bots.act('preview_start', { id: bot.id, command })
+  // Run from an AI's card: as soon as the panel knows the commands (suggested or last used).
+  const [ranFor, setRanFor] = useState(0)
+  useEffect(() => {
+    if (runSignal === 0 || runSignal === ranFor || !preview || preview.running || !command.trim()) return
+    setRanFor(runSignal)
+    void bots.act('preview_start', { id: bot.id, command })
+  }, [runSignal, ranFor, preview, command, bots, bot.id])
   const stop = () => void bots.act('preview_stop', { id: bot.id })
   return (
     <aside className="ver" aria-label={t.previewTitle}>
@@ -89,7 +98,13 @@ export function PreviewPanel({ bot, bots, onClose }: PreviewPanelProps) {
               >
                 <label>
                   <span>{t.previewCommand}</span>
-                  <input value={command} placeholder={t.previewNoSuggestion} onChange={(event) => setCommand(event.target.value)} />
+                  <textarea
+                    value={command}
+                    rows={Math.min(3, Math.max(1, command.split('\n').length))}
+                    placeholder={t.previewNoSuggestion}
+                    spellCheck={false}
+                    onChange={(event) => setCommand(event.target.value)}
+                  />
                 </label>
                 <button type="submit" className="cheio" disabled={!command.trim()}>
                   {t.previewRun}

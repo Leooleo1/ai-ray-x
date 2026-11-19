@@ -1,6 +1,7 @@
-//! Seeing the app run. The person's dev command for a project (raiox suggests
-//! one from package.json; it runs only when the person presses Run) starts in
-//! the project folder; raiox reads the address it prints, the panel shows the
+//! Seeing the app run. The person's dev commands for a project, one per line
+//! (raiox suggests them from package.json: the dev server, and an API's beside
+//! it when there is one; they run only when the person presses Run), start in
+//! the project folder; the page is the first command's; raiox reads the address it prints, the panel shows the
 //! page, and headless Chrome takes screenshots of local pages. A dev server
 //! stops with Stop, or the next time raiox opens if raiox closed first (procs).
 
@@ -18,6 +19,10 @@ use crate::room;
 
 /// Lines of the dev server's output the panel shows.
 const LOG_LINES: usize = 40;
+/// Commands one project runs at once (its front, its API, a worker).
+const MAX_COMMANDS: usize = 3;
+/// Scripts that run a project's back end beside its dev server, in the order raiox prefers them.
+const API_SCRIPTS: [&str; 6] = ["dev:api", "dev:server", "dev:backend", "api", "server", "backend"];
 const SHOT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Time a page gets to run its scripts before the screenshot.
 const SHOT_BUDGET_MS: &str = "4000";
@@ -42,7 +47,8 @@ const CHROMES: [&str; 4] = [
 ];
 
 struct Running {
-    child: Child,
+    /// One per command; the first one's page is the app's.
+    children: Vec<Child>,
     command: String,
     started_ms: i64,
 }
@@ -57,6 +63,20 @@ fn log_file(state_dir: &Path, bot: &str) -> PathBuf {
     state_dir.join("previews").join(format!("{bot}.log"))
 }
 
+/// The output of a project's second or third command.
+fn extra_log(state_dir: &Path, bot: &str, index: usize) -> PathBuf {
+    if index == 0 { log_file(state_dir, bot) } else { state_dir.join("previews").join(format!("{bot}.{index}.log")) }
+}
+
+/// The commands in what the person typed: one per line.
+fn commands_of(text: &str) -> Vec<String> {
+    text.lines().map(str::trim).filter(|line| !line.is_empty()).map(str::to_string).collect()
+}
+
+fn alive(child: &mut Child) -> bool {
+    child.try_wait().ok().flatten().is_none()
+}
+
 /// The last command the person ran for a project, offered again after Stop.
 fn last_file(state_dir: &Path, bot: &str) -> PathBuf {
     state_dir.join("previews").join(format!("{bot}.cmd"))
@@ -67,6 +87,8 @@ pub fn suggest(dir: &Path) -> Option<String> {
     let manifest: Value = serde_json::from_str(&fs::read_to_string(dir.join("package.json")).ok()?).ok()?;
     let scripts = manifest.get("scripts")?;
     let script = ["dev", "start", "serve", "preview"].into_iter().find(|name| scripts.get(*name).is_some())?;
+    // A back end beside the dev server (an API, a server): it runs too, on the next line.
+    let api = API_SCRIPTS.into_iter().find(|name| *name != script && scripts.get(*name).is_some());
     let runner = if dir.join("pnpm-lock.yaml").exists() {
         "pnpm"
     } else if dir.join("yarn.lock").exists() {
@@ -76,7 +98,10 @@ pub fn suggest(dir: &Path) -> Option<String> {
     } else {
         "npm run"
     };
-    Some(format!("{runner} {script}"))
+    Some(match api {
+        Some(api) => format!("{runner} {script}\n{runner} {api}"),
+        None => format!("{runner} {script}"),
+    })
 }
 
 /// Terminal colors and cursor codes out of a dev server's output.
@@ -124,48 +149,81 @@ fn address(log: &str) -> Option<String> {
 pub fn url_of(state_dir: &Path, bot: &str) -> Option<String> {
     let mut open = running();
     let (_, run) = open.iter_mut().find(|(b, _)| b == bot)?;
-    if run.child.try_wait().ok().flatten().is_some() {
+    if !alive(&mut run.children[0]) {
         return None;
     }
     address(&plain(&fs::read_to_string(log_file(state_dir, bot)).ok()?))
 }
 
-/// Starts the person's dev command for a project. One per project at a time.
+/// Starts the person's dev commands for a project (one per line, each a process of its own).
+/// One set per project at a time.
 pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<()> {
-    let words = crate::commands::check(command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
+    let lines = commands_of(command);
+    if lines.is_empty() || lines.len() > MAX_COMMANDS {
+        bail!("give 1 to {MAX_COMMANDS} commands, one per line");
+    }
+    // Every line is checked before any starts.
+    let checked = lines
+        .iter()
+        .map(|line| crate::commands::check(line).map_err(|why| anyhow::anyhow!("raiox will not run `{line}` ({why})")))
+        .collect::<Result<Vec<_>>>()?;
     let mut open = running();
     if let Some(index) = open.iter().position(|(b, _)| b == bot) {
-        if open[index].1.child.try_wait()?.is_none() {
+        if open[index].1.children.iter_mut().any(alive) {
             bail!("the app is already running; stop it first");
         }
         open.remove(index);
     }
-    let log = log_file(state_dir, bot);
-    fs::create_dir_all(log.parent().context("no log folder")?)?;
-    let out = File::create(&log)?;
-    fs::write(last_file(state_dir, bot), command)?;
-    let mut process = crate::procs::command(&words[0]);
-    // BROWSER=none keeps dev servers from opening a tab of their own.
-    process.args(&words[1..]).current_dir(dir).stdin(Stdio::null()).stdout(out.try_clone()?).stderr(out).env("BROWSER", "none").env("FORCE_COLOR", "0").env("PYTHONUNBUFFERED", "1");
-    crate::procs::own_group(&mut process);
-    let child = process.spawn().with_context(|| format!("could not start {}", words[0]))?;
-    crate::procs::remember(state_dir, &format!("preview:{bot}"), child.id());
-    open.push((bot.to_string(), Running { child, command: command.to_string(), started_ms: room::now_ms() }));
+    fs::create_dir_all(log_file(state_dir, bot).parent().context("no log folder")?)?;
+    fs::write(last_file(state_dir, bot), lines.join("\n"))?;
+    let mut children: Vec<Child> = Vec::new();
+    for (index, words) in checked.iter().enumerate() {
+        let out = File::create(extra_log(state_dir, bot, index))?;
+        let mut process = crate::procs::command(&words[0]);
+        // BROWSER=none keeps dev servers from opening a tab of their own.
+        process.args(&words[1..]).current_dir(dir).stdin(Stdio::null()).stdout(out.try_clone()?).stderr(out).env("BROWSER", "none").env("FORCE_COLOR", "0").env("PYTHONUNBUFFERED", "1");
+        crate::procs::own_group(&mut process);
+        match process.spawn() {
+            Ok(child) => {
+                crate::procs::remember(state_dir, &key(bot, index), child.id());
+                children.push(child);
+            }
+            Err(error) => {
+                // One that cannot start takes back the ones already started.
+                for (started, mut child) in children.into_iter().enumerate() {
+                    crate::procs::kill_group(child.id(), true);
+                    let _ = child.wait();
+                    crate::procs::forget(state_dir, &key(bot, started));
+                }
+                return Err(error).with_context(|| format!("could not start {}", words[0]));
+            }
+        }
+    }
+    open.push((bot.to_string(), Running { children, command: lines.join("\n"), started_ms: room::now_ms() }));
     Ok(())
+}
+
+/// How raiox remembers a command's process, so it stops even if raiox closes first.
+fn key(bot: &str, index: usize) -> String {
+    if index == 0 { format!("preview:{bot}") } else { format!("preview:{bot}:{index}") }
 }
 
 pub fn stop(state_dir: &Path, bot: &str) -> Result<()> {
     let mut open = running();
     let index = open.iter().position(|(b, _)| b == bot).context("the app is not running")?;
     let (_, mut run) = open.remove(index);
-    crate::procs::kill_group(run.child.id(), false);
+    for child in &run.children {
+        crate::procs::kill_group(child.id(), false);
+    }
     let started = Instant::now();
-    while run.child.try_wait()?.is_none() && started.elapsed() < Duration::from_secs(3) {
+    while run.children.iter_mut().any(alive) && started.elapsed() < Duration::from_secs(3) {
         std::thread::sleep(Duration::from_millis(100));
     }
-    let _ = run.child.kill();
-    let _ = run.child.wait();
-    crate::procs::forget(state_dir, &format!("preview:{bot}"));
+    for (index, child) in run.children.iter_mut().enumerate() {
+        let _ = child.kill();
+        let _ = child.wait();
+        crate::procs::forget(state_dir, &key(bot, index));
+    }
     Ok(())
 }
 
@@ -174,15 +232,14 @@ pub fn status(state_dir: &Path, bot: &str, dir: &Path) -> Result<Value> {
     let mut open = running();
     let current = open.iter_mut().find(|(b, _)| b == bot).map(|(_, run)| run);
     let log = fs::read_to_string(log_file(state_dir, bot)).map(|text| plain(&text)).unwrap_or_default();
-    let tail: Vec<&str> = log.lines().filter(|l| !l.trim().is_empty()).collect();
-    let tail = tail[tail.len().saturating_sub(LOG_LINES)..].join("\n");
     let (running, command, started, code) = match current {
-        Some(run) => match run.child.try_wait()? {
+        Some(run) => match run.children[0].try_wait()? {
             None => (true, Some(run.command.clone()), Some(run.started_ms), None),
             Some(status) => (false, Some(run.command.clone()), Some(run.started_ms), status.code()),
         },
         None => (false, fs::read_to_string(last_file(state_dir, bot)).ok(), None, None),
     };
+    let tail = output(state_dir, bot, command.as_deref().map(commands_of).unwrap_or_default());
     Ok(json!({
         "suggestion": suggest(dir),
         "running": running,
@@ -193,6 +250,21 @@ pub fn status(state_dir: &Path, bot: &str, dir: &Path) -> Result<Value> {
         "log": tail,
         "simulator": crate::simulator::booted(),
     }))
+}
+
+/// The last lines of each command's output; with several, each under its command.
+fn output(state_dir: &Path, bot: &str, lines: Vec<String>) -> String {
+    let count = lines.len().max(1);
+    let each = LOG_LINES / count;
+    (0..count)
+        .map(|index| {
+            let log = fs::read_to_string(extra_log(state_dir, bot, index)).map(|text| plain(&text)).unwrap_or_default();
+            let kept: Vec<&str> = log.lines().filter(|l| !l.trim().is_empty()).collect();
+            let tail = kept[kept.len().saturating_sub(each)..].join("\n");
+            if count == 1 { tail } else { format!("$ {}\n{tail}", lines.get(index).map_or("", String::as_str)) }
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 fn chrome() -> Option<&'static str> {
@@ -345,6 +417,29 @@ mod tests {
         assert_eq!(suggest(&dir).as_deref(), Some("npm run dev"));
         fs::write(dir.join("pnpm-lock.yaml"), "").unwrap();
         assert_eq!(suggest(&dir).as_deref(), Some("pnpm dev"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_project_with_an_api_runs_both() {
+        let dir = std::env::temp_dir().join(format!("raiox-preview-api-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("package.json"), r#"{"scripts":{"dev":"vite","dev:api":"wrangler dev"}}"#).unwrap();
+        let suggested = suggest(&dir).unwrap();
+        assert_eq!(suggested, "npm run dev\nnpm run dev:api", "the front first: its page is the app's");
+        assert_eq!(commands_of(&format!("{suggested}\n\n  ")), vec!["npm run dev".to_string(), "npm run dev:api".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_command_is_checked_before_any_starts() {
+        let dir = std::env::temp_dir().join(format!("raiox-preview-check-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let state = dir.join(".state");
+        assert!(start(&state, "b-check", &dir, "true\nnpm run dev | tee out.log").is_err(), "a bad second line stops the first one too");
+        assert!(running().iter().all(|(bot, _)| bot != "b-check"));
+        assert!(start(&state, "b-check", &dir, "a\nb\nc\nd").is_err(), "at most three");
         let _ = fs::remove_dir_all(&dir);
     }
 }

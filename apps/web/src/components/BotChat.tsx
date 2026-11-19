@@ -76,10 +76,15 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   // The live path and the text being written grow while the bot works: the view follows them.
   const growing = busyHere ? 1 + (bot.trail?.items.length ?? 0) + Math.floor((bot.trail?.partial.length ?? 0) / 60) : 0
   const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + growing, `${bot.id}:${current}`)
-  const openPlace = (place: Place) => {
+  // Run on an AI's See the app card: the panel opens and starts the commands at once.
+  const [runSignal, setRunSignal] = useState(0)
+  const openPlace = (place: Place, run = false) => {
     if (place === 'model') setModelSignal((n) => n + 1)
     else if (place === 'settings') setSettingsOpen(true)
-    else if (place === 'app') setPreviewOpen(true)
+    else if (place === 'app') {
+      setPreviewOpen(true)
+      if (run) setRunSignal((n) => n + 1)
+    }
     else if (place === 'memories') setMemorySignal((n) => n + 1)
     else onSettings(place === 'wires' ? 'fios' : 'conexoes')
   }
@@ -287,7 +292,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}
-        {previewOpen && <PreviewPanel key={bot.id} bot={bot} bots={bots} onClose={() => setPreviewOpen(false)} />}
+        {previewOpen && <PreviewPanel key={bot.id} bot={bot} bots={bots} runSignal={runSignal} onClose={() => setPreviewOpen(false)} />}
         </div>
       </section>
     </main>

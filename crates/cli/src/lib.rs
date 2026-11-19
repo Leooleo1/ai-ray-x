@@ -37,6 +37,7 @@ pub mod profile;
 pub mod room;
 pub mod requests;
 pub mod router;
+pub mod rules;
 pub mod routines;
 pub mod mcp;
 pub mod print;
