@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 pub const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 pub const TO_MARK: &str = "RAIOX-TO";
 pub const OPEN_MARK: &str = "RAIOX-OPEN:";
+pub const RUN_MARK: &str = "RAIOX-RUN:";
+/// Most commands one answer can ask for.
+const MAX_RUNS: usize = 2;
 /// Places in the panel a bot can point to with a card.
 pub const PLACES: [&str; 5] = ["model", "settings", "memories", "connections", "wires"];
 /// Longest message for another bot, in characters.
@@ -26,6 +29,8 @@ pub struct Marked {
     pub notes: Vec<Note>,
     /// Panel places to open, from RAIOX-OPEN lines (known places only, once each).
     pub open: Vec<String>,
+    /// Commands the bot asks raiox to run, from RAIOX-RUN lines.
+    pub run: Vec<String>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -56,6 +61,11 @@ pub fn split(answer: &str) -> Marked {
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
                 marked.open.push(place);
             }
+        } else if let Some(command) = trimmed.strip_prefix(RUN_MARK) {
+            let command = unquote(command);
+            if !command.is_empty() && marked.run.len() < MAX_RUNS && !marked.run.contains(&command) {
+                marked.run.push(command);
+            }
         } else if let Some(n) = note(trimmed) {
             marked.notes.push(n);
         } else {
@@ -76,6 +86,13 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn commands_to_run_become_cards() {
+        let m = split("I need the history.\nRAIOX-RUN: `git log -1`\nRAIOX-RUN: git log -1\nRAIOX-RUN: npm test\nRAIOX-RUN: ls\n");
+        assert_eq!(m.text, "I need the history.");
+        assert_eq!(m.run, vec!["git log -1".to_string(), "npm test".to_string()]);
     }
 
     #[test]

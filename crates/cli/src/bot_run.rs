@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, TO_MARK};
+use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, TO_MARK};
 use crate::bot_steps::{self, Step};
 
 /// A bot that thinks longer than this is stopped.
@@ -42,6 +42,9 @@ pub struct Reply {
     /// Panel places the answer points to, drawn as cards with Open.
     #[serde(default)]
     pub open: Vec<String>,
+    /// Commands the bot asks raiox to run, each with why raiox refuses it, if it does.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run: Vec<crate::commands::Request>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -72,6 +75,12 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
     let base = format!(
         "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
          In this turn you can only read: do not edit files or run commands that change anything. \
+         When the answer needs a command's output (the git history, test results, line counts, a version) and you \
+         cannot run it yourself, do not guess and do not tell the person to run it: end your answer with one line\n\
+         {RUN_MARK} <command>\n\
+         (at most two such lines). raiox shows it to the person, runs it in the project folder if they approve and \
+         sends you the output. One program with its arguments: no pipes, redirections, `;`, `&&`, `$` or shells, and \
+         nothing that changes files or prints secrets. \
          Answer in the person's language, briefly. \
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
@@ -345,6 +354,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         proposal: marked.proposal,
         to: marked.notes,
         open: marked.open,
+        run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
@@ -385,6 +395,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         proposal: marked.proposal,
         to: marked.notes,
         open: marked.open,
+        run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         steps: Some(
             events
                 .iter()

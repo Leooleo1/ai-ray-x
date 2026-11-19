@@ -9,6 +9,7 @@ mod bot_steps;
 mod bot_usage;
 mod bots;
 mod connections;
+mod commands;
 mod data;
 mod drafts;
 mod links;

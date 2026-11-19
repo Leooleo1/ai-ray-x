@@ -4,6 +4,7 @@ import { faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
+import { RanBlock, RunRequestCard } from './RunCards'
 import { Expandable } from './Expandable'
 
 /** After a pause this long, the time stands above the next message again. */
@@ -48,9 +49,12 @@ interface BotLineProps {
   /** For a draft: whether it was applied, undone or discarded, and the way to do it. */
   draftState?: DraftState
   onDraft?: (action: 'apply' | 'discard' | 'undo') => void
+  /** The latest answer: the commands it asks for can still run. */
+  runnable: boolean
+  onRun: (index: number, always: boolean) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -70,6 +74,14 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       <>
         {head}
         <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
+      </>
+    )
+  }
+  if (message.author === 'you' && message.kind === 'ran') {
+    return (
+      <>
+        {head}
+        <RanBlock message={message} />
       </>
     )
   }
@@ -171,6 +183,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               )}
             </div>
           )}
+          {reply?.run?.map((request, index) => (
+            <RunRequestCard key={request.command} request={request} live={runnable} busy={bot.busy} onRun={(always) => onRun(index, always)} />
+          ))}
           {reply?.to?.map((note) => {
             const done = sent.has(`${message.ms}|${note.project}`)
             return (

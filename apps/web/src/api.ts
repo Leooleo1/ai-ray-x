@@ -197,10 +197,28 @@ export interface BotReply {
   proposal: string | null
   to?: BotNote[]
   open?: Place[]
+  /** Commands the AI asks raiox to run, each with why raiox refuses it, if it does. */
+  run?: RunRequest[]
   steps?: number | null
   read_tokens: number
   output_tokens: number
   cost_usd: number | null
+  duration_ms: number
+}
+
+export interface RunRequest {
+  command: string
+  refused?: 'long' | 'shell' | 'empty' | 'blocked' | 'inline' | 'secret'
+}
+
+/** What a command raiox ran for the AI did. */
+export interface Ran {
+  command: string
+  code: number | null
+  output: string
+  cut: boolean
+  timed_out: boolean
+  stopped: boolean
   duration_ms: number
 }
 
@@ -218,7 +236,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran'
   data: {
     text?: string
     proposal?: string
@@ -237,6 +255,9 @@ export interface BotMessage {
     blocked?: string[]
     /** What applying, undoing or discarding a draft touched. */
     paths?: string[]
+    /** A command raiox ran, and whether the person had allowed it for the project. */
+    ran?: Ran
+    allowed?: boolean
   }
 }
 
@@ -257,6 +278,8 @@ export interface Bot {
   persona: Persona | null
   model: string | null
   effort: string | null
+  /** Exact commands this bot may run without asking. */
+  allowed?: string[]
   name: string
   dir: string
   has_session: boolean
@@ -291,7 +314,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow'
 
 export interface InboxMessage {
   id: string

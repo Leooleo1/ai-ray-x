@@ -18,6 +18,9 @@ use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
 use crate::threads::{self, MAIN};
 
+mod turn;
+use turn::Turn;
+
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 
@@ -47,6 +50,9 @@ pub struct Bot {
     #[serde(default)]
     pub effort: Option<String>,
     pub created_ms: i64,
+    /// Exact commands the person lets this bot run without asking.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed: Vec<String>,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -290,6 +296,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         model: None,
         effort: None,
         created_ms: room::now_ms(),
+        allowed: Vec::new(),
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -421,7 +428,7 @@ fn said(kind: &str, data: Value) -> Message {
 /// The person talks to a bot. The answer arrives later, on its own thread.
 /// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
 pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
-    start(state_dir, None, jobs, id, MAIN, Mode::Talk, prompt, said("ask", shown))
+    start(state_dir, jobs, id, MAIN, Turn { mode: Mode::Talk, text: prompt.to_string(), asked: Some(said("ask", shown)), home: None, command: None })
 }
 
 pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
@@ -444,7 +451,7 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) ->
         Some(what) => format!("(raiox: the person {what} the change you made in a draft copy.)\n\n{text}"),
         None => text.to_string(),
     };
-    start(state_dir, None, jobs, id, thread, Mode::Talk, &for_cli, said("ask", json!({ "text": text })))
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", json!({ "text": text }))), home: None, command: None })
 }
 
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
@@ -460,12 +467,64 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
     // Every CLI edits in a fresh session inside the draft, so it gets its earlier answer as context.
     let answer = last.and_then(|m| m.data.pointer("/reply/text")).and_then(Value::as_str).unwrap_or("");
     let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.");
-    start(state_dir, Some(home), jobs, id, thread, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
+    let asked = Some(said("approve", json!({ "proposal": proposal })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None })
 }
 
-/// `home` is given for an edit: the draft copy keeps the project's path under it.
-#[allow(clippy::too_many_arguments)]
-fn start(state_dir: &Path, home: Option<&Path>, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
+/// Most commands a bot may run without asking, per project.
+const MAX_ALLOWED: usize = 40;
+
+/// Runs a command the bot asked for in its latest answer, then lets it go on with the output.
+/// With `always`, that exact command runs without asking from now on in this project.
+pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index: usize, always: bool) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    if jobs.is_busy(id) {
+        bail!("the bot is still answering");
+    }
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "sent" | "stopped" | "house"));
+    let command = last
+        .filter(|m| m.author == "bot" && m.kind == "answer")
+        .and_then(|m| m.data.pointer(&format!("/reply/run/{index}/command")).and_then(Value::as_str))
+        .map(str::to_string)
+        .context("the latest answer asks for no such command")?;
+    if always {
+        allow(state_dir, id, &command, true)?;
+    } else {
+        crate::commands::check(&command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
+    }
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command) })
+}
+
+/// Lets an exact command run without asking in this bot's project, or stops letting it.
+pub fn allow(state_dir: &Path, id: &str, command: &str, on: bool) -> Result<()> {
+    let bot = find(state_dir, id)?;
+    if on {
+        crate::commands::check(command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
+        if !bot.allowed.iter().any(|c| c == command) && bot.allowed.len() >= MAX_ALLOWED {
+            bail!("a project can have up to {MAX_ALLOWED} allowed commands");
+        }
+    }
+    update(state_dir, |bots| {
+        Ok(bots
+            .into_iter()
+            .map(|b| {
+                if b.id != id {
+                    return b;
+                }
+                let mut allowed: Vec<String> = b.allowed.iter().filter(|c| *c != command).cloned().collect();
+                if on {
+                    allowed.push(command.to_string());
+                }
+                Bot { allowed, ..b }
+            })
+            .collect())
+    })
+}
+
+fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<()> {
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
@@ -474,73 +533,15 @@ fn start(state_dir: &Path, home: Option<&Path>, jobs: &Jobs, id: &str, thread: &
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
     }
-    let file = threads::chat_file(state_dir, id, thread);
-    if let Err(error) = room::append_messages(&file, vec![asked]) {
+    if let Some(asked) = &turn.asked
+        && let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked.clone()])
+    {
         jobs.finish(id);
         return Err(error);
     }
-    let (state_dir, jobs, text, thread) = (state_dir.to_path_buf(), jobs.clone(), text.to_string(), thread.to_string());
-    let home = home.map(Path::to_path_buf);
+    let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
     std::thread::spawn(move || {
-        let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
-        // Only the projects wired to this one: the bot names no others and can message no others.
-        let others: Vec<String> = crate::links::linked(&state_dir, &bot.name);
-        let mut unwired: Vec<String> = list(&state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
-        unwired.sort();
-        unwired.dedup();
-        let defaults = crate::settings::Settings::load(&state_dir).defaults_for(&bot.agent);
-        // An approved edit happens in the bot's working copy of the project, never in the project itself.
-        let work = match (mode, &home) {
-            (Mode::Edit, Some(home)) => match crate::drafts::prepare(&state_dir, home, &bot.id, &bot.dir) {
-                Ok(work) => Some(work),
-                Err(error) => {
-                    let _ = room::append_messages(&file, vec![note("failed", json!({ "error": format!("could not make the draft copy: {error:#}") }))]);
-                    jobs.finish(&bot.id);
-                    return;
-                }
-            },
-            _ => None,
-        };
-        let work_dir = work.as_ref().map_or_else(|| bot.dir.clone(), |work| work.dir.clone());
-        let target = bot_run::Target {
-            agent: &bot.agent,
-            dir: &work_dir,
-            // The team notes from ai-memory: what the other bots here and in wired projects did lately.
-            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others, &unwired) + &crate::team::context_for(&state_dir, &bot),
-            // A draft starts a fresh session there; talk continues the conversation's own.
-            session: if work.is_some() { None } else { session.as_deref() },
-            model: bot.model.as_deref().or(defaults.model.as_deref()),
-            effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
-        };
-        let stop = || jobs.should_stop(&bot.id);
-        let on_step = |step| jobs.set_step(&bot.id, step);
-        let outcome = match bot_run::run(&target, mode, &text, &scratch, &stop, &on_step) {
-            // The CLI lost the session (its history was cleared): the talk goes on in a fresh one.
-            Err(error) if target.session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
-                bot_run::run(&bot_run::Target { session: None, ..target }, mode, &text, &scratch, &stop, &on_step)
-            }
-            other => other,
-        };
-        let message = match outcome {
-            Ok(reply) => {
-                // Messages for projects without a bot are dropped: nobody there would read them.
-                let reply = bot_run::Reply { to: reply.to.into_iter().filter(|n| others.contains(&n.project)).collect(), ..reply };
-                if reply.session.is_some() && reply.session != session && bot_run::keeps_session(mode) {
-                    let _ = set_thread_session(&state_dir, &bot.id, &thread, reply.session.clone());
-                }
-                match &work {
-                    Some(work) => drafted(&state_dir, &bot.id, work, &reply),
-                    None => note("answer", json!({ "mode": "talk", "reply": reply })),
-                }
-            }
-            Err(error) => {
-                if work.is_some() {
-                    crate::drafts::abandon(&state_dir, &bot.id);
-                }
-                if error.to_string() == bot_run::STOPPED { note("stopped", json!({})) } else { note("failed", json!({ "error": format!("{error:#}") })) }
-            }
-        };
-        let _ = room::append_messages(&file, vec![message]);
+        turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
         jobs.finish(&bot.id);
         crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
     });
@@ -566,6 +567,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "persona": bot.persona,
                 "model": bot.model,
                 "effort": bot.effort,
+                "allowed": bot.allowed,
                 "busy": jobs.is_busy(&bot.id),
                 "busy_thread": jobs.thread_of(&bot.id),
                 "step": jobs.step_of(&bot.id),

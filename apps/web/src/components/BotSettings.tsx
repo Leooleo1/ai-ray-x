@@ -104,6 +104,22 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
           </>
         )}
 
+        <span className="ajustes-grupo">{t.allowedCommands}</span>
+        {(bot.allowed ?? []).length === 0 ? (
+          <p className="ajustes-nota">{t.allowedNone}</p>
+        ) : (
+          <ul className="liberados">
+            {(bot.allowed ?? []).map((command) => (
+              <li key={command}>
+                <code>{command}</code>
+                <button type="button" onClick={() => void bots.act('disallow', { id: bot.id, command })}>
+                  {t.disallow}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <span className="ajustes-grupo">{t.routines}</span>
         <RoutinesEditor bot={bot} bots={bots} />
 

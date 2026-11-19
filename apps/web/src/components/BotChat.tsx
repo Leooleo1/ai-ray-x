@@ -85,6 +85,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const face = faceForBot(bot)
   const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
+  const pendingRun = latestAnswer(messages)
   const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
   // Each draft's latest fate: applied, undone or discarded; open until one of those.
@@ -175,6 +176,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               message={message}
               previous={messages[index - 1]}
               approvable={index === pending}
+              runnable={index === pendingRun}
+              onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
               onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
@@ -256,6 +259,16 @@ function useInbox(bot: Bot) {
 }
 
 /** The answer whose proposal can still be approved: the latest one, if nothing but failures came after it. */
+/** The latest answer, when nothing came after it: the commands it asks for can still run. */
+function latestAnswer(messages: BotMessage[]): number {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i]
+    if (m.kind === 'failed' || m.kind === 'sent' || m.kind === 'stopped' || m.kind === 'house') continue
+    return m.author === 'bot' && m.kind === 'answer' ? i : -1
+  }
+  return -1
+}
+
 function pendingProposal(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]

@@ -183,6 +183,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
         "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "run" => {
+            let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
+            bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
+        }
+        "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
         "link_toggle" => {

@@ -26,6 +26,10 @@ Code, Codex or Cursor), with the project's context:
   of the project (following your `.gitignore`, without secrets files) and you
   see what changed in each file, then apply it to the project (with undo) or
   discard it;
+- when an answer needs a command's output (the git history, the tests), the AI
+  asks for it and raiox runs that exact command in the project folder, without
+  a shell, after you approve it, or on its own once you allow it for the
+  project;
 - every answer shows what it read, and the bar shows each step live
   (reading a file, searching, running a command);
 - parallel conversations, pinned answers, routines on a schedule, one
@@ -95,6 +99,9 @@ describes the three house agents.
   never enter the copies the AIs edit. Claude Code is also denied reading
   them while talking; Codex and Cursor have no such switch, so they are only
   told not to.
+- Commands that would open secrets files are refused before you are asked,
+  variables that look like secrets stay out of their environment, and values
+  that look like secrets are hidden in their output.
 - Chats run your own CLI, which talks to its own provider under your account.
 
 ## Status
