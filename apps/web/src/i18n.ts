@@ -1,6 +1,9 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  profileMenu: 'Profile and settings',
+  profileHelp: 'How it works',
+  profileRedo: 'Redo the setup',
   phoneNotifies: 'notifications',
   pairCode: 'Pairing code',
   pairButton: 'Pair',
@@ -498,6 +501,9 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  profileMenu: 'Perfil e ajustes',
+  profileHelp: 'Como funciona',
+  profileRedo: 'Refazer configuração',
   phoneNotifies: 'avisos',
   pairCode: 'Código de pareamento',
   pairButton: 'Parear',

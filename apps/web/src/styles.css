@@ -149,14 +149,12 @@ body {
 .lado-rodape {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: auto 8px 0;
-  color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  margin-top: auto;
 }
 
-.lado-rodape .lado-nota {
-  font: 12px/18px var(--sans);
+/* Settings live in the profile menu on a computer; the phone's tab bar keeps them. */
+.lado-item.so-celular {
+  display: none;
 }
 
 /* Segmented control: one glass track, a thumb that slides to the active option */
@@ -823,6 +821,10 @@ body {
 }
 
 @media (max-width: 960px) {
+  .lateral .lado-item.so-celular {
+    display: grid;
+  }
+
   .agente,
   .agente-heroi {
     grid-column: 1 / -1;

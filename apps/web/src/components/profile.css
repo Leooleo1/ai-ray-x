@@ -1,0 +1,182 @@
+/* The sidebar's foot: the person, and a menu that opens upward. */
+.perfil {
+  position: relative;
+  margin: auto 0 0;
+  padding-top: 8px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.perfil-botao {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+
+.perfil-botao:hover,
+.perfil-botao.aberto {
+  background: var(--vidro-7);
+}
+
+.perfil-monograma {
+  position: relative;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: #17171d;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    0 0 0 1px rgb(255 255 255 / 12%);
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.02em;
+}
+
+/* Updated: the panel's data is fresh. */
+.perfil-monograma i {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 2px #0a0a0d;
+}
+
+.perfil-nome {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.perfil-nome b,
+.perfil-nome small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perfil-nome b {
+  font: 500 14px/18px var(--sans);
+}
+
+.perfil-nome small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.perfil-seta,
+.perfil-item svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.perfil-seta {
+  width: 16px;
+  height: 16px;
+  color: var(--nevoa);
+}
+
+.perfil-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 14px;
+  background: #121217;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 0 0 1px rgb(255 255 255 / 10%),
+    0 24px 56px -12px rgb(0 0 0 / 85%);
+  animation: perfil-abre 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes perfil-abre {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.perfil-quem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  margin-bottom: 4px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.perfil-quem b {
+  overflow: hidden;
+  font: 500 14px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.perfil-quem small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.perfil-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 13px/18px var(--sans);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.perfil-item:hover,
+.perfil-item:focus-visible {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.perfil-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.perfil-nota {
+  margin: 4px 0 0;
+  padding: 10px 10px 4px;
+  box-shadow: inset 0 1px 0 var(--fio);
+  color: var(--nevoa);
+  font: 11px/16px var(--sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .perfil-menu {
+    animation: none;
+  }
+}

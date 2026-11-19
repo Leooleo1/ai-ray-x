@@ -165,6 +165,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> 
             ))),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home))),
         (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(

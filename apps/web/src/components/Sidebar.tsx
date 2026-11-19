@@ -1,8 +1,9 @@
 import type { Bot } from '../api'
 import { faceForBot } from '../avatars'
-import { nowStamp, t } from '../i18n'
+import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon } from './Icons'
+import { ProfileMenu } from './ProfileMenu'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
@@ -18,10 +19,13 @@ interface SidebarProps {
   updatedAt: Date
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
+  /** Opens Settings on one of its tabs (from the profile menu). */
+  onSettings: (tab: 'conexoes' | 'celular') => void
+  onSetup: () => void
 }
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
-export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, onChat }: SidebarProps) {
+export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, onChat, onSettings, onSetup }: SidebarProps) {
   const nav: { id: Tab; label: string; short?: string; icon: 'xray' | 'efficiency' | 'agents' | 'desk' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
@@ -37,7 +41,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, o
       </span>
       <nav className="lado-grupo lado-menu" aria-label="raiox">
         {nav.map((item) => (
-          <button key={item.id} className={`lado-item ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => onTab(item.id)}>
+          <button key={item.id} className={`lado-item ${item.id === 'settings' ? 'so-celular' : ''} ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => onTab(item.id)}>
             <Icon name={item.icon} />
             <span className="nome">{item.label}</span>
             {item.short && <span className="nome curto">{item.short}</span>}
@@ -84,12 +88,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, o
         </button>
       </div>
       <footer className="lado-rodape">
-        <span>{nowStamp(updatedAt)}</span>
-        <span className="estado">
-          <i className="ponto ok" />
-          {t.updated}
-        </span>
-        <span className="lado-nota">{t.roomRule}</span>
+        <ProfileMenu bots={bots} updatedAt={updatedAt} onSettings={onSettings} onSetup={onSetup} />
       </footer>
     </aside>
   )

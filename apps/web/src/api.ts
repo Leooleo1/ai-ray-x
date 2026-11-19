@@ -681,6 +681,16 @@ export interface Pairing {
   expires_ms: number
 }
 
+/** Who uses the panel: the account's full name and the GitHub login, read on the computer. */
+export interface Profile {
+  name: string | null
+  github: string | null
+}
+
+export function fetchProfile(): Promise<Profile> {
+  return request<Profile>('/api/profile')
+}
+
 export function fetchRemote(): Promise<RemoteState> {
   return request<RemoteState>('/api/remote')
 }

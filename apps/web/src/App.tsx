@@ -233,6 +233,11 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           go(next)
         }}
         onChat={openChat}
+        onSettings={(next) => {
+          setSettingsTab(next)
+          go('settings')
+        }}
+        onSetup={onSetup}
       />
       <div className="principal">
         <div className="titulo">

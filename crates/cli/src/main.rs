@@ -25,6 +25,7 @@ mod memo;
 mod pins;
 mod preview;
 mod procs;
+mod profile;
 mod room;
 mod routines;
 mod mcp;
