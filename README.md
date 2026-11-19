@@ -237,8 +237,16 @@ raiox diet      Dieta's ranked suggestions (JSON); never applies anything
 raiox apply     Apply a suggestion to this project (backup and ledger)
 raiox undo      Undo an applied change by its id
 raiox ask       Ask Raio, Dieta or Memo about this project
-raiox mcp       Read-only MCP server over stdio
+raiox mcp       MCP server over stdio (reads; proposes team changes)
 ```
+
+**Set up your team from a chat.** Add the MCP server to the AI you talk to
+(for Claude Code: `claude mcp add raiox -- raiox mcp`) and ask, in plain words,
+for a bot in a project, a routine, a task, a channel or a message to a
+channel. It reads the team with `raiox_team` and calls `propose_change`;
+nothing is applied then. Each request waits under "Asked from a chat" on the
+Desk until you approve it there (on the computer, never from the phone) or
+discard it.
 
 `skills/token-diet` teaches an agent when to call these, and `docs/agents.md`
 describes the three house agents.

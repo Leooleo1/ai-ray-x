@@ -131,6 +131,10 @@ pub fn for_device(state_dir: &Path, mut state: Value) -> Value {
     if let Some(bots) = state.get_mut("bots").and_then(Value::as_array_mut) {
         bots.retain(|bot| !is_hidden(&bot["id"]));
     }
+    // Requests from a chat are approved on the computer only.
+    if let Some(object) = state.as_object_mut() {
+        object.remove("requests");
+    }
     if let Some(channels) = state.get_mut("channels").and_then(Value::as_array_mut) {
         channels.retain(|channel| !channel["members"].as_array().is_some_and(|members| members.iter().any(|m| is_hidden(&m["bot"]))));
     }

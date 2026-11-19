@@ -396,7 +396,33 @@ export interface BotsState {
   links: [string, string][]
   batches: Batch[]
   channels: Channel[]
+  /** Changes an AI asked for from a chat (raiox's MCP), waiting for the person. Absent on paired devices. */
+  requests?: ChatRequest[]
   max_text: number
+}
+
+export type ChatRequestKind = 'add_bot' | 'add_routine' | 'add_task' | 'new_channel' | 'channel_post'
+
+/** A change asked for from a chat; nothing happens until the person approves it. */
+export interface ChatRequest {
+  id: string
+  kind: ChatRequestKind
+  input: {
+    project?: string
+    agent?: string
+    bot?: string
+    text?: string
+    days?: number[]
+    hour?: number
+    minute?: number
+    title?: string
+    detail?: string
+    name?: string
+    members?: string[]
+    channel?: string
+  }
+  why: string
+  created_ms: number
 }
 
 /** One item of a channel: the person's message or pass (no bot), or a member's message in its channel conversation. */
@@ -417,7 +443,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'request_approve' | 'request_discard'
 
 export interface InboxMessage {
   id: string

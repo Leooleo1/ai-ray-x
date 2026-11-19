@@ -1,6 +1,16 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  requestsTitle: 'Asked from a chat',
+  requestsNote: 'an AI you talk to asked for these changes; nothing happens until you approve',
+  requestApprove: 'Approve',
+  requestDiscard: 'Discard',
+  requestAddBot: 'Turn on {agent} in {project}',
+  requestAddRoutine: 'Routine for {bot}, {days} at {time}: “{text}”',
+  requestAddTask: 'Task for {bot}: {title}',
+  requestNewChannel: 'Channel #{name} with {members}',
+  requestPost: 'Message in #{channel}: “{text}”',
+  requestPostCost: 'the bots in it answer, which costs tokens',
   boardTitle: 'Board',
   boardAuto: 'Bots pick tasks up',
   boardAutoNote: 'each idle bot starts its next task by itself',
@@ -559,6 +569,16 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  requestsTitle: 'Pedidos pelo chat',
+  requestsNote: 'uma IA com quem você conversa pediu estas mudanças; nada acontece até você aprovar',
+  requestApprove: 'Aprovar',
+  requestDiscard: 'Descartar',
+  requestAddBot: 'Ativar {agent} em {project}',
+  requestAddRoutine: 'Rotina para {bot}, {days} às {time}: “{text}”',
+  requestAddTask: 'Tarefa para {bot}: {title}',
+  requestNewChannel: 'Canal #{name} com {members}',
+  requestPost: 'Mensagem em #{channel}: “{text}”',
+  requestPostCost: 'os bots do canal respondem, e isso gasta tokens',
   boardTitle: 'Quadro',
   boardAuto: 'Os bots pegam tarefas',
   boardAutoNote: 'cada bot livre começa a próxima tarefa dele sozinho',

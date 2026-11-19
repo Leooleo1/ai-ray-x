@@ -31,6 +31,7 @@ pub mod preview;
 pub mod procs;
 pub mod profile;
 pub mod room;
+pub mod requests;
 pub mod router;
 pub mod routines;
 pub mod mcp;

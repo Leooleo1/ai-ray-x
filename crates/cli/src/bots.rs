@@ -755,6 +755,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         "links": crate::links::list(state_dir),
         "batches": crate::batches::list(state_dir),
         "channels": crate::channels::state(state_dir),
+        "requests": crate::requests::list(state_dir),
         "max_text": MAX_TEXT,
     }))
 }

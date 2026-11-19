@@ -1,8 +1,10 @@
-//! `raiox mcp`: a read-only MCP server over stdio (newline-delimited JSON-RPC).
+//! `raiox mcp`: an MCP server over stdio (newline-delimited JSON-RPC).
 //! Tools answer with small JSON on purpose: every token they return lands in
-//! the caller's context. Nothing here changes a setting.
+//! the caller's context. Nothing here changes a setting: `propose_change` only
+//! queues a request that the person approves, or not, on raiox's Desk.
 
 use std::io::{self, BufRead, Write};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use raiox_core::model::{CLAUDE, CODEX};
@@ -13,9 +15,11 @@ const FALLBACK_PROTOCOL: &str = "2025-06-18";
 const TOP_ITEMS: usize = 6;
 const INSTRUCTIONS: &str = "raiox reads the local logs of Claude Code and Codex and reports where tokens go. \
 Call context_status to see how much context the current session carries, what_weighs for the heaviest \
-items over time, and suggest_diet for ranked ways to carry less. Read-only: it never changes settings.";
+items over time, and suggest_diet for ranked ways to carry less. To set up the person's AI team (a bot for a project, \
+a routine, a task, a channel, a message to a channel), call raiox_team for the ids, then propose_change: nothing is \
+applied until the person approves it on raiox's Desk, so tell them it waits there.";
 
-pub fn run(mut store: Store, roots: Roots) -> Result<()> {
+pub fn run(mut store: Store, roots: Roots, state_dir: PathBuf) -> Result<()> {
     let stdin = io::stdin();
     let mut out = io::stdout().lock();
     for line in stdin.lock().lines() {
@@ -23,7 +27,7 @@ pub fn run(mut store: Store, roots: Roots) -> Result<()> {
         if line.trim().is_empty() {
             continue;
         }
-        let Some(reply) = handle(&mut store, &roots, &line) else { continue };
+        let Some(reply) = handle(&mut store, &roots, &state_dir, &line) else { continue };
         writeln!(out, "{reply}")?;
         out.flush()?;
     }
@@ -31,7 +35,7 @@ pub fn run(mut store: Store, roots: Roots) -> Result<()> {
 }
 
 /// Returns the response line, or None for notifications.
-fn handle(store: &mut Store, roots: &Roots, line: &str) -> Option<Value> {
+fn handle(store: &mut Store, roots: &Roots, state_dir: &Path, line: &str) -> Option<Value> {
     let request: Value = match serde_json::from_str(line) {
         Ok(value) => value,
         Err(_) => return Some(error(Value::Null, -32700, "parse error")),
@@ -48,7 +52,7 @@ fn handle(store: &mut Store, roots: &Roots, line: &str) -> Option<Value> {
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({ "tools": tool_list() })),
-        "tools/call" => Ok(call_tool(store, roots, &params)),
+        "tools/call" => Ok(call_tool(store, roots, state_dir, &params)),
         _ => Err((-32601, format!("method not found: {method}"))),
     };
     Some(match result {
@@ -81,19 +85,54 @@ fn tool_list() -> Value {
             "description": "Ranked suggestions to carry less context, each with evidence, an estimated saving and how to apply it. Suggestions only; a person applies them.",
             "inputSchema": { "type": "object", "properties": { "source": source }, "additionalProperties": false },
             "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "raiox_team",
+            "description": "The person's AI team in raiox: bots (id, project, agent, role) and channels (id, name, member bot ids).",
+            "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "propose_change",
+            "description": "Proposes a change to the person's AI team. It is NOT applied: it waits on raiox's Desk until the person approves it. \
+kind add_bot: project (folder in the home, e.g. Projects/shop), agent (claude, codex, cursor, antigravity, opencode). \
+add_routine: bot, text (the question), days (0 Monday … 6 Sunday), hour, minute. add_task: bot, title, detail. \
+new_channel: name, members (bot ids, the first one leads). channel_post: channel, text (the bots in it answer, which costs tokens).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "kind": { "type": "string", "enum": crate::requests::KINDS },
+                    "why": { "type": "string", "description": "One line the person reads next to Approve" },
+                    "project": { "type": "string" }, "agent": { "type": "string" },
+                    "bot": { "type": "string" }, "text": { "type": "string" },
+                    "days": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 6 } },
+                    "hour": { "type": "integer", "minimum": 0, "maximum": 23 }, "minute": { "type": "integer", "minimum": 0, "maximum": 59 },
+                    "title": { "type": "string" }, "detail": { "type": "string" },
+                    "name": { "type": "string" }, "members": { "type": "array", "items": { "type": "string" } },
+                    "channel": { "type": "string" }
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false }
         }
     ])
 }
 
-fn call_tool(store: &mut Store, roots: &Roots, params: &Value) -> Value {
+fn call_tool(store: &mut Store, roots: &Roots, state_dir: &Path, params: &Value) -> Value {
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
     let args = params.get("arguments").cloned().unwrap_or(Value::Null);
-    let outcome = raiox_core::refresh(store, roots).and_then(|_| match name {
+    let outcome = match name {
+        // The team and its requests do not need the logs read again.
+        "raiox_team" => Ok(crate::requests::team(state_dir)),
+        "propose_change" => propose(state_dir, &roots.home, &args),
+        _ => raiox_core::refresh(store, roots).and_then(|_| match name {
         "context_status" => context_status(store, &args),
         "what_weighs" => what_weighs(store, &args),
         "suggest_diet" => suggest_diet(store, &args),
         other => Err(anyhow::anyhow!("unknown tool: {other}")),
-    });
+        }),
+    };
     match outcome {
         Ok(value) => {
             let value = round_floats(value);
@@ -101,6 +140,13 @@ fn call_tool(store: &mut Store, roots: &Roots, params: &Value) -> Value {
         }
         Err(err) => json!({ "content": [{ "type": "text", "text": format!("{err:#}") }], "isError": true }),
     }
+}
+
+fn propose(state_dir: &Path, home: &Path, args: &Value) -> Result<Value> {
+    let kind = args.get("kind").and_then(Value::as_str).unwrap_or("");
+    let why = args.get("why").and_then(Value::as_str).unwrap_or("");
+    let id = crate::requests::propose(state_dir, home, kind, args, why)?;
+    Ok(json!({ "request": id, "status": "waiting", "next": "Tell the person it waits for their approval on raiox's Desk (Mesa, in raiox open)." }))
 }
 
 pub fn context_status(store: &Store, args: &Value) -> Result<Value> {

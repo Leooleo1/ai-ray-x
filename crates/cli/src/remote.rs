@@ -18,7 +18,7 @@ use crate::{access, devices, tunnel};
 fn desk_only(method: &Method, path: &str) -> bool {
     path.starts_with("/api/remote")
         || (*method != Method::Get && (path.starts_with("/api/setup") || path == "/api/settings"))
-        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants"].contains(&path)
+        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/request_approve", "/api/bot/request_discard"].contains(&path)
 }
 
 fn bearer(request: &Request) -> Option<&str> {

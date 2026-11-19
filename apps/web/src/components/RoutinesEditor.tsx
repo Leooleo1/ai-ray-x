@@ -10,7 +10,7 @@ const WORKDAYS = [0, 1, 2, 3, 4]
 /** "Monday" for 0, in the reader's language (2026-11-16 was a Monday). */
 const dayName = (d: number, style: 'short' | 'long') => new Date(2026, 10, 16 + d).toLocaleDateString(locale, { weekday: style }).replace('.', '')
 
-function daysLabel(days: number[]): string {
+export function daysLabel(days: number[]): string {
   if (days.length === 7) return t.everyDay
   if (days.join() === WORKDAYS.join()) return t.workdays
   return days.map((d) => dayName(d, 'short')).join(', ')

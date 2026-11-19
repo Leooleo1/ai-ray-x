@@ -8,6 +8,7 @@ import { when } from './chat/listParts'
 import type { ChatNav } from './chat/nav'
 import { TrailView } from './chat/TrailView'
 import { waitingOf } from './chat/waiting'
+import { ChatRequests } from './ChatRequests'
 import { TaskBoard } from './TaskBoard'
 import './desk.css'
 
@@ -57,6 +58,7 @@ export function Desk({ bots, nav }: DeskProps) {
   const ordered = [...working].sort((a, b) => a.name.localeCompare(b.name) || a.agent.localeCompare(b.agent))
   return (
     <main className="mesa">
+      <ChatRequests bots={bots} />
       <TaskBoard bots={all} nav={nav} />
       <section className="mesa-secao">
         <h2>

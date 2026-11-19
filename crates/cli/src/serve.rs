@@ -296,6 +296,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_changed" => crate::routines::set_only_if_changed(state_dir, field("routine"), input.get("on").and_then(Value::as_bool).unwrap_or(false)),
         "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
         "grants" => bots::set_grants(state_dir, jobs, field("id"), input),
+        "request_approve" => crate::requests::approve(state_dir, &panel.roots.home, jobs, field("request")),
+        "request_discard" => crate::requests::discard(state_dir, field("request")),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
         "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
