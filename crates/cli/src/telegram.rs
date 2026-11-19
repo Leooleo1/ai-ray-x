@@ -328,9 +328,9 @@ mod tests {
 
     #[test]
     fn only_a_botfather_token_is_taken() {
-        assert!(valid_token("123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw"));
+        assert!(valid_token("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
         assert!(!valid_token("123:short"));
-        assert!(!valid_token("123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw\"\nurl = \"http://evil"), "nothing that could add a line to curl's config");
+        assert!(!valid_token("123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\nurl = \"http://evil"), "nothing that could add a line to curl's config");
         assert_eq!(quoted("a\"b\\c"), "\"a\\\"b\\\\c\"");
     }
 
