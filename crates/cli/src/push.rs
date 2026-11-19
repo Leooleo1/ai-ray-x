@@ -6,7 +6,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{bail, Context, Result};
 use base64::Engine;
@@ -131,8 +131,8 @@ fn vapid(state_dir: &Path, endpoint: &str) -> Result<String> {
 /// Sends one note; gives the push service's HTTP status.
 fn send(state_dir: &Path, push: &Subscription, note: &Value) -> Result<u16> {
     let body = encrypt(&unb64(&push.p256dh)?, &unb64(&push.auth)?, note.to_string().as_bytes())?;
-    let mut child = Command::new("curl")
-        .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "15", "--proto", "=https", "-X", "POST"])
+    let mut child = crate::procs::command("curl")
+        .args(["-sS", "-o", if cfg!(windows) { "NUL" } else { "/dev/null" }, "-w", "%{http_code}", "--max-time", "15", "--proto", "=https", "-X", "POST"])
         .args(["-H", &format!("TTL: {TTL_S}"), "-H", "Content-Encoding: aes128gcm", "-H", "Content-Type: application/octet-stream", "-H", "Urgency: normal"])
         .args(["-H", &format!("Authorization: {}", vapid(state_dir, &push.endpoint)?)])
         .args(["--data-binary", "@-", &push.endpoint])

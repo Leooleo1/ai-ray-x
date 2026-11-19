@@ -6,7 +6,7 @@
 
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use anyhow::{bail, Context, Result};
@@ -74,7 +74,7 @@ fn save(state_dir: &Path, config: &Config) -> Result<()> {
 }
 
 fn installed() -> bool {
-    Command::new("cloudflared").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    crate::procs::command("cloudflared").arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }
 
 fn valid_hostname(host: &str) -> bool {
@@ -116,7 +116,7 @@ fn quick_host(log: &str) -> Option<String> {
 
 fn spawn(state_dir: &Path, port: u16, config: &Config) -> Result<Running> {
     let out = File::create(log_file(state_dir))?;
-    let mut command = Command::new("cloudflared");
+    let mut command = crate::procs::command("cloudflared");
     command.args(["tunnel", "--no-autoupdate"]);
     let origin = format!("http://127.0.0.1:{port}");
     match config.mode {
@@ -124,8 +124,7 @@ fn spawn(state_dir: &Path, port: u16, config: &Config) -> Result<Running> {
         Mode::Named => command.args(["run", "--url", &origin, &config.tunnel]),
     };
     command.stdin(Stdio::null()).stdout(out.try_clone()?).stderr(out);
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    crate::procs::own_group(&mut command);
     let child = command.spawn().context("could not start cloudflared")?;
     procs::remember(state_dir, KEY, child.id());
     let host = (config.mode == Mode::Named).then(|| config.hostname.clone());
@@ -134,7 +133,7 @@ fn spawn(state_dir: &Path, port: u16, config: &Config) -> Result<Running> {
 
 fn halt(state_dir: &Path, current: &mut Option<Running>) {
     if let Some(mut run) = current.take() {
-        procs::kill_group(run.child.id());
+        procs::kill_group(run.child.id(), false);
         let _ = run.child.wait();
         procs::forget(state_dir, KEY);
     }
@@ -144,7 +143,7 @@ fn halt(state_dir: &Path, current: &mut Option<Running>) {
 pub fn set(state_dir: &Path, port: u16, config: Config) -> Result<()> {
     check(&config)?;
     if config.on && !installed() {
-        bail!("cloudflared is not installed (macOS: brew install cloudflared)");
+        bail!("cloudflared is not installed (macOS: brew install cloudflared; Windows: winget install Cloudflare.cloudflared)");
     }
     let mut current = running();
     halt(state_dir, &mut current);

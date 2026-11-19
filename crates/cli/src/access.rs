@@ -3,7 +3,7 @@
 //! itself (signature against the team's public keys, audience, issuer and
 //! time), so a hostname left without an Access policy still lets nobody in.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -31,7 +31,7 @@ pub fn valid_aud(aud: &str) -> bool {
 }
 
 fn fetch_keys(team: &str) -> Result<Value> {
-    let output = Command::new("curl")
+    let output = crate::procs::command("curl")
         .args(["-fsS", "--max-time", "10", "--proto", "=https"])
         .arg(format!("https://{team}/cdn-cgi/access/certs"))
         .stdin(Stdio::null())

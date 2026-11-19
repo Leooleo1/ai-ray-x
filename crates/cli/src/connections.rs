@@ -3,7 +3,7 @@
 //! bot). Only how someone is signed in is read, never who (no e-mail).
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use raiox_core::Store;
@@ -20,7 +20,9 @@ pub struct Known {
     pub id: &'static str,
     pub name: &'static str,
     binary: &'static str,
+    /// The install line for macOS and Linux, and for Windows (PowerShell).
     install: &'static str,
+    install_windows: &'static str,
     login: &'static str,
     /// raiox can run it as a project bot.
     pub bots: bool,
@@ -29,13 +31,13 @@ pub struct Known {
 }
 
 pub const KNOWN: [Known; 6] = [
-    Known { id: "claude", name: "Claude Code", binary: "claude", install: "curl -fsSL https://claude.ai/install.sh | bash", login: "claude auth login", bots: true, xray: true },
-    Known { id: "codex", name: "Codex", binary: "codex", install: "npm install -g @openai/codex", login: "codex login", bots: true, xray: true },
-    Known { id: "cursor", name: "Cursor", binary: "cursor-agent", install: "curl https://cursor.com/install -fsS | bash", login: "cursor-agent login", bots: true, xray: false },
-    Known { id: "opencode", name: "opencode", binary: "opencode", install: "curl -fsSL https://opencode.ai/install | bash", login: "opencode auth login", bots: false, xray: false },
+    Known { id: "claude", name: "Claude Code", binary: "claude", install: "curl -fsSL https://claude.ai/install.sh | bash", install_windows: "irm https://claude.ai/install.ps1 | iex", login: "claude auth login", bots: true, xray: true },
+    Known { id: "codex", name: "Codex", binary: "codex", install: "npm install -g @openai/codex", install_windows: "npm install -g @openai/codex", login: "codex login", bots: true, xray: true },
+    Known { id: "cursor", name: "Cursor", binary: "cursor-agent", install: "curl https://cursor.com/install -fsS | bash", install_windows: "irm 'https://cursor.com/install?win32=true' | iex", login: "agent login", bots: true, xray: false },
+    Known { id: "opencode", name: "opencode", binary: "opencode", install: "curl -fsSL https://opencode.ai/install | bash", install_windows: "npm install -g opencode-ai", login: "opencode auth login", bots: false, xray: false },
     // Google replaced Gemini CLI with Antigravity CLI (`agy`); its first run signs in with Google.
-    Known { id: "antigravity", name: "Antigravity CLI", binary: "agy", install: "curl -fsSL https://antigravity.google/cli/install.sh | bash", login: "agy", bots: false, xray: false },
-    Known { id: "copilot", name: "GitHub Copilot CLI", binary: "copilot", install: "npm install -g @github/copilot", login: "copilot login", bots: false, xray: false },
+    Known { id: "antigravity", name: "Antigravity CLI", binary: "agy", install: "curl -fsSL https://antigravity.google/cli/install.sh | bash", install_windows: "irm https://antigravity.google/cli/install.ps1 | iex", login: "agy", bots: false, xray: false },
+    Known { id: "copilot", name: "GitHub Copilot CLI", binary: "copilot", install: "npm install -g @github/copilot", install_windows: "npm install -g @github/copilot", login: "copilot login", bots: false, xray: false },
 ];
 
 pub fn known(id: &str) -> Option<&'static Known> {
@@ -69,7 +71,7 @@ pub struct Status {
 
 /// Runs a short command and gives up after the probe timeout.
 pub fn probe(program: &str, args: &[&str]) -> Option<std::process::Output> {
-    let mut child = Command::new(program).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().ok()?;
+    let mut child = crate::procs::command(program).args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().ok()?;
     let started = Instant::now();
     loop {
         match child.try_wait() {
@@ -198,7 +200,7 @@ pub fn statuses(probes: Vec<Probe>, usage: &[(u64, u64)], settings: &Settings) -
                 plan,
                 sessions,
                 requests,
-                install: k.install,
+                install: if cfg!(windows) { k.install_windows } else { k.install },
                 login: k.login,
                 bots: k.bots,
                 xray: k.xray,

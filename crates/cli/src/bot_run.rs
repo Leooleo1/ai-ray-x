@@ -176,7 +176,7 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
         Mode::Talk => "Read,Grep,Glob",
         Mode::Edit => "Read,Grep,Glob,Edit,Write",
     };
-    let mut command = Command::new("claude");
+    let mut command = crate::procs::command("claude");
     command
         .current_dir(target.dir)
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
@@ -207,7 +207,7 @@ fn codex(target: &Target, mode: Mode) -> Command {
         Mode::Talk => "sandbox_mode=\"read-only\"",
         Mode::Edit => "sandbox_mode=\"workspace-write\"",
     };
-    let mut command = Command::new("codex");
+    let mut command = crate::procs::command("codex");
     command.current_dir(target.dir).arg("exec");
     if let Some(id) = target.session {
         command.args(["resume", id]);
@@ -232,7 +232,7 @@ fn codex(target: &Target, mode: Mode) -> Command {
 /// a fresh agent-mode session, because a resumed session keeps its mode.
 /// Shell commands stay denied (no --force).
 fn cursor(target: &Target, mode: Mode) -> Command {
-    let mut command = Command::new("cursor-agent");
+    let mut command = crate::procs::command("cursor-agent");
     command.current_dir(target.dir).args(["-p", "--output-format", "stream-json", "--stream-partial-output", "--trust", "--workspace"]).arg(target.dir);
     if mode == Mode::Talk {
         command.args(["--mode", "ask"]);

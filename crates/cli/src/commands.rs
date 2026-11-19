@@ -8,7 +8,7 @@
 
 use std::io::Read;
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -23,11 +23,15 @@ const MAX_OUTPUT: usize = 12_000;
 const POLL: Duration = Duration::from_millis(100);
 /// What only a shell understands; without one these would not do what the AI expects.
 const SHELL_CHARS: [char; 9] = [';', '|', '&', '<', '>', '`', '$', '\n', '\r'];
-/// Programs that would run anything or show secrets.
-const BLOCKED: [&str; 16] =
-    ["sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "nu", "env", "printenv", "sudo", "su", "doas", "security", "osascript"];
+/// Programs that would run anything or show secrets (Unix shells, and Windows' shells and script hosts).
+const BLOCKED: [&str; 28] = [
+    "sh", "bash", "zsh", "fish", "dash", "ksh", "csh", "tcsh", "nu", "env", "printenv", "sudo", "su", "doas", "security", "osascript",
+    "cmd", "powershell", "pwsh", "wsl", "wscript", "cscript", "mshta", "rundll32", "regsvr32", "runas", "reg", "schtasks",
+];
+/// Endings Windows runs a program by; `cmd.exe` is `cmd`.
+const RUNNABLE: [&str; 5] = [".exe", ".cmd", ".bat", ".com", ".ps1"];
 /// Interpreters and the flags that run code written inline.
-const INLINE: [(&str, &[&str]); 8] = [
+const INLINE: [(&str, &[&str]); 9] = [
     ("node", &["-e", "--eval", "-p", "--print"]),
     ("bun", &["-e", "--eval", "-p", "--print"]),
     ("deno", &["eval"]),
@@ -36,7 +40,15 @@ const INLINE: [(&str, &[&str]); 8] = [
     ("ruby", &["-e"]),
     ("perl", &["-e", "-E"]),
     ("php", &["-r"]),
+    ("py", &["-c"]),
 ];
+
+/// A program's own name, as Windows and Unix both mean it: the last part of either kind of
+/// path, without case, and without the ending Windows runs it by.
+fn program_name(program: &str) -> String {
+    let last = program.rsplit(['/', '\\']).next().unwrap_or(program).to_lowercase();
+    RUNNABLE.iter().find_map(|end| last.strip_suffix(end)).map_or(last.clone(), str::to_string)
+}
 /// Name parts that mark a secret, in variables and in `name=value` lines.
 const SECRET_PARTS: [&str; 6] = ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIALS"];
 /// Endings that mark a secret in names written as one word (`apiKey`, `ACCESSTOKEN`).
@@ -69,7 +81,8 @@ pub fn check(command: &str) -> Result<Vec<String>, &'static str> {
     // Unbalanced quotes are shell syntax gone wrong.
     let words = shell_words::split(command).map_err(|_| "shell")?;
     let program = words.first().ok_or("empty")?;
-    let name = Path::new(program).file_name().and_then(|n| n.to_str()).unwrap_or(program);
+    let name = program_name(program);
+    let name = name.as_str();
     if BLOCKED.contains(&name) {
         return Err("blocked");
     }
@@ -137,11 +150,7 @@ fn drain(pipe: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
 
 /// Stops the command and everything it started.
 fn kill(child: &mut Child) {
-    #[cfg(unix)]
-    // SAFETY: kill(2) on the process group the child leads (set with process_group(0)).
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGKILL);
-    }
+    crate::procs::kill_group(child.id(), true);
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -161,15 +170,14 @@ fn tail(text: &str) -> (String, bool) {
 /// Runs a checked command in `dir`, stopping it after `TIMEOUT` or when `stop` says so.
 pub fn run(command: &str, words: &[String], dir: &Path, stop: &dyn Fn() -> bool) -> Ran {
     let started = Instant::now();
-    let mut process = Command::new(&words[0]);
+    let mut process = crate::procs::command(&words[0]);
     process.args(&words[1..]).current_dir(dir).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).env("NO_COLOR", "1");
     for (name, _) in std::env::vars_os() {
         if name.to_str().is_some_and(is_secret_name) {
             process.env_remove(name);
         }
     }
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut process, 0);
+    crate::procs::own_group(&mut process);
     let finished = |code, output: String, timed_out, stopped| {
         let (output, cut) = tail(&output);
         Ran { command: command.to_string(), code, output: redact(&output), cut, timed_out, stopped, duration_ms: started.elapsed().as_millis() as u64 }
@@ -237,6 +245,11 @@ mod tests {
             ("bash -c ls", "blocked"),
             ("/usr/bin/env", "blocked"),
             ("printenv", "blocked"),
+            ("cmd.exe /c dir", "blocked"),
+            ("PowerShell -Command Get-ChildItem", "blocked"),
+            ("'C:\\Windows\\System32\\cmd.exe' /c dir", "blocked"),
+            ("pwsh.EXE -c ls", "blocked"),
+            ("py -c 'print(1)'", "inline"),
             ("python3 -c 'print(1)'", "inline"),
             ("node -e 1", "inline"),
             ("cat .env", "secret"),
@@ -261,8 +274,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("raiox-commands-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("soma.js"), "x").unwrap();
-        let words = check("ls").unwrap();
-        let ran = run("ls", &words, &dir, &|| false);
+        // A program each system has that prints the file's name back.
+        let listing = if cfg!(windows) { "findstr /m x soma.js" } else { "ls" };
+        let words = check(listing).unwrap();
+        let ran = run(listing, &words, &dir, &|| false);
         assert_eq!((ran.code, ran.output.trim()), (Some(0), "soma.js"));
         let missing = run("nope", &["raiox-no-such-program".to_string()], &dir, &|| false);
         assert!(missing.code.is_none() && missing.output.contains("could not start"));

@@ -5,7 +5,7 @@
 
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
@@ -49,7 +49,7 @@ pub fn write_page(dir: &Path, path: &str, body: &str, kind: &str, tier: &str, ta
     for tag in tags {
         args.extend(["--tag", tag]);
     }
-    let mut child = Command::new("ai-memory")
+    let mut child = crate::procs::command("ai-memory")
         .args(&args)
         .current_dir(dir)
         .stdin(Stdio::piped())
@@ -67,7 +67,7 @@ pub fn write_page(dir: &Path, path: &str, body: &str, kind: &str, tier: &str, ta
 
 /// A page's text, when ai-memory has it.
 pub fn read_page(dir: &Path, path: &str) -> Option<String> {
-    let output = Command::new("ai-memory").args(["read-page", "--path", path, "--json"]).current_dir(dir).stderr(Stdio::null()).output().ok()?;
+    let output = crate::procs::command("ai-memory").args(["read-page", "--path", path, "--json"]).current_dir(dir).stderr(Stdio::null()).output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -78,7 +78,7 @@ pub fn read_page(dir: &Path, path: &str) -> Option<String> {
 /// The paths and titles of the durable pages that match, best first: no session transcripts,
 /// and not the team notebook, which the bot already reads.
 fn search(dir: &Path, query: &str) -> Vec<(String, String)> {
-    let Ok(output) = Command::new("ai-memory").args(["search", "--json", "-n", MAX_HITS, query]).current_dir(dir).stderr(Stdio::null()).output() else {
+    let Ok(output) = crate::procs::command("ai-memory").args(["search", "--json", "-n", MAX_HITS, query]).current_dir(dir).stderr(Stdio::null()).output() else {
         return Vec::new();
     };
     let hits: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap_or_default();

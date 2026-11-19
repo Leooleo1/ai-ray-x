@@ -2,7 +2,7 @@
 //! booted, and a screenshot of it for the panel and the AI.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -15,13 +15,17 @@ const FRESH: Duration = Duration::from_secs(20);
 static BOOTED: Mutex<Option<(Instant, Option<String>)>> = Mutex::new(None);
 
 fn read_booted() -> Option<String> {
-    let output = Command::new("xcrun").args(["simctl", "list", "devices", "booted", "-j"]).stderr(Stdio::null()).output().ok()?;
+    let output = crate::procs::command("xcrun").args(["simctl", "list", "devices", "booted", "-j"]).stderr(Stdio::null()).output().ok()?;
     let listed: Value = serde_json::from_slice(&output.stdout).ok()?;
     listed.get("devices")?.as_object()?.values().flat_map(|devices| devices.as_array().cloned().unwrap_or_default()).find_map(|device| device.get("name")?.as_str().map(str::to_string))
 }
 
 /// The name of a booted simulator device, if any.
 pub fn booted() -> Option<String> {
+    // Xcode's simulator exists on macOS only.
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
     let mut cached = BOOTED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some((at, name)) = cached.as_ref()
         && at.elapsed() < FRESH
@@ -40,7 +44,7 @@ pub fn shot(state_dir: &Path, bot: &str) -> Result<PathBuf> {
     }
     let file = crate::preview::shots_dir(state_dir, bot).join(format!("{:x}.png", crate::room::now_ms()));
     std::fs::create_dir_all(file.parent().context("no screenshot folder")?)?;
-    let output = Command::new("xcrun").args(["simctl", "io", "booted", "screenshot"]).arg(&file).output().context("xcrun is not available")?;
+    let output = crate::procs::command("xcrun").args(["simctl", "io", "booted", "screenshot"]).arg(&file).output().context("xcrun is not available")?;
     if !output.status.success() || !file.exists() {
         bail!("the simulator made no screenshot: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or(""));
     }

@@ -183,7 +183,8 @@ fn walk(dir: &Path, gitignore: bool) -> Result<Vec<String>> {
             continue;
         }
         let Some(rel) = entry.path().strip_prefix(dir).ok().and_then(Path::to_str) else { continue };
-        found.push(rel.to_string());
+        // Kept with `/` on every system (Windows takes it too), so drafts read the same everywhere.
+        found.push(rel.replace(std::path::MAIN_SEPARATOR, "/"));
         if found.len() > MAX_FILES {
             bail!("more than {MAX_FILES} files outside .gitignore, dependency and build folders: too big for a draft copy");
         }

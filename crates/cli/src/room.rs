@@ -5,7 +5,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{bail, Result};
 use raiox_core::outcome::{self, Outcome};
@@ -289,7 +288,7 @@ pub fn forget(project_dir: &Path, path: &str) -> Result<()> {
     if !listed {
         bail!("Memo only deletes pages it pointed to as repeated or stale");
     }
-    let output = Command::new("ai-memory").args(["delete-page", "--path", path]).current_dir(project_dir).output()?;
+    let output = crate::procs::command("ai-memory").args(["delete-page", "--path", path]).current_dir(project_dir).output()?;
     if !output.status.success() {
         bail!("ai-memory delete-page failed: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or(""));
     }
@@ -298,7 +297,7 @@ pub fn forget(project_dir: &Path, path: &str) -> Result<()> {
 
 /// Whether ai-memory knows this project, asked through its own CLI.
 fn ai_memory_state(project_dir: &Path) -> &'static str {
-    match Command::new("ai-memory").args(["message", "list"]).current_dir(project_dir).output() {
+    match crate::procs::command("ai-memory").args(["message", "list"]).current_dir(project_dir).output() {
         Err(_) => "missing",
         Ok(out) if out.status.success() => "known",
         Ok(out) if String::from_utf8_lossy(&out.stderr).contains("not found") => "new_project",

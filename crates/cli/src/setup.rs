@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
@@ -47,7 +47,7 @@ impl Clones {
 }
 
 fn quiet(program: &str, args: &[&str]) -> Option<std::process::Output> {
-    Command::new(program).args(args).stdin(Stdio::null()).output().ok()
+    crate::procs::command(program).args(args).stdin(Stdio::null()).output().ok()
 }
 
 fn first_line(bytes: &[u8]) -> Option<String> {
@@ -255,7 +255,7 @@ pub fn clone(store: &Store, home: &Path, clones: &Clones, repo: &str) -> Result<
     }
     let (clones, repo) = (clones.clone(), repo.to_string());
     std::thread::spawn(move || {
-        let result = Command::new("gh").args(["repo", "clone", &repo]).arg(&target).stdin(Stdio::null()).output();
+        let result = crate::procs::command("gh").args(["repo", "clone", &repo]).arg(&target).stdin(Stdio::null()).output();
         let failure = match result {
             Ok(out) if out.status.success() => None,
             Ok(out) => Some(first_line(&out.stderr).unwrap_or_else(|| "gh repo clone failed".into())),

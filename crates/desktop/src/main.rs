@@ -137,7 +137,8 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("the raiox app could not start");
     app.run(|app, event| match event {
-        // The Dock icon brings the window back.
+        // The Dock icon brings the window back (macOS has a Dock; elsewhere the tray does it).
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => show(app),
         // Dev servers and the tunnel the panel started stop with the app.
         RunEvent::Exit => {

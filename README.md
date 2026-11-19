@@ -120,7 +120,7 @@ The first run walks you through connecting your AIs, GitHub and projects. The
 binary serves the panel from `apps/web/dist`, so run it from the checkout (or
 pass `--web-dir`).
 
-## Desktop app (macOS)
+## Desktop app (macOS and Windows)
 
 `crates/desktop` is raiox as an app ([Tauri 2](https://v2.tauri.app)): the same
 panel in a window of its own, an icon in the menu bar with how many AIs are
@@ -138,7 +138,23 @@ CI=true pnpm --dir crates/desktop build   # target/release/bundle/macos/raiox.ap
 
 The build is not signed yet: on another Mac, open it the first time with a
 right click › Open. (`CI=true` skips the Finder step that arranges the dmg
-window.) Windows comes next.
+window.)
+
+On Windows the app lives in the notification area instead of the menu bar,
+and installs per user (no administrator rights) with the NSIS installer, or
+with the MSI. Building it there needs Rust (rustup), Visual Studio Build Tools
+with the C++ workload, Node.js with pnpm and, on ARM64 Windows, LLVM (`clang`,
+for the `ring` crate):
+
+```powershell
+pnpm --dir crates/desktop install
+pnpm --dir crates/desktop build    # target\release\bundle\nsis\*-setup.exe and msi\*.msi
+# an Intel/AMD build from ARM64 Windows: add --target x86_64-pc-windows-msvc
+```
+
+The Windows build is not signed yet either: SmartScreen asks once (More info ›
+Run anyway). In the panel, each CLI's install line is the Windows one there
+(PowerShell or npm).
 
 ## From your phone
 
@@ -217,7 +233,8 @@ describes the three house agents.
 
 ## Status
 
-Early (0.1). Developed on macOS; Linux should work; Windows is untested.
+Early (0.1). Developed on macOS; tested on Windows 11 (ARM64, in a VM); Linux
+should work.
 
 ## License
 

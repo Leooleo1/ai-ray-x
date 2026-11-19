@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
@@ -24,7 +24,7 @@ const DEFAULT_WORKSPACE: &str = "default";
 const MAX_PAGES: usize = 30;
 
 fn ai_memory(dir: &Path, args: &[&str], stdin: Option<&str>) -> Result<Value> {
-    let mut child = Command::new("ai-memory")
+    let mut child = crate::procs::command("ai-memory")
         .args(args)
         .current_dir(dir)
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
@@ -144,7 +144,7 @@ pub fn handle(state_dir: &Path, jobs: &Jobs, id: &str, message_id: &str) -> Resu
 
 /// Where ai-memory's server listens, as its own `status` says; else its default.
 fn server_address(dir: &Path) -> String {
-    Command::new("ai-memory")
+    crate::procs::command("ai-memory")
         .arg("status")
         .current_dir(dir)
         .stdin(Stdio::null())

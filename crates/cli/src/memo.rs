@@ -3,7 +3,7 @@
 
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{bail, Context, Result};
 use raiox_core::apply::Change;
@@ -37,7 +37,7 @@ pub fn keep_lesson(project_dir: &Path, change: &Change, evidence: &str, result: 
         before = change.before.as_deref().unwrap_or("not set"),
         id = change.id,
     );
-    let mut child = Command::new("ai-memory")
+    let mut child = crate::procs::command("ai-memory")
         .args(["write-page", "--path", &path, "--body", "-", "--kind", "decision", "--tag", "raiox", "--tag", "token-diet"])
         .current_dir(project_dir)
         .stdin(Stdio::piped())

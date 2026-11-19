@@ -6,7 +6,7 @@
 
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -25,11 +25,20 @@ const MAX_WIDTH: u32 = 2560;
 const MAX_HEIGHT: u32 = 4000;
 /// Hosts a screenshot may load: the person's own machine only.
 const LOCAL_HOSTS: [&str; 4] = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
+#[cfg(not(windows))]
 const CHROMES: [&str; 4] = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+];
+/// Edge comes with Windows, so screenshots work there without installing a browser.
+#[cfg(windows)]
+const CHROMES: [&str; 4] = [
+    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
 ];
 
 struct Running {
@@ -135,11 +144,10 @@ pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<(
     fs::create_dir_all(log.parent().context("no log folder")?)?;
     let out = File::create(&log)?;
     fs::write(last_file(state_dir, bot), command)?;
-    let mut process = Command::new(&words[0]);
+    let mut process = crate::procs::command(&words[0]);
     // BROWSER=none keeps dev servers from opening a tab of their own.
     process.args(&words[1..]).current_dir(dir).stdin(Stdio::null()).stdout(out.try_clone()?).stderr(out).env("BROWSER", "none").env("FORCE_COLOR", "0").env("PYTHONUNBUFFERED", "1");
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut process, 0);
+    crate::procs::own_group(&mut process);
     let child = process.spawn().with_context(|| format!("could not start {}", words[0]))?;
     crate::procs::remember(state_dir, &format!("preview:{bot}"), child.id());
     open.push((bot.to_string(), Running { child, command: command.to_string(), started_ms: room::now_ms() }));
@@ -150,7 +158,7 @@ pub fn stop(state_dir: &Path, bot: &str) -> Result<()> {
     let mut open = running();
     let index = open.iter().position(|(b, _)| b == bot).context("the app is not running")?;
     let (_, mut run) = open.remove(index);
-    crate::procs::kill_group(run.child.id());
+    crate::procs::kill_group(run.child.id(), false);
     let started = Instant::now();
     while run.child.try_wait()?.is_none() && started.elapsed() < Duration::from_secs(3) {
         std::thread::sleep(Duration::from_millis(100));
@@ -203,7 +211,7 @@ pub fn shot(state_dir: &Path, bot: &str, url: &str, width: u32, height: u32) -> 
     let browser = chrome().context("no Chrome, Brave, Chromium or Edge found for screenshots")?;
     let file = shots_dir(state_dir, bot).join(format!("{:x}.png", room::now_ms()));
     fs::create_dir_all(file.parent().context("no screenshot folder")?)?;
-    let mut child = Command::new(browser)
+    let mut child = crate::procs::command(browser)
         .args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--disable-threaded-animation", "--no-first-run", "--no-default-browser-check"])
         .arg(format!("--virtual-time-budget={SHOT_BUDGET_MS}"))
         .arg(format!("--user-data-dir={}", state_dir.join("chrome-shots").display()))
