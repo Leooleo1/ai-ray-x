@@ -104,6 +104,8 @@ fn start(app: AppHandle) {
 }
 
 fn main() {
+    // Opened from the Finder, the app gets a bare PATH: find the AI CLIs as a terminal would.
+    raiox::procs::find_clis_like_a_terminal();
     let app = tauri::Builder::default()
         // A second launch brings the open window forward instead of a second panel.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show(app)))

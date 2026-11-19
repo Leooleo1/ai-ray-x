@@ -145,3 +145,74 @@ pub fn cleanup(state_dir: &Path) {
     }
     save(state_dir, &HashMap::new());
 }
+
+/// Where the official installers put the AI CLIs (and where Homebrew and npm put theirs).
+#[cfg(unix)]
+const CLI_DIRS: [&str; 7] = [".local/bin", ".opencode/bin", ".npm-global/bin", ".bun/bin", ".cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"];
+/// How long the login shell may take to say its PATH.
+#[cfg(unix)]
+const SHELL_WAIT: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// The PATH the person's terminal has, read from their login shell (its startup files set it).
+#[cfg(unix)]
+fn login_shell_path() -> Option<String> {
+    use std::io::Read;
+    let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/zsh".into());
+    let mut child = Command::new(shell)
+        .args(["-ilc", "printf '\\n__RAIOX_PATH__%s__END__\\n' \"$PATH\""])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let started = std::time::Instant::now();
+    while child.try_wait().ok()?.is_none() {
+        if started.elapsed() > SHELL_WAIT {
+            let _ = child.kill();
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let mut out = String::new();
+    child.stdout.take()?.read_to_string(&mut out).ok()?;
+    let (_, rest) = out.split_once("__RAIOX_PATH__")?;
+    rest.split_once("__END__").map(|(path, _)| path.to_string()).filter(|path| !path.is_empty())
+}
+
+/// A PATH with every entry once, in order.
+#[cfg(unix)]
+fn joined(parts: impl IntoIterator<Item = String>) -> String {
+    let mut seen: Vec<String> = Vec::new();
+    for part in parts.into_iter().flat_map(|p| p.split(':').map(str::to_string).collect::<Vec<_>>()) {
+        if !part.is_empty() && !seen.contains(&part) {
+            seen.push(part);
+        }
+    }
+    seen.join(":")
+}
+
+/// An app opened from the Finder or the Dock gets a bare PATH (`/usr/bin:/bin`), where none of
+/// the AI CLIs are. This gives raiox the terminal's PATH, plus the folders the official
+/// installers use, so a CLI installed while raiox runs is found at once.
+/// Call it first thing in `main`, before any thread starts.
+pub fn find_clis_like_a_terminal() {
+    #[cfg(unix)]
+    {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let known = CLI_DIRS.iter().map(|dir| if dir.starts_with('/') { (*dir).to_string() } else { format!("{home}/{dir}") });
+        let current = std::env::var("PATH").unwrap_or_default();
+        let path = joined(login_shell_path().into_iter().chain(std::iter::once(current)).chain(known));
+        // SAFETY: called at the start of main, before raiox starts any thread.
+        unsafe { std::env::set_var("PATH", path) };
+    }
+}
+
+#[cfg(all(test, unix))]
+mod path_tests {
+    use super::*;
+
+    #[test]
+    fn a_path_keeps_each_folder_once_in_order() {
+        assert_eq!(joined(["/a:/b".to_string(), "/b:/c".to_string(), "".to_string(), "/a".to_string()]), "/a:/b:/c");
+    }
+}

@@ -94,6 +94,7 @@ enum Command {
 
 fn main() -> Result<()> {
     restore_default_sigpipe();
+    raiox::procs::find_clis_like_a_terminal();
     let cli = Cli::parse();
     let detected = Roots::detect()?;
     let roots = Roots {
