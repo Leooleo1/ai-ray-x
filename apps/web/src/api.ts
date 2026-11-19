@@ -511,7 +511,26 @@ export interface SetupState {
   ais: Connection[]
   clone_to: string
   clones: { running: string[]; failed: Record<string, string> }
+  /** CLIs being installed (or installed) from the panel since it started. */
+  installs: Record<string, CliInstall>
   projects: LocalProject[]
+}
+
+export interface CliInstall {
+  state: 'running' | 'done' | 'failed'
+  /** The installer's last lines. */
+  log: string
+  started_ms: number
+}
+
+/** Runs a CLI's official installer; the setup state follows it. */
+export function installCli(id: string): Promise<Record<string, CliInstall>> {
+  return request<Record<string, CliInstall>>('/api/setup/install', { id })
+}
+
+/** Opens a terminal with the CLI's own sign-in, which goes on in the browser. */
+export function signInCli(id: string): Promise<{ opened: boolean }> {
+  return request<{ opened: boolean }>('/api/setup/sign_in', { id })
 }
 
 export interface GitHubRepo {

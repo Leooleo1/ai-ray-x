@@ -21,13 +21,13 @@ pub struct Known {
     pub name: &'static str,
     binary: &'static str,
     /// The install line for macOS and Linux, and for Windows (PowerShell).
-    install: &'static str,
-    install_windows: &'static str,
-    login: &'static str,
+    pub install: &'static str,
+    pub install_windows: &'static str,
+    pub login: &'static str,
     /// raiox can run it as a project bot.
     pub bots: bool,
     /// raiox reads its logs for the x-ray.
-    xray: bool,
+    pub xray: bool,
 }
 
 pub const KNOWN: [Known; 6] = [

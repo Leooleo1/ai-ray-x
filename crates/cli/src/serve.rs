@@ -222,6 +222,14 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             ),
             Err(reply) => reply,
         },
+        (Method::Post, "/api/setup/install") => match body(request) {
+            Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/setup/sign_in") => match body(request) {
+            Ok(input) => respond(crate::install::sign_in(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| json!({ "opened": true }))),
+            Err(reply) => reply,
+        },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {

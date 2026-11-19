@@ -24,6 +24,7 @@ pub mod deliveries;
 pub mod devices;
 pub mod grants;
 pub mod drafts;
+pub mod install;
 pub mod links;
 pub mod live;
 pub mod memory;

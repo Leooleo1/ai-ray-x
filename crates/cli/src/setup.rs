@@ -192,6 +192,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> R
         "ais": crate::connections::detect(store, home, &crate::settings::Settings::load(state_dir)),
         "clone_to": label(home, &parent).unwrap_or_else(|| "Projects".into()),
         "clones": clones.snapshot(),
+        "installs": crate::install::state(),
         "projects": projects,
     }))
 }

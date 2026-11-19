@@ -18,6 +18,8 @@ import { o } from './texts'
 type Step = 'welcome' | 'ais' | 'github' | 'projects' | 'bot' | 'wires' | 'done'
 const ORDER: Step[] = ['welcome', 'ais', 'github', 'projects', 'bot', 'wires', 'done']
 /** Wires only make sense between two projects or more. */
+/** The free model a bot made with Start free runs on (opencode's Zen free tier). */
+const OPENCODE_FREE_MODEL = 'opencode/deepseek-v4.1-flash-free'
 const MIN_WIRED = 2
 /** While a clone runs, the setup is asked again this often. */
 const CLONE_POLL_MS = 1500
@@ -43,8 +45,8 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSetup = useCallback(async () => {
-    setLoading(true)
+  const loadSetup = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true)
     try {
       const next = await fetchSetup()
       setSetup(next)
@@ -101,6 +103,14 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   }
   const anyAi = setup?.ais.some(canRunBots) ?? false
 
+  const refreshQuietly = useCallback(() => void loadSetup(true), [loadSetup])
+  // Starting free: bots on opencode, on one of its free models.
+  const [freeModel, setFreeModel] = useState(false)
+  const startFree = useCallback(() => {
+    setFreeModel(true)
+    setDesign((current) => (current.agent === 'opencode' ? current : { ...current, agent: 'opencode' }))
+  }, [])
+
   const createBots = async () => {
     setLoading(true)
     setError(null)
@@ -111,6 +121,8 @@ export function Onboarding({ onFinish }: OnboardingProps) {
       let state: BotsState | null = null
       for (const project of selected) {
         state = await botAction('activate', { project, agent: design.agent, persona })
+        const made = state.bots.find((bot) => bot.agent === design.agent && bot.dir.endsWith(`/${project}`))
+        if (freeModel && design.agent === 'opencode' && made) state = await botAction('configure', { id: made.id, model: OPENCODE_FREE_MODEL })
       }
       const made = (state?.bots ?? []).filter((bot) => bot.agent === design.agent && selected.some((project) => bot.dir.endsWith(`/${project}`)))
       setBotsState(state)
@@ -196,6 +208,8 @@ export function Onboarding({ onFinish }: OnboardingProps) {
               setup={setup}
               loading={loading}
               onCheck={() => void loadSetup()}
+              onRefresh={refreshQuietly}
+              onFree={startFree}
               onBack={() => go('welcome')}
               onNext={() => go(anyAi ? 'github' : 'done')}
             />

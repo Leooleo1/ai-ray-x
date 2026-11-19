@@ -635,7 +635,40 @@
     grid-template-columns: auto auto minmax(0, 1fr);
   }
 
-  .bv-ia > .bv-direita,
+  /* An AI on a phone: the name over its status, Install or Sign in on the right. */
+  .bv-ia {
+    grid-template-areas: "ponto nome acao" "ponto estado acao";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 12px;
+  }
+
+  .bv-ia > .ponto {
+    grid-area: ponto;
+  }
+
+  .bv-ia > b {
+    grid-area: nome;
+  }
+
+  .bv-ia > .bv-estado {
+    grid-area: estado;
+  }
+
+  .bv-ia > .bv-direita {
+    grid-area: acao;
+  }
+
+  .bv-ia > span.bv-mono:not(.bv-ia-nota) {
+    display: none;
+  }
+
+  .bv-gratis {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* On a phone the request count goes; Install and Sign in stay. */
+  .bv-ia > .bv-direita > .bv-mono,
   .bv-repo > .bv-mono.bv-direita,
   .bv-projeto > .bv-direita {
     display: none;
@@ -748,4 +781,56 @@
     height: 36px;
     border-radius: 11px;
   }
+}
+
+/* Install and sign in from the AI step: a small button, and one line under the row. */
+.bv-btn.bv-pequeno {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.bv-ia-nota {
+  grid-column: 2 / -1;
+  margin-bottom: 8px;
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-ia-nota.falhou {
+  color: var(--alerta);
+  white-space: normal;
+}
+
+/* Starting free, above the list when no AI is ready yet. */
+.bv-gratis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.bv-gratis span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bv-gratis b {
+  font: 500 14px/18px var(--sans);
+}
+
+.bv-gratis small {
+  color: var(--nevoa);
+  font-size: 13px;
+  line-height: 18px;
 }
