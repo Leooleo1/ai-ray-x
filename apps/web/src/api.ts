@@ -693,6 +693,54 @@ export function fetchProfile(): Promise<Profile> {
   return request<Profile>('/api/profile')
 }
 
+/** A page of the team's wiki, with this week's reads. */
+export interface WikiEntry {
+  slug: string
+  title: string
+  /** Goes with every question; else only when the question shares its words. */
+  always: boolean
+  updated_ms: number
+  chars: number
+  reads: number
+  tokens: number
+  /** Reads by bot id. */
+  by: Record<string, number>
+}
+
+export interface WikiList {
+  pages: WikiEntry[]
+  /** The slug of the page just saved. */
+  saved?: string
+}
+
+export interface WikiPageText {
+  slug: string
+  title: string
+  always: boolean
+  updated_ms: number
+  body: string
+}
+
+export function fetchWiki(): Promise<WikiList> {
+  return request<WikiList>('/api/wiki')
+}
+
+export function wikiPage(slug: string): Promise<WikiPageText> {
+  return request<WikiPageText>('/api/wiki/page', { slug })
+}
+
+export function saveWiki(page: { slug: string; title: string; body: string; always: boolean }): Promise<WikiList> {
+  return request<WikiList>('/api/wiki/save', { ...page })
+}
+
+export function deleteWiki(slug: string): Promise<WikiList> {
+  return request<WikiList>('/api/wiki/delete', { slug })
+}
+
+export function wikiFromAnswer(id: string, thread: string, answer_ms: number): Promise<WikiList> {
+  return request<WikiList>('/api/wiki/from_answer', { id, thread, answer_ms })
+}
+
 export function fetchRemote(): Promise<RemoteState> {
   return request<RemoteState>('/api/remote')
 }

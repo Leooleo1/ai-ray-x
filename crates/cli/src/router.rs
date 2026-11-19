@@ -46,7 +46,7 @@ pub struct Routed {
 }
 
 /// Lowercase, without accents, so "Botão" and "botao" are the same word.
-fn plain(word: &str) -> String {
+pub(crate) fn plain(word: &str) -> String {
     word.to_lowercase()
         .chars()
         .map(|c| match c {
@@ -62,7 +62,7 @@ fn plain(word: &str) -> String {
 }
 
 /// The words of a text worth matching: three letters or more, not too common.
-fn words(text: &str) -> BTreeSet<String> {
+pub(crate) fn words(text: &str) -> BTreeSet<String> {
     plain(text)
         .split(|c: char| !c.is_alphanumeric())
         .filter(|w| w.chars().count() >= 3 && !STOPWORDS.contains(w))

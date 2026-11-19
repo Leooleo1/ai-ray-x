@@ -58,6 +58,8 @@ interface BotLineProps {
   /** Already kept in ai-memory as a decision of the project. */
   remembered: boolean
   onRemember: () => void
+  /** Keeps the answer as a page of the team's wiki. */
+  onWiki?: () => Promise<boolean>
   /** The other AIs of the project, which can review a proposal. */
   partners: Bot[]
   reviewState: 'none' | 'pending' | 'done'
@@ -65,7 +67,7 @@ interface BotLineProps {
   onReview: (reviewer: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -191,6 +193,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                     {remembered ? t.remembered : t.remember}
                   </button>
                 )}
+                {message.kind === 'answer' && onWiki && <WikiKeep onWiki={onWiki} />}
               </span>
             </span>
           )}
@@ -278,6 +281,16 @@ function AnswerPath({ trail }: { trail: Trail }) {
 }
 
 /** Copies an answer; shows on hover and keyboard focus. */
+/** Keeps an answer as a wiki page, once. */
+function WikiKeep({ onWiki }: { onWiki: () => Promise<boolean> }) {
+  const [kept, setKept] = useState(false)
+  return (
+    <button type="button" className={`copiar ${kept ? 'fixada' : ''}`} disabled={kept} onClick={() => void onWiki().then(setKept)}>
+      {kept ? t.wikiFromAnswerDone : t.wikiFromAnswer}
+    </button>
+  )
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   const copy = () =>

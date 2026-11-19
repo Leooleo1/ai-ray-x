@@ -62,7 +62,7 @@ impl Setup {
             stable: bot_run::guide(&bot.name, &persona, &others, &unwired),
             team: crate::team::context_for(state_dir, bot),
             // The project's own pages that relate to the question, kept decisions included.
-            related: crate::memory::related(&bot.dir, question),
+            related: format!("{}{}", crate::memory::related(&bot.dir, question), crate::wiki::for_turn(state_dir, &bot.id, question)),
             others,
             // Talk can run on a lighter model; changes always on the bot's own.
             model: if mode == Mode::Talk { bot.talk_model.clone() } else { None }.or_else(|| bot.model.clone()).or(defaults.model),
@@ -244,7 +244,11 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
             other => other,
         };
     }
-    match bot_run::run(&target, mode, text, &setup.scratch, &stop, &on_trail) {
+    // Codex, Cursor, Antigravity and opencode read the guide only when a conversation starts:
+    // in one already going, the question carries its own pages (project memory, the team's wiki).
+    let carried = (bot.agent != "claude" && session.is_some() && !setup.related.trim().is_empty()).then(|| format!("{}\n\n{text}", setup.related.trim()));
+    match bot_run::run(&target, mode, carried.as_deref().unwrap_or(text), &setup.scratch, &stop, &on_trail) {
+        // A fresh conversation gets the pages in its guide again.
         Err(error) if session.is_some() && mode == Mode::Talk && bot_run::session_lost(&error) => {
             bot_run::run(&bot_run::Target { session: None, ..target }, mode, text, &setup.scratch, &stop, &on_trail)
         }

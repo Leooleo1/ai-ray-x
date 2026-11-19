@@ -60,6 +60,12 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
+of things. A page goes with every question, or only when the question shares
+its words; raiox hands the pages over itself, so the Wiki tab shows how many
+times each page was read this week, by which AI, and roughly what that cost in
+tokens. Any answer can be kept as a page (its question becomes the title).
+
 **Channels.** Rooms with several of your AIs, from any projects. `@handle`
 calls a member (several handles call several; `@todos` calls them all). With
 no handle, a free router picks who the message is about, from each member's

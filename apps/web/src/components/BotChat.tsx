@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type Inbox, type Place, type Report, botInbox } from '../api'
+import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf, personaName } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -213,6 +213,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onReview={(reviewer) => void bots.act('review', { id: bot.id, thread: current, answer_ms: message.ms, reviewer })}
               remembered={kept.has(message.ms)}
               onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
+              onWiki={() => wikiFromAnswer(bot.id, current, message.ms).then(() => true, () => false)}
               onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
               onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
               sent={sent}

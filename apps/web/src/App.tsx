@@ -7,6 +7,7 @@ import { useUnread } from './unread'
 import { ExchangeView } from './components/chat/Exchange'
 import { BotChat } from './components/BotChat'
 import { Desk } from './components/Desk'
+import { WikiView } from './components/WikiView'
 import { ChannelNew, ChannelView } from './components/ChannelView'
 import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
@@ -32,6 +33,7 @@ const PATHS: Record<Tab, string[]> = {
   efficiency: ['/eficiencia', '/efficiency'],
   agents: ['/agentes', '/agents'],
   desk: ['/mesa', '/desk'],
+  wiki: ['/wiki'],
   settings: ['/configuracoes', '/settings'],
 }
 const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
@@ -39,6 +41,7 @@ const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
   agents: { title: t.botsTitle, subtitle: t.botsHint },
   desk: { title: t.deskTitle, subtitle: t.deskSubtitle },
+  wiki: { title: t.wikiTitle, subtitle: t.wikiSubtitle },
   settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
 }
 
@@ -258,6 +261,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && chat === 'canal:novo' && <ChannelNew bots={bots} onCreated={(id) => openChat(`canal:${id}`)} />}
         {tab === 'agents' && !openBot && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
+        {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />

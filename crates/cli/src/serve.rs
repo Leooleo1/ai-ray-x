@@ -140,6 +140,11 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
 fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> Reply {
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
+        (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
+        (Method::Post, p) if p.starts_with("/api/wiki/") => match body(request) {
+            Ok(input) => respond(wiki_action(&panel.state_dir, &p["/api/wiki/".len()..], &input)),
+            Err(reply) => reply,
+        },
         (Method::Get, "/api/report") => respond(report(panel)),
         (Method::Post, "/api/apply") => match body(request) {
             Ok(input) => respond(target(panel, &input).and_then(|dir| actions::apply_suggestion(
@@ -344,6 +349,27 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
+}
+
+/// The wiki's actions; each but `page` answers with the list, so the panel redraws at once.
+fn wiki_action(state_dir: &Path, action: &str, input: &Value) -> anyhow::Result<Value> {
+    let field = |name: &str| input.get(name).and_then(Value::as_str).unwrap_or("");
+    match action {
+        "page" => return crate::wiki::read(state_dir, field("slug")),
+        "save" => {
+            let slug = crate::wiki::put(state_dir, field("slug"), field("title"), field("body"), input.get("always").and_then(Value::as_bool).unwrap_or(false))?;
+            let mut listed = crate::wiki::list(state_dir);
+            listed["saved"] = json!(slug);
+            return Ok(listed);
+        }
+        "delete" => crate::wiki::delete(state_dir, field("slug"))?,
+        "from_answer" => {
+            let thread = Some(field("thread")).filter(|t| !t.is_empty()).unwrap_or(crate::threads::MAIN);
+            crate::wiki::from_answer(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0))?;
+        }
+        other => anyhow::bail!("unknown wiki action {other}"),
+    }
+    Ok(crate::wiki::list(state_dir))
 }
 
 /// The settings page: every known CLI probed now (off the panel's thread), and the person's choices.

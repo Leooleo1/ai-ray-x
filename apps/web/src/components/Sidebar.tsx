@@ -5,7 +5,7 @@ import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 import { ProfileMenu } from './ProfileMenu'
 
-export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'settings'
+export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'wiki' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
 
 interface SidebarProps {
@@ -26,11 +26,12 @@ interface SidebarProps {
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
 export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, onChat, onSettings, onSetup }: SidebarProps) {
-  const nav: { id: Tab; label: string; short?: string; icon: 'xray' | 'efficiency' | 'agents' | 'desk' | 'sliders' }[] = [
+  const nav: { id: Tab; label: string; short?: string; icon: 'xray' | 'efficiency' | 'agents' | 'desk' | 'wiki' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
-    { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
-    { id: 'agents', label: t.tabAgents, icon: 'agents' },
+    { id: 'efficiency', label: t.tabEfficiency, short: t.efficiencyShort, icon: 'efficiency' },
+    { id: 'agents', label: t.tabAgents, short: t.agentsShort, icon: 'agents' },
     { id: 'desk', label: t.deskTab, icon: 'desk' },
+    { id: 'wiki', label: t.wikiTab, icon: 'wiki' },
     { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders' },
   ]
   return (

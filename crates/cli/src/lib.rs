@@ -43,6 +43,7 @@ pub mod setup;
 pub mod team;
 pub mod threads;
 pub mod tunnel;
+pub mod wiki;
 
 use std::path::PathBuf;
 
