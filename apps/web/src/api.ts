@@ -473,6 +473,11 @@ export function applySuggestion(id: string, source: Source, bot?: string): Retur
   return post('/api/apply', bot ? { id, source, bot } : { id, source })
 }
 
+/** The session working in a project now: the bot's project, else the one `raiox open` started in; null when it has none. */
+export function fetchSession(bot?: string): Promise<ContextStatus | null> {
+  return request<ContextStatus | null>('/api/session', bot ? { bot } : {})
+}
+
 export function undoChange(change: string, bot?: string): ReturnType<typeof post> {
   return post('/api/undo', bot ? { change, bot } : { change })
 }

@@ -141,3 +141,10 @@
   box-shadow: 0 0 0 2px #121217;
 }
 
+
+/* Room at the foot of the sidebar for a folded tip, so it never sits on the footer text. */
+@media (min-width: 961px) {
+  .lado-rodape {
+    padding-bottom: 56px;
+  }
+}

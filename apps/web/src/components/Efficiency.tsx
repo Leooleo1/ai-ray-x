@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AGENTS, type Agent } from '../agents'
-import type { ContextStatus, Report, Source } from '../api'
+import { type ContextStatus, type Report, type Source, fetchSession } from '../api'
 import { dietLines } from '../diet'
 import { compact, percent, splitCompact, t } from '../i18n'
 import { Action } from './Action'
@@ -9,6 +9,8 @@ import { CompactionBreakdown } from './Breakdown'
 import { Segmented } from './Segmented'
 
 const RULER_SCALE = 1_000_000
+/** Below this share of the ruler the 'now' label starts at its mark instead of centering on it. */
+const NEAR_START = 0.08
 const SOURCE_NAMES: Record<Source, string> = { claude: 'Claude Code', codex: 'Codex' }
 const DISPLAY: Record<string, string> = { 'your prompts': t.yourPrompts, 'injected text': t.injected }
 
@@ -34,14 +36,15 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
   const lines = selected ? dietLines(selected) : []
   const best = Math.max(0, ...report.sources.flatMap((s) => s.suggestions.map((x) => x.saving_share)))
   const count = report.sources.reduce((sum, s) => sum + s.suggestions.length, 0)
-  const status = report.context_status
+  // The session of the project the cuts go to; undefined while it loads, null when it has none.
+  const status = useProjectSession(target.bot)
   const open = report.changes.filter((c) => c.undone_ms === null && inTarget(c.file))
   const lessons = report.changes.filter((c) => c.lesson !== null).length
   const applicable = report.applicable[source] ?? []
   return (
     <main className="grade eficiencia">
       <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare isHero />
-      <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} label={t.raioLine} />
+      <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} label={t.raioLine.replace('{p}', target.name)} />
       <AgentCard agent={AGENTS.memo} value={lessons} label={t.memoLine} />
       <section className="cartao dieta-lista">
         <h2>
@@ -96,9 +99,32 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
           ))}
         </ol>
       </section>
-      {status && <SessionCard status={status} />}
+      {status ? (
+        <SessionCard status={status} />
+      ) : (
+        <section className="cartao sessao">
+          <h2>{t.sessionTitle}</h2>
+          <p className="nota">{status === undefined ? t.probing : t.noSessionIn.replace('{p}', target.name)}</p>
+        </section>
+      )}
     </main>
   )
+}
+
+/** Asks for a project's current session whenever the chosen project changes. */
+function useProjectSession(bot: string | undefined): ContextStatus | null | undefined {
+  const [status, setStatus] = useState<ContextStatus | null | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    setStatus(undefined)
+    fetchSession(bot)
+      .then((next) => alive && setStatus(next))
+      .catch(() => alive && setStatus(null))
+    return () => {
+      alive = false
+    }
+  }, [bot])
+  return status
 }
 
 interface AgentCardProps {
@@ -146,7 +172,7 @@ function SessionCard({ status }: SessionCardProps) {
         <div className="trilho" />
         {status.usual_compaction_at > 0 && <span className="corte" style={at(status.usual_compaction_at)} />}
         <span className="marcador mediana" style={at(status.context_tokens)} />
-        <span className="rotulo-marca acima" style={at(status.context_tokens)}>
+        <span className={`rotulo-marca acima ${status.context_tokens / RULER_SCALE < NEAR_START ? 'do-inicio' : ''}`} style={at(status.context_tokens)}>
           {t.now} {compact(status.context_tokens)}
         </span>
         {status.usual_compaction_at > 0 && (

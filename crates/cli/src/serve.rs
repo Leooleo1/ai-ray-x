@@ -102,6 +102,10 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             ),
             Err(reply) => reply,
         },
+        (Method::Post, "/api/session") => match body(request) {
+            Ok(input) => respond(target(panel, &input).and_then(|dir| session_status(panel, &dir))),
+            Err(reply) => reply,
+        },
         (Method::Post, "/api/undo") => match body(request) {
             Ok(input) => respond(target(panel, &input).and_then(|dir| actions::undo_change(
                 &panel.store,
@@ -146,6 +150,14 @@ fn target(panel: &Panel, input: &Value) -> anyhow::Result<std::path::PathBuf> {
         Some(id) => bots::dir_of(&panel.state_dir, id),
         None => Ok(panel.project_dir.clone()),
     }
+}
+
+/// The session working in a project now, as Efficiency shows it; null when the project has none yet.
+fn session_status(panel: &Panel, dir: &std::path::Path) -> anyhow::Result<Value> {
+    Ok(match crate::room::current_session(&panel.store, &panel.roots, dir) {
+        Some(session) => json!(raiox_core::advice::context_status(panel.store.conn(), Some(&session))?),
+        None => Value::Null,
+    })
 }
 
 /// Bot actions; each answers with the bots' state so the panel redraws at once.

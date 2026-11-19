@@ -2025,3 +2025,8 @@ body {
     display: block;
   }
 }
+
+/* Near the start of the ruler the label begins at its mark, so it never leaves the card. */
+.rotulo-marca.acima.do-inicio {
+  transform: translateX(-6px);
+}
