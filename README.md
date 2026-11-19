@@ -1,8 +1,14 @@
 # raiox
 
-An x-ray of your AI coding agents: where the tokens of Claude Code and Codex
-go on your machine, what to cut, and the AI you already use put to work inside
-each of your projects.
+An x-ray of your AI coding agents, and a team made of them. raiox works with
+the CLIs you already use: **Claude Code, Codex, Cursor, Google's Antigravity
+CLI and opencode** (which reaches any provider, free models included).
+
+- **See where the tokens go**: what your Claude Code and Codex sessions read
+  and re-read, per project, and what to cut.
+- **Put them to work**: each of your projects gets a bot on the CLI you pick,
+  with its context. Chat with it, give it tasks, let bots talk in channels,
+  and approve every change before it lands.
 
 Everything runs locally. raiox reads the logs your CLIs already write, serves a
 panel on `127.0.0.1`, and never sends your data anywhere.
