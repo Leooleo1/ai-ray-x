@@ -81,7 +81,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
   }
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'conexoes', label: t.tabConnections, count: aisOn },
-    { id: 'bots', label: t.tabBots, count: bots.state.bots.length },
+    { id: 'bots', label: t.tabBots, count: projects },
     { id: 'fios', label: t.tabWires, count: links },
   ]
   const first = bots.state.bots[0]
@@ -91,7 +91,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: Setting
     <main className="cfg">
       <SetupHero
         steps={steps}
-        summary={[count(aisOn, t.aisOn), count(bots.state.bots.length, t.botsCount), count(links, t.wiresCount)].join(' · ')}
+        summary={[count(aisOn, t.aisOn), count(projects, t.botsCount), count(links, t.wiresCount)].join(' · ')}
         face={face}
         onNext={next}
         onTour={() => setTouring(true)}
