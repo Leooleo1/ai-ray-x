@@ -1,5 +1,6 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
+mod access;
 mod actions;
 mod bot_mail;
 mod bot_marks;
@@ -15,6 +16,7 @@ mod budget;
 mod connections;
 mod commands;
 mod data;
+mod devices;
 mod drafts;
 mod links;
 mod live;
@@ -22,16 +24,19 @@ mod memory;
 mod memo;
 mod pins;
 mod preview;
+mod procs;
 mod room;
 mod routines;
 mod mcp;
 mod print;
+mod remote;
 mod serve;
 mod settings;
 mod simulator;
 mod setup;
 mod team;
 mod threads;
+mod tunnel;
 
 use std::path::PathBuf;
 

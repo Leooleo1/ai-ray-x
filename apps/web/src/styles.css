@@ -2055,3 +2055,35 @@ body {
 .lado-item .nome.curto {
   display: none;
 }
+
+/* A device that is not paired yet: one instruction, centered. */
+.parear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+
+.parear svg {
+  width: 32px;
+  height: 32px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.6;
+}
+
+.parear b {
+  font: 500 18px/24px var(--sans);
+}
+
+.parear p {
+  max-width: 320px;
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 14px;
+  line-height: 20px;
+}

@@ -1,0 +1,101 @@
+/* Settings › Phone: the tunnel, the pairing QR and the paired devices. */
+.celular-modo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.celular-modo:disabled {
+  opacity: 0.55;
+}
+
+.celular-log {
+  max-height: 160px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #0a0a0d;
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+  white-space: pre-wrap;
+}
+
+.celular-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.celular-qr img {
+  width: 232px;
+  height: 232px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.celular-aparelhos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.celular-aparelhos li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.celular-aparelhos li > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.celular-aparelhos b {
+  font: 500 14px/20px var(--sans);
+}
+
+.celular-aparelhos small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.celular-aparelhos button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.celular-aparelhos button.confirmar {
+  color: var(--alerta);
+}
+
+/* These cards have no monogram: their lines start at the card's edge, and the hints wrap instead of being cut. */
+.celular .cfg-ia > p {
+  margin-left: 0;
+}
+
+.celular .cfg-nome small {
+  overflow: visible;
+  white-space: normal;
+}
+
+.celular-modo .segmentado {
+  align-self: flex-start;
+  margin-left: 0;
+}

@@ -20,7 +20,7 @@ use std::io::Read;
 /// Bot messages can reach 4000 characters of any script.
 const MAX_BODY: u64 = 32 * 1024;
 
-type Reply = Response<Cursor<Vec<u8>>>;
+pub(crate) type Reply = Response<Cursor<Vec<u8>>>;
 
 const SECURITY_HEADERS: [(&str, &str); 5] = [
     (
@@ -56,7 +56,7 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     let token = session_token();
     let url = format!("http://127.0.0.1:{port}/#t={token}");
     println!("raiox panel: {url}");
-    println!("Only this machine can open it. Ctrl+C stops it.");
+    println!("Only this machine can open it (and devices you pair, when phone access is on). Ctrl+C stops it.");
     if open_browser && let Err(error) = open::that(&url) {
         eprintln!("could not open the browser ({error}); open the link above");
     }
@@ -64,23 +64,36 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
     // Drafts older than two weeks go, with their copies and backups.
     crate::drafts::cleanup(&panel.state_dir);
-    // Dev servers an earlier raiox left running stop now.
-    crate::preview::cleanup(&panel.state_dir);
+    // Dev servers and a tunnel an earlier raiox left running stop now.
+    crate::procs::cleanup(&panel.state_dir);
+    // Phone access opens again if the person left it on.
+    crate::tunnel::resume(&panel.state_dir, port);
     for mut request in server.incoming_requests() {
-        let reply = route(&mut panel, &mut request, &token, &hosts);
+        let reply = route(&mut panel, &mut request, &token, &hosts, port);
         // The browser may have gone away; nothing to do about it.
         let _ = request.respond(reply);
     }
     Ok(())
 }
 
-fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]) -> Reply {
-    if !header(request, "Host").is_some_and(|host| hosts.iter().any(|h| h == host)) {
+fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String], port: u16) -> Reply {
+    let host = header(request, "Host").unwrap_or("");
+    // This machine by 127.0.0.1/localhost, or a paired device by the tunnel's public address; nothing else.
+    let remote = if hosts.iter().any(|h| h == host) {
+        false
+    } else if crate::tunnel::public_host(&panel.state_dir).is_some_and(|public| public == host) {
+        true
+    } else {
         return text(403, "forbidden host");
+    };
+    let path = request.url().split(['?', '#']).next().unwrap_or("/").to_string();
+    let path = path.as_str();
+    if remote && let Some(reply) = crate::remote::gate(&panel.state_dir, request, path) {
+        return reply;
     }
-    let path = request.url().split(['?', '#']).next().unwrap_or("/");
     match (request.method(), path) {
-        (_, p) if p.starts_with("/api/") && !authorized(request, token) => text(401, "missing or wrong session token"),
+        (_, p) if p.starts_with("/api/") && !remote && !authorized(request, token) => text(401, "missing or wrong session token"),
+        (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/report") => respond(report(panel)),
         (Method::Post, "/api/apply") => match body(request) {
             Ok(input) => respond(target(panel, &input).and_then(|dir| actions::apply_suggestion(
@@ -301,7 +314,7 @@ fn settings_state(panel: &Panel) -> anyhow::Result<Value> {
     }))
 }
 
-fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {
+pub(crate) fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {
     request.headers().iter().find(|h| h.field.equiv(name)).map(|h| h.value.as_str())
 }
 
@@ -311,7 +324,7 @@ fn authorized(request: &Request, token: &str) -> bool {
         .is_some_and(|given| constant_time_eq(given.as_bytes(), token.as_bytes()))
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub(crate) fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
@@ -363,7 +376,7 @@ fn content_type(path: &Path) -> &'static str {
     }
 }
 
-fn text(status: u16, message: &str) -> Reply {
+pub(crate) fn text(status: u16, message: &str) -> Reply {
     with_type(Response::from_data(message.as_bytes().to_vec()), "text/plain; charset=utf-8").with_status_code(status)
 }
 
@@ -395,7 +408,7 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
     Ok(value)
 }
 
-fn respond(result: anyhow::Result<Value>) -> Reply {
+pub(crate) fn respond(result: anyhow::Result<Value>) -> Reply {
     match result {
         Ok(value) => with_type(Response::from_data(value.to_string().into_bytes()), "application/json"),
         Err(error) => {
@@ -406,7 +419,7 @@ fn respond(result: anyhow::Result<Value>) -> Reply {
 }
 
 /// Small JSON bodies only; anything else is refused.
-fn body(request: &mut Request) -> Result<Value, Reply> {
+pub(crate) fn body(request: &mut Request) -> Result<Value, Reply> {
     let mut raw = String::new();
     request.as_reader().take(MAX_BODY).read_to_string(&mut raw).map_err(|_| text(400, "unreadable body"))?;
     serde_json::from_str(&raw).map_err(|_| text(400, "body must be JSON"))

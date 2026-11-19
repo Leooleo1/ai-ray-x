@@ -492,9 +492,15 @@ export interface GitHubState {
 }
 
 const TOKEN_KEY = 'raiox.session'
+const DEVICE_KEY = 'raiox.aparelho'
+/** Whether the panel was opened through the phone access (the tunnel's public address), not on this machine. */
+export const IS_REMOTE = !['127.0.0.1', 'localhost', '[::1]'].includes(window.location.hostname)
+/** The error a request gives when this device is not paired, or was removed. */
+export const UNPAIRED = 'unpaired'
 
 /** Reads the session token from the URL fragment once, then hides it from the address bar. */
 export function sessionToken(): string | null {
+  if (IS_REMOTE) return localStorage.getItem(DEVICE_KEY)
   const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('t')
   if (fromHash) {
     sessionStorage.setItem(TOKEN_KEY, fromHash)
@@ -504,8 +510,40 @@ export function sessionToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY)
 }
 
+/** The pairing code a QR link brought, if any. */
+export function pairingCode(): string | null {
+  return new URLSearchParams(window.location.hash.slice(1)).get('pair')
+}
+
+async function readJson<T>(response: Response): Promise<T & { error?: string }> {
+  const raw = await response.text()
+  try {
+    return JSON.parse(raw) as T & { error?: string }
+  } catch {
+    return { error: raw } as T & { error?: string }
+  }
+}
+
+/** A device the person removed (or never paired) forgets its token and asks to pair. */
+function unpairedIf(response: Response): void {
+  if (IS_REMOTE && response.status === 401) {
+    localStorage.removeItem(DEVICE_KEY)
+    throw new Error(UNPAIRED)
+  }
+}
+
+/** Trades the QR link's code for this device's own token, kept on the device. */
+export async function pairDevice(code: string): Promise<void> {
+  history.replaceState(null, '', window.location.pathname)
+  const response = await fetch('/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) })
+  const data = await readJson<{ token?: string }>(response)
+  if (!response.ok || !data.token) throw new Error(data.error ?? `${response.status}`)
+  localStorage.setItem(DEVICE_KEY, data.token)
+}
+
 export async function fetchReport(token: string): Promise<Report> {
   const response = await fetch('/api/report', { headers: { Authorization: `Bearer ${token}` } })
+  unpairedIf(response)
   if (!response.ok) {
     throw new Error(`${response.status} ${await response.text()}`)
   }
@@ -520,7 +558,8 @@ async function request<T>(path: string, body?: Record<string, unknown>): Promise
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   })
-  const data = (await response.json()) as T & { error?: string }
+  unpairedIf(response)
+  const data = await readJson<T>(response)
   if (!response.ok) throw new Error(data.error ?? `${response.status}`)
   return data
 }
@@ -598,6 +637,60 @@ export function botPreviewShot(id: string, target: 'page' | 'simulator', url: st
 
 export function botShotImage(id: string, name: string): Promise<{ image: string }> {
   return request('/api/bot/shot_image', { id, name })
+}
+
+/** The phone access: Cloudflare Tunnel settings, as the person left them. */
+export interface TunnelConfig {
+  on: boolean
+  mode: 'quick' | 'named'
+  tunnel: string
+  hostname: string
+  team: string
+  aud: string
+}
+
+export interface PairedDevice {
+  id: string
+  name: string
+  created_ms: number
+  seen_ms: number
+}
+
+export interface RemoteState {
+  tunnel: {
+    installed: boolean
+    config: TunnelConfig
+    running: boolean
+    started_ms: number | null
+    exit_code: number | null
+    /** The public address, once cloudflared gave it. */
+    host: string | null
+    log: string
+  }
+  devices: PairedDevice[]
+}
+
+/** A one-time pairing link and its QR code (an SVG data URL). */
+export interface Pairing {
+  url: string
+  qr: string
+  expires_ms: number
+}
+
+export function fetchRemote(): Promise<RemoteState> {
+  return request<RemoteState>('/api/remote')
+}
+
+export function setTunnel(config: TunnelConfig): Promise<RemoteState> {
+  return request<RemoteState>('/api/remote/tunnel', { ...config })
+}
+
+export function newPairing(): Promise<Pairing> {
+  return request<Pairing>('/api/remote/pair', {})
+}
+
+export function forgetDevice(id: string): Promise<RemoteState> {
+  return request<RemoteState>('/api/remote/forget', { id })
 }
 
 export function botMemories(id: string): Promise<Memories> {

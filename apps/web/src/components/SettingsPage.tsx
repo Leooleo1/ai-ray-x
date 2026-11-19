@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type GitHubState, type SettingsState, fetchGitHub, fetchSettings, saveSettings } from '../api'
+import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -8,10 +8,11 @@ import { TourDialog } from '../tour/TourDialog'
 import { BotsPanel } from './settings/BotsPanel'
 import { ConnectionTile, GitHubTile } from './settings/ConnectionTile'
 import { type SetupStep, SetupHero, type StepId } from './settings/SetupHero'
+import { PhonePanel } from './settings/PhonePanel'
 import { WiresPanel } from './settings/WiresPanel'
 import './settings-page.css'
 
-export type Tab = 'conexoes' | 'bots' | 'fios'
+export type Tab = 'conexoes' | 'bots' | 'fios' | 'celular'
 
 const message = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure))
 const count = (n: number, [one, many]: [string, string]) => `${n} ${n === 1 ? one : many}`
@@ -20,6 +21,7 @@ const ICONS: Record<Tab, ReactNode> = {
   conexoes: <path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5" />,
   bots: <path d="M6 8h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2zM10 12v1M14 12v1M12 8V5" />,
   fios: <path d="M6 6a2 2 0 1 0 0 .01M18 18a2 2 0 1 0 0 .01M18 6a2 2 0 1 0 0 .01M7.5 7.5l9 9M8 6h8" />,
+  celular: <path d="M9 2.5h6a2.5 2.5 0 0 1 2.5 2.5v14a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 19V5A2.5 2.5 0 0 1 9 2.5zM10.5 18.5h3" />,
 }
 
 interface SettingsPageProps {
@@ -86,6 +88,8 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     { id: 'conexoes', label: t.tabConnections, count: settings ? aisOn : null },
     { id: 'bots', label: t.tabBots, count: projects },
     { id: 'fios', label: t.tabWires, count: links },
+    // Pairing and the tunnel are managed on this machine only.
+    ...(IS_REMOTE ? [] : [{ id: 'celular' as const, label: t.tabPhone, count: null }]),
   ]
   const first = bots.state.bots[0]
   const face = first ? faceForBot(first) : faceOf(PRESETS[0].shape, PRESETS[0].color, PRESETS[0].name)
@@ -134,6 +138,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
         )}
         {tab === 'bots' && <BotsPanel bots={bots} onOpenBot={onOpenBot} onAddBot={onAddBot} />}
         {tab === 'fios' && <WiresPanel bots={bots} />}
+        {tab === 'celular' && !IS_REMOTE && <PhonePanel />}
         {(error ?? bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
       </div>
       {touring && <TourDialog face={face} agent={AGENT_LABEL[first?.agent ?? 'claude']} onClose={() => setTouring(false)} />}

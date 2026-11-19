@@ -120,6 +120,39 @@ The first run walks you through connecting your AIs, GitHub and projects. The
 binary serves the panel from `apps/web/dist`, so run it from the checkout (or
 pass `--web-dir`).
 
+## From your phone
+
+Settings › Phone opens the panel to your phone through
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+(`brew install cloudflared`). The panel keeps listening on `127.0.0.1` only;
+`cloudflared` carries requests to it from a public address.
+
+- **Temporary link**: a `trycloudflare.com` address, no account needed. It
+  changes each time it starts, so devices pair again then.
+- **Your domain, with login**: your own tunnel and hostname behind
+  [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/).
+  raiox checks the Access login on every request (signature, audience, team
+  and expiry), so a hostname left without an Access policy still lets nobody
+  in. Set it up once:
+
+  ```sh
+  cloudflared tunnel login
+  cloudflared tunnel create raiox
+  cloudflared tunnel route dns raiox raiox.yourdomain.com
+  ```
+
+  Then, in Cloudflare Zero Trust, add a self-hosted Access application for
+  `raiox.yourdomain.com` with a policy that allows only you, and copy its
+  Application Audience (AUD) tag. In raiox, fill in the tunnel name, the
+  address, your team domain (`yourteam.cloudflareaccess.com`) and the AUD.
+
+Either way, only devices you pair get in: Settings › Phone shows a QR code
+that lasts five minutes and works once. The device trades it for a token of
+its own (raiox keeps only its hash), and Remove ends its access at once. A
+paired device can read the panel, chat, approve and take screenshots; managing
+the phone access, changing the setup or the CLIs, starting a dev server and
+always-allowing a command stay on the computer.
+
 ## Command line
 
 ```text
@@ -140,6 +173,8 @@ describes the three house agents.
 ## Privacy
 
 - Local only: the panel listens on `127.0.0.1` with a per-run session token.
+  With phone access on, a Cloudflare tunnel reaches it, for paired devices only
+  (see From your phone).
 - raiox reads your CLIs' logs and keeps an index in your cache folder; it does
   not upload them.
 - Secrets are counted, never stored.

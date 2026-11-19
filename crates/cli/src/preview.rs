@@ -2,9 +2,8 @@
 //! one from package.json; it runs only when the person presses Run) starts in
 //! the project folder; raiox reads the address it prints, the panel shows the
 //! page, and headless Chrome takes screenshots of local pages. A dev server
-//! stops with Stop, or the next time raiox opens if raiox closed first.
+//! stops with Stop, or the next time raiox opens if raiox closed first (procs).
 
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -24,7 +23,6 @@ const SHOT_TIMEOUT: Duration = Duration::from_secs(30);
 const SHOT_BUDGET_MS: &str = "4000";
 const MAX_WIDTH: u32 = 2560;
 const MAX_HEIGHT: u32 = 4000;
-const PIDS: &str = "previews.json";
 /// Hosts a screenshot may load: the person's own machine only.
 const LOCAL_HOSTS: [&str; 4] = ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"];
 const CHROMES: [&str; 4] = [
@@ -143,31 +141,23 @@ pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<(
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut process, 0);
     let child = process.spawn().with_context(|| format!("could not start {}", words[0]))?;
-    remember(state_dir, bot, child.id());
+    crate::procs::remember(state_dir, &format!("preview:{bot}"), child.id());
     open.push((bot.to_string(), Running { child, command: command.to_string(), started_ms: room::now_ms() }));
     Ok(())
-}
-
-fn kill_group(pid: u32) {
-    #[cfg(unix)]
-    // SAFETY: kill(2) on the process group the dev server leads (set with process_group(0)).
-    unsafe {
-        libc::kill(-(pid as i32), libc::SIGTERM);
-    }
 }
 
 pub fn stop(state_dir: &Path, bot: &str) -> Result<()> {
     let mut open = running();
     let index = open.iter().position(|(b, _)| b == bot).context("the app is not running")?;
     let (_, mut run) = open.remove(index);
-    kill_group(run.child.id());
+    crate::procs::kill_group(run.child.id());
     let started = Instant::now();
     while run.child.try_wait()?.is_none() && started.elapsed() < Duration::from_secs(3) {
         std::thread::sleep(Duration::from_millis(100));
     }
     let _ = run.child.kill();
     let _ = run.child.wait();
-    forget(state_dir, bot);
+    crate::procs::forget(state_dir, &format!("preview:{bot}"));
     Ok(())
 }
 
@@ -302,42 +292,6 @@ pub fn image(state_dir: &Path, bot: &str, name: &str) -> Result<Value> {
     }
     let bytes = fs::read(shots_dir(state_dir, bot).join(name)).context("no such screenshot")?;
     Ok(json!({ "image": format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)) }))
-}
-
-fn pids(state_dir: &Path) -> HashMap<String, (u32, String)> {
-    fs::read_to_string(state_dir.join(PIDS)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
-}
-
-fn save_pids(state_dir: &Path, map: &HashMap<String, (u32, String)>) {
-    let _ = fs::write(state_dir.join(PIDS), serde_json::to_string(map).unwrap_or_default());
-}
-
-/// When a process started, as `ps` shows it: with the pid, it tells a dev server from a later process given the same pid.
-fn started_at(pid: u32) -> String {
-    Command::new("ps").args(["-o", "lstart=", "-p", &pid.to_string()]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
-}
-
-fn remember(state_dir: &Path, bot: &str, pid: u32) {
-    let mut map = pids(state_dir);
-    map.insert(bot.to_string(), (pid, started_at(pid)));
-    save_pids(state_dir, &map);
-}
-
-fn forget(state_dir: &Path, bot: &str) {
-    let mut map = pids(state_dir);
-    map.remove(bot);
-    save_pids(state_dir, &map);
-}
-
-/// At startup: dev servers an earlier raiox left running stop, when the process is still theirs.
-pub fn cleanup(state_dir: &Path) {
-    for (pid, started) in pids(state_dir).into_values() {
-        // Only the same process (same pid, same start time): a pid can be reused by another program.
-        if !started.is_empty() && started_at(pid) == started {
-            kill_group(pid);
-        }
-    }
-    save_pids(state_dir, &HashMap::new());
 }
 
 #[cfg(test)]

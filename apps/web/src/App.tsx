@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { fetchReport, sessionToken, type Report } from './api'
+import { IS_REMOTE, UNPAIRED, fetchReport, pairDevice, pairingCode, sessionToken, type Report } from './api'
+import { PairScreen } from './components/PairScreen'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
 import { useUnread } from './unread'
@@ -73,7 +74,9 @@ function tabFromPath(): Tab {
   return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
 }
 
-type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'ready'; report: Report; at: Date }
+type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'unpaired'; message: string | null } | { kind: 'ready'; report: Report; at: Date }
+
+const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 export function App() {
   const [state, setState] = useState<State>({ kind: 'loading' })
@@ -81,24 +84,39 @@ export function App() {
   const [setupOpen, setSetupOpen] = useState(() => SETUP_PATHS.includes(window.location.pathname))
 
   useEffect(() => {
-    const token = sessionToken()
-    if (!token) {
-      setState({ kind: 'failed', message: t.noToken })
-      return
-    }
     let alive = true
-    const load = async () => {
+    let timer = 0
+    const load = async (token: string) => {
       try {
         const report = await fetchReport(token)
         if (alive) setState({ kind: 'ready', report, at: new Date() })
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error)
-        // Keep showing the last good report if a refresh fails.
-        if (alive) setState((previous) => (previous.kind === 'ready' ? previous : { kind: 'failed', message }))
+        const message = messageOf(error)
+        if (!alive) return
+        // A removed device goes back to pairing; otherwise the last good report stays if a refresh fails.
+        if (message === UNPAIRED) setState({ kind: 'unpaired', message: null })
+        else setState((previous) => (previous.kind === 'ready' ? previous : { kind: 'failed', message }))
       }
     }
-    void load()
-    const timer = window.setInterval(() => void load(), REFRESH_MS)
+    const begin = async () => {
+      const code = IS_REMOTE ? pairingCode() : null
+      if (code) {
+        try {
+          await pairDevice(code)
+        } catch (error: unknown) {
+          if (alive) setState({ kind: 'unpaired', message: messageOf(error) })
+          return
+        }
+      }
+      const token = sessionToken()
+      if (!token) {
+        setState(IS_REMOTE ? { kind: 'unpaired', message: null } : { kind: 'failed', message: t.noToken })
+        return
+      }
+      await load(token)
+      if (alive) timer = window.setInterval(() => void load(token), REFRESH_MS)
+    }
+    void begin()
     return () => {
       alive = false
       window.clearInterval(timer)
@@ -107,6 +125,7 @@ export function App() {
 
   if (state.kind === 'loading') return <div className="tela-estado">{t.loading}</div>
   if (state.kind === 'failed') return <div className="tela-estado">{`${t.failed}: ${state.message}`}</div>
+  if (state.kind === 'unpaired') return <PairScreen message={state.message} />
   if (!state.report.setup.done || setupOpen) {
     const finish = (firstBot: string | null) => {
       history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : '/')

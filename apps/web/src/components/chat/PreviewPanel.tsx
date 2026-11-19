@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { type Bot, type Preview, botPreview, botPreviewShot } from '../../api'
+import { type Bot, IS_REMOTE, type Preview, botPreview, botPreviewShot } from '../../api'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
 import './preview.css'
@@ -77,7 +77,9 @@ export function PreviewPanel({ bot, bots, onClose }: PreviewPanelProps) {
       <div className="ver-corpo">
         {tab === 'page' && (
           <>
-            {!preview?.running ? (
+            {!preview?.running && IS_REMOTE ? (
+              <p className="nota">{t.previewRemote}</p>
+            ) : !preview?.running ? (
               <form
                 className="ver-comando"
                 onSubmit={(event) => {
@@ -118,7 +120,7 @@ export function PreviewPanel({ bot, bots, onClose }: PreviewPanelProps) {
                 </button>
               </div>
             )}
-            {preview?.running && preview.url && (
+            {preview?.running && preview.url && !IS_REMOTE && (
               <div className={`ver-moldura ${size}`}>
                 <iframe title={t.previewTitle} src={preview.url} />
               </div>
