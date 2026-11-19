@@ -185,6 +185,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
       openChat(`bot:${bot}`)
     },
     add: () => openChat('bots'),
+    openChannel: (id) => openChat(`canal:${id}`),
   }
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
   const heading = HEADINGS[tab]

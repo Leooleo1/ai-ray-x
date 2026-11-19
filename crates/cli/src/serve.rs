@@ -197,6 +197,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::channels::create(state_dir, field("name"), &members).map(|_| ())
         }
         "channel_delete" => crate::channels::delete(state_dir, field("channel")),
+        "carry" => {
+            let to_bot = Some(field("to_bot")).filter(|t| !t.is_empty());
+            let to_channel = Some(field("to_channel")).filter(|t| !t.is_empty());
+            crate::carry::carry(state_dir, field("id"), thread, to_bot, to_channel).map(|_| ())
+        }
         "channel_post" => crate::channels::post(state_dir, jobs, field("channel"), field("text")),
         "channel_pass" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;

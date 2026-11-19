@@ -11,6 +11,7 @@ import { isHouse } from './HouseLine'
 export function preview(m: BotMessage | undefined): string {
   if (!m) return t.noMessagesYet
   if (isHouse(m.author)) return `${AGENTS[m.author].name} · ${houseAsk(m.author)}`
+  if (m.kind === 'carried') return t.carriedFrom.replace('{p}', m.data.project ?? '')
   if (m.kind === 'review') return `${t.reviewBy.replace('{a}', m.data.agent ? AGENT_LABEL[m.data.agent] : '')}: ${(m.data.reply?.text ?? '').split('\n')[0]}`
   if (m.kind === 'review_asked') return t.reviewAsked.replace('{a}', '').trim()
   if (m.kind === 'remembered') return t.rememberedLine

@@ -2013,3 +2013,144 @@
     animation: none;
   }
 }
+
+/* "Take to…": a small menu under the chat's header. */
+.levar {
+  position: relative;
+}
+
+.levar-painel {
+  position: absolute;
+  white-space: normal;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 280px;
+  max-height: 360px;
+  padding: 8px;
+  overflow-y: auto;
+  border-radius: 14px;
+  background: #16161c;
+  box-shadow:
+    inset 0 0 0 1px var(--fio),
+    0 12px 32px rgb(0 0 0 / 45%);
+}
+
+.levar-nota {
+  margin: 2px 6px 6px;
+  color: var(--nevoa);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.levar-grupo {
+  margin: 6px 6px 2px;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.levar-painel button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--giz);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.levar-painel button:hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+.levar-painel button span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.levar-painel button small {
+  flex: none;
+  color: var(--nevoa);
+  font-size: 11px;
+}
+
+.levar-cerquilha {
+  flex: none !important;
+  width: 20px;
+  color: var(--nevoa);
+  font-family: var(--mono);
+  text-align: center;
+}
+
+/* Context brought from another conversation, folded. */
+.trazido {
+  max-width: 640px;
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 3%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.trazido summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--giz);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.trazido summary::-webkit-details-marker {
+  display: none;
+}
+
+.trazido summary::before {
+  content: '▸';
+  color: var(--nevoa);
+}
+
+.trazido[open] summary::before {
+  content: '▾';
+}
+
+.trazido summary small {
+  flex: none;
+  white-space: nowrap;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.trazido ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trazido li {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.trazido li b {
+  flex: none;
+  width: 36px;
+  color: var(--nevoa);
+  font-weight: 500;
+}

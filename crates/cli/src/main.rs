@@ -9,6 +9,7 @@ mod bot_steps;
 mod bot_trail;
 mod bot_usage;
 mod bots;
+mod carry;
 mod channels;
 mod budget;
 mod connections;

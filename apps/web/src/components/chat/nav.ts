@@ -8,4 +8,5 @@ export interface ChatNav {
   /** Opens a bot at one message of one of its conversations. */
   openMessage: (bot: string, thread: string, ms: number) => void
   add: () => void
+  openChannel: (id: string) => void
 }

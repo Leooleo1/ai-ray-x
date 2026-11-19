@@ -46,7 +46,7 @@ fn file(state_dir: &Path) -> PathBuf {
     state_dir.join(FILE)
 }
 
-fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
+pub fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
     state_dir.join("channels").join(format!("{id}.json"))
 }
 

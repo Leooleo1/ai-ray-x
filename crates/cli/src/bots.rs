@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 7] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked"];
+const ASIDE: [&str; 8] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -521,6 +521,9 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) ->
         Some(what) => format!("(raiox: the person {what} the change you made in a draft copy.)\n\n{text}"),
         None => text.to_string(),
     };
+    // Context the person brought from another conversation goes with the first question after it.
+    let brought: String = crate::carry::unread(&messages).into_iter().map(crate::carry::for_cli).collect();
+    let for_cli = format!("{brought}{for_cli}");
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", json!({ "text": text }))), home: None, command: None })
 }
 

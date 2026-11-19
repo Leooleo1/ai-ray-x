@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
+import { CarriedBlock } from './Carry'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { TrailView } from './TrailView'
 import { Expandable } from './Expandable'
@@ -83,6 +84,14 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       <>
         {head}
         <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
+      </>
+    )
+  }
+  if (message.kind === 'carried') {
+    return (
+      <>
+        {head}
+        <CarriedBlock message={message} />
       </>
     )
   }

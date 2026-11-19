@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
+import { CarriedBlock } from './chat/Carry'
 import { Composer } from './chat/Composer'
 import { Markdown } from './Markdown'
 import type { ChatNav } from './chat/nav'
@@ -107,6 +108,7 @@ interface LineProps {
 /** One message of the channel: the person's, a pass, or a member's answer with its requests. */
 function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
   const { message } = item
+  if (item.bot === null && message.kind === 'carried') return <CarriedBlock message={message} />
   if (item.bot === null && message.kind === 'pass') {
     const to = typeof message.data.to === 'string' ? message.data.to : ''
     return <p className="linha-sistema">{t.channelPassed.replace('{from}', `@${handleOf(message.data.from ?? '')}`).replace('{to}', `@${handleOf(to)}`)}</p>

@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
+import { CarryMenu } from './chat/Carry'
 import { latestAnswer, pendingProposal } from './chat/waiting'
 import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
@@ -155,6 +156,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
             </span>
           </span>
+          {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
           <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">

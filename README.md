@@ -64,6 +64,9 @@ calls a member (several handles call several; none calls the channel's lead).
 Each member answers in a conversation of its own, is told what was said in
 the channel since it last spoke, and can ask another member for help; the
 request shows as a card and goes on only when you pass it.
+Any conversation can be taken to another AI (as a new conversation) or into a
+channel: its last exchanges go along, at no token cost, and the next turn
+there reads them.
 
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session

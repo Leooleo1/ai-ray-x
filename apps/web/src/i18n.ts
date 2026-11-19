@@ -1,6 +1,13 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  carryTo: 'Take to…',
+  carryHint: 'takes this conversation\'s last exchanges, at no token cost',
+  carryOtherAi: 'Another AI (a new conversation)',
+  carriedFrom: 'Context brought from {p}',
+  carriedCount: '{n} messages',
+  carriedYou: 'You',
+  carriedAi: 'AI',
   channels: 'Channels',
   channelNewNav: 'New channel',
   channelNewTitle: 'New channel',
@@ -417,6 +424,13 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  carryTo: 'Levar para…',
+  carryHint: 'leva as últimas trocas desta conversa, sem gastar tokens',
+  carryOtherAi: 'Outra IA (conversa nova)',
+  carriedFrom: 'Contexto trazido de {p}',
+  carriedCount: '{n} mensagens',
+  carriedYou: 'Você',
+  carriedAi: 'IA',
   channels: 'Canais',
   channelNewNav: 'Novo canal',
   channelNewTitle: 'Novo canal',
