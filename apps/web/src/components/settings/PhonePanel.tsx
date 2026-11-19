@@ -3,6 +3,7 @@ import { type Pairing, type RemoteState, type TunnelConfig, fetchRemote, forgetD
 import { t } from '../../i18n'
 import { Segmented } from '../Segmented'
 import './phone.css'
+import { TelegramPanel } from './TelegramPanel'
 
 /** How often the tab asks how the tunnel is doing, and how often the QR countdown ticks. */
 const POLL_MS = 2000
@@ -181,6 +182,7 @@ export function PhonePanel() {
           </ul>
         )}
       </article>
+      <TelegramPanel />
       {error && <p className="nota failed quebra">{error}</p>}
     </div>
   )

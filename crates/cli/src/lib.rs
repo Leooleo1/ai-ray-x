@@ -44,6 +44,7 @@ pub mod settings;
 pub mod simulator;
 pub mod setup;
 pub mod tasks;
+pub mod telegram;
 pub mod team;
 pub mod threads;
 pub mod tunnel;

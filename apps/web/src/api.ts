@@ -778,6 +778,25 @@ export function wikiFromAnswer(id: string, thread: string, answer_ms: number): P
   return request<WikiList>('/api/wiki/from_answer', { id, thread, answer_ms })
 }
 
+/** The Telegram bridge, as the panel sees it (never the token). */
+export interface TelegramState {
+  connected: boolean
+  username?: string
+  paired?: boolean
+  chat_name?: string
+  code?: string | null
+  code_until?: number
+  bot?: string | null
+}
+
+export function fetchTelegram(): Promise<TelegramState> {
+  return request<TelegramState>('/api/telegram')
+}
+
+export function telegramAction(action: 'connect' | 'pair' | 'forget', body: Record<string, unknown> = {}): Promise<TelegramState> {
+  return request<TelegramState>(`/api/telegram/${action}`, body)
+}
+
 export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'task'
 
 /** Something a bot produced: a change to its project, a screenshot, a routine's result, a finished task. */

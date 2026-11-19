@@ -85,6 +85,7 @@ pub fn start(panel: Panel, port: u16) -> Result<(String, u16)> {
 fn serve(server: Server, mut panel: Panel, token: &str, port: u16) {
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
+    crate::telegram::spawn(panel.state_dir.clone(), panel.jobs.clone());
     // Drafts older than two weeks go, with their copies and backups.
     crate::drafts::cleanup(&panel.state_dir);
     // Dev servers and a tunnel an earlier raiox left running stop now.
@@ -141,6 +142,13 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
+        (Method::Get, "/api/telegram") => respond(Ok(crate::telegram::state(&panel.state_dir))),
+        (Method::Post, "/api/telegram/connect") => match body(request) {
+            Ok(input) => respond(crate::telegram::connect(&panel.state_dir, input.get("token").and_then(Value::as_str).unwrap_or(""))),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/telegram/pair") => respond(crate::telegram::pair_again(&panel.state_dir)),
+        (Method::Post, "/api/telegram/forget") => respond(crate::telegram::forget(&panel.state_dir)),
         (Method::Get, "/api/deliveries") => {
             let all = crate::deliveries::list(&panel.state_dir);
             // A device sees the deliveries of the bots it can reach.

@@ -1,6 +1,18 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  telegramTitle: 'Telegram',
+  telegramHint: 'talk to your AIs from Telegram, through a bot of your own',
+  telegramSteps: 'In Telegram, open @BotFather, send /newbot and follow it. Paste the token it gives you here.',
+  telegramToken: 'Bot token',
+  telegramConnect: 'Connect',
+  telegramPairHint: 'Open your bot and press Start, or send it this code. Only that chat will be heard.',
+  telegramOpen: 'Open @{bot}',
+  telegramPaired: 'Paired with {name} on @{bot}',
+  telegramAnswers: 'Only AIs reachable from the phone answer there. /bots lists them, /bot 2 picks one.',
+  telegramPairAgain: 'Pair another chat',
+  telegramForget: 'Disconnect',
+  telegramForgetSure: 'Disconnect?',
   deliveriesTab: 'Deliveries',
   deliveriesTitle: 'Deliveries',
   deliveriesSubtitle: 'what your AIs produced, in one place',
@@ -578,6 +590,18 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  telegramTitle: 'Telegram',
+  telegramHint: 'fale com suas IAs pelo Telegram, por um bot só seu',
+  telegramSteps: 'No Telegram, abra o @BotFather, mande /newbot e siga. Cole aqui o token que ele der.',
+  telegramToken: 'Token do bot',
+  telegramConnect: 'Conectar',
+  telegramPairHint: 'Abra o seu bot e toque em Iniciar, ou mande este código a ele. Só essa conversa será ouvida.',
+  telegramOpen: 'Abrir @{bot}',
+  telegramPaired: 'Pareado com {name} no @{bot}',
+  telegramAnswers: 'Só as IAs que falam pelo celular respondem lá. /bots lista, /bot 2 escolhe.',
+  telegramPairAgain: 'Parear outra conversa',
+  telegramForget: 'Desconectar',
+  telegramForgetSure: 'Desconectar?',
   deliveriesTab: 'Entregas',
   deliveriesTitle: 'Entregas',
   deliveriesSubtitle: 'o que suas IAs produziram, num lugar só',

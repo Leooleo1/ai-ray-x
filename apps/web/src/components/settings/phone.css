@@ -105,3 +105,23 @@
   font: 500 18px/24px var(--mono);
   letter-spacing: 0.04em;
 }
+
+/* Telegram: the token form, then the pairing code with a link that sends it. */
+.telegram-token,
+.telegram-par {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.telegram .acao a.cheio {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 13px/16px var(--sans);
+  text-decoration: none;
+}

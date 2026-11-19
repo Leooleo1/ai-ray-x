@@ -60,6 +60,15 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Telegram.** Talk to your AIs from Telegram, through a bot of your own: make
+one with @BotFather (`/newbot`), paste its token in Settings › Phone, then open
+the bot and press Start (or send it the code shown). raiox asks Telegram for
+new messages, so nothing reaches your computer from outside. Only that one chat
+is heard, and only the AIs reachable from the phone answer: `/bots` lists
+them, `/bot 2` picks who answers. Proposals and drafts still wait in raiox for
+your approval. The token stays in a private file next to the index and never
+goes on a command line.
+
 **Deliveries.** One page with what your AIs produced, by day: the changes
 they made to a project (with the files), drafts you applied (marked when
 undone), screenshots, routine results and finished tasks. Each opens the

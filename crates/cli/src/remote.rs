@@ -17,6 +17,7 @@ use crate::{access, devices, tunnel};
 /// What a device may not do: manage the phone access, change the setup or the CLIs, start programs.
 fn desk_only(method: &Method, path: &str) -> bool {
     path.starts_with("/api/remote")
+        || path.starts_with("/api/telegram")
         || (*method != Method::Get && (path.starts_with("/api/setup") || path == "/api/settings"))
         || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/request_approve", "/api/bot/request_discard"].contains(&path)
 }
