@@ -8,7 +8,7 @@ pub const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 pub const TO_MARK: &str = "RAIOX-TO";
 pub const OPEN_MARK: &str = "RAIOX-OPEN:";
 /// Places in the panel a bot can point to with a card.
-pub const PLACES: [&str; 4] = ["model", "settings", "memories", "connections"];
+pub const PLACES: [&str; 5] = ["model", "settings", "memories", "connections", "wires"];
 /// Longest message for another bot, in characters.
 const MAX_NOTE: usize = 1200;
 

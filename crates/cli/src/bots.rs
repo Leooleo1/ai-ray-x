@@ -447,12 +447,15 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
         // Only the projects wired to this one: the bot names no others and can message no others.
         let others: Vec<String> = crate::links::linked(&state_dir, &bot.name);
+        let mut unwired: Vec<String> = list(&state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
+        unwired.sort();
+        unwired.dedup();
         let defaults = crate::settings::Settings::load(&state_dir).defaults_for(&bot.agent);
         let target = bot_run::Target {
             agent: &bot.agent,
             dir: &bot.dir,
             // The team notes from ai-memory: what the other bots here and in wired projects did lately.
-            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others) + &crate::team::context_for(&state_dir, &bot),
+            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others, &unwired) + &crate::team::context_for(&state_dir, &bot),
             session: session.as_deref(),
             model: bot.model.as_deref().or(defaults.model.as_deref()),
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),

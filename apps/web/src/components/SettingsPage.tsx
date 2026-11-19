@@ -11,7 +11,7 @@ import { type SetupStep, SetupHero, type StepId } from './settings/SetupHero'
 import { WiresPanel } from './settings/WiresPanel'
 import './settings-page.css'
 
-type Tab = 'conexoes' | 'bots' | 'fios'
+export type Tab = 'conexoes' | 'bots' | 'fios'
 
 const message = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure))
 const count = (n: number, [one, many]: [string, string]) => `${n} ${n === 1 ? one : many}`
@@ -27,15 +27,17 @@ interface SettingsPageProps {
   onOpenBot: (id: string) => void
   onAddBot: () => void
   onRedoSetup: () => void
+  /** The tab to open on, when another page sent the person to one. */
+  initialTab: Tab
 }
 
 /** Settings as the onboarding left them: the setup at a glance on top, then one part at a time. */
-export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup }: SettingsPageProps) {
+export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTab }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsState | null>(null)
   const [github, setGithub] = useState<GitHubState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [touring, setTouring] = useState(false)
-  const [tab, setTab] = useState<Tab>('conexoes')
+  const [tab, setTab] = useState<Tab>(initialTab)
 
   const loadGithub = useCallback(() => {
     setGithub(null)

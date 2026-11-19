@@ -34,7 +34,8 @@ interface BotChatProps {
   nav: ChatNav
   /** A conversation and message to open at (from search or a group question). */
   focus: { thread: string; ms: number } | null
-  onConnections: () => void
+  /** Opens Settings at one of its tabs. */
+  onSettings: (tab: 'conexoes' | 'fios') => void
   unread: Set<string>
   /** For Dieta's cuts: the suggestions as computed now and the changes applied. */
   report: Report
@@ -42,7 +43,7 @@ interface BotChatProps {
 }
 
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, nav, focus, onConnections, unread, report, onChanged }: BotChatProps) {
+export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onChanged }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   // On a phone the project's conversations open as a sheet.
   const [listOpen, setListOpen] = useState(false)
@@ -71,7 +72,7 @@ export function BotChat({ bot, bots, nav, focus, onConnections, unread, report, 
     if (place === 'model') setModelSignal((n) => n + 1)
     else if (place === 'settings') setSettingsOpen(true)
     else if (place === 'memories') setMemorySignal((n) => n + 1)
-    else onConnections()
+    else onSettings(place === 'wires' ? 'fios' : 'conexoes')
   }
   const newThread = async () => {
     const next = await bots.act('thread_new', { id: bot.id })

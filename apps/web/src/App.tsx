@@ -9,7 +9,7 @@ import { BotPicker } from './components/BotPicker'
 import { Clock } from './components/Clock'
 import { ContextRuler } from './components/ContextRuler'
 import { EfficiencyView } from './components/Efficiency'
-import { SettingsPage } from './components/SettingsPage'
+import { SettingsPage, type Tab as SettingsTab } from './components/SettingsPage'
 import { AskMany } from './components/chat/AskMany'
 import { BatchView } from './components/chat/BatchView'
 import type { ChatNav } from './components/chat/nav'
@@ -128,6 +128,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
+  // Which Settings tab opens: Connections from the menu, another when a chat card sends the person there.
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('conexoes')
   const bots = useBots(report.bots)
   useEffect(() => {
     const onBack = () => {
@@ -184,7 +186,10 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         bots={bots.state.bots}
         unread={unread}
         updatedAt={at}
-        onTab={go}
+        onTab={(next) => {
+          setSettingsTab('conexoes')
+          go(next)
+        }}
         onChat={openChat}
       />
       <div className="principal">
@@ -193,7 +198,10 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <p>{heading.subtitle}</p>
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
-        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onConnections={() => go('settings')} nav={nav} report={report} onChanged={onChanged} />}
+        {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onSettings={(tab) => {
+          setSettingsTab(tab)
+          go('settings')
+        }} nav={nav} report={report} onChanged={onChanged} />}
         {tab === 'agents' && openExchange && (
           <ExchangeView exchange={openExchange} bots={bots} unread={unread} nav={nav} />
         )}
@@ -202,7 +210,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
-          <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} />
+          <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />
         )}
         {tab === 'xray' && (
           <main className="grade">

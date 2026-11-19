@@ -1,13 +1,14 @@
-/* A floating tip: low on the right, over everything, one at a time. */
+/* A floating tip, one at a time. On a computer it sits at the foot of the
+   sidebar, where it never covers a conversation; on a phone, low on the screen. */
 .dica-flutuante {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  left: 12px;
+  bottom: 12px;
   z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: min(360px, calc(100vw - 32px));
+  width: 224px;
   padding: 14px 16px 16px;
   border-radius: 18px;
   background: #121217;
@@ -43,8 +44,11 @@
 }
 
 .dica-flutuante header small {
+  overflow: hidden;
   color: var(--nevoa);
   font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dica-flutuante p {
@@ -55,8 +59,9 @@
 
 .dica-flutuante footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
 }
 
 .dica-acao {
@@ -73,13 +78,27 @@
 
 .dica-flutuante footer .lado-link {
   align-self: center;
-  margin: 0 0 0 auto;
+  margin: 0;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 960px) {
   .dica-flutuante {
     right: 16px;
+    left: 16px;
     bottom: 16px;
+    width: auto;
+  }
+
+  .dica-rosto {
+    right: 16px;
+    left: auto;
+    bottom: 16px;
+  }
+
+  /* Over the composer on the pages that have one. */
+  .dica-flutuante.elevada,
+  .dica-rosto.elevada {
+    bottom: 120px;
   }
 }
 
@@ -89,17 +108,11 @@
   }
 }
 
-/* Over the composer's height on the pages that have one, so it never covers what you type. */
-.dica-flutuante.elevada,
-.dica-rosto.elevada {
-  bottom: 132px;
-}
-
-/* A folded tip: the agent's face with a dot, low on the right; a tap opens it again. */
+/* A folded tip: the agent's face with a dot; a tap opens it again. */
 .dica-rosto {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  left: 20px;
+  bottom: 20px;
   z-index: 40;
   display: grid;
   width: 48px;
@@ -128,14 +141,3 @@
   box-shadow: 0 0 0 2px #121217;
 }
 
-@media (max-width: 760px) {
-  .dica-flutuante.elevada,
-  .dica-rosto.elevada {
-    bottom: 120px;
-  }
-
-  .dica-rosto {
-    right: 16px;
-    bottom: 16px;
-  }
-}

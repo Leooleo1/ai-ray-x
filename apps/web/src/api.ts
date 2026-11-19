@@ -190,7 +190,7 @@ export interface Routine {
   last_ms: number | null
 }
 
-export type Place = 'model' | 'settings' | 'memories' | 'connections'
+export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires'
 
 export interface BotReply {
   text: string

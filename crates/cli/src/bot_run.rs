@@ -68,7 +68,7 @@ pub struct Target<'a> {
 
 /// What the bot is told on every turn: how raiox works, how to propose a
 /// change, and the personality the person gave it (may be empty).
-pub fn guide(project: &str, persona: &str, others: &[String]) -> String {
+pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]) -> String {
     let base = format!(
         "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
          In this turn you can only read: do not edit files or run commands that change anything. \
@@ -95,8 +95,19 @@ pub fn guide(project: &str, persona: &str, others: &[String]) -> String {
          which AI tools are connected, you can end with one line {OPEN_MARK} model | settings | memories | connections; \
          raiox shows a card that opens that place."
     );
+    // Projects with a bot that are not wired here: named so a request to talk to one gets the way to wire it.
+    let wire = if unwired.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\nProjects with a raiox bot that are not wired to this one: {}. If the person asks you to talk to, ask or \
+             tell one of them, say that once the two projects are wired in raiox you can send it a message (with their \
+             approval), and end with one line {OPEN_MARK} wires",
+            unwired.join(", ")
+        )
+    };
     let persona = persona.trim();
-    format!("{base}{mail}{places}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
+    format!("{base}{mail}{places}{wire}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
 
 fn edit_prompt(proposal: &str) -> String {
@@ -375,8 +386,8 @@ mod tests {
 
     #[test]
     fn the_persona_follows_the_raiox_guide() {
-        let plain = guide("app", "", &[]);
-        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.", &[]);
+        let plain = guide("app", "", &[], &[]);
+        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.", &[], &[]);
         assert!(plain.contains(PROPOSAL_MARK) && !plain.contains("Reviewer"));
         assert!(with_persona.starts_with(&plain) && with_persona.ends_with("Look for bugs."));
     }
@@ -390,8 +401,11 @@ mod tests {
 
     #[test]
     fn the_guide_lists_the_other_bots_only_when_there_are_some() {
-        assert!(!guide("app", "", &[]).contains(TO_MARK));
-        assert!(guide("app", "", &["shop".into()]).contains("Other projects with a raiox bot: shop."));
+        assert!(!guide("app", "", &[], &[]).contains(TO_MARK));
+        assert!(guide("app", "", &["shop".into()], &[]).contains("Other projects with a raiox bot: shop."));
+        // A project with a bot but no wire comes with the way to wire it.
+        let unwired = guide("app", "", &[], &["shop".into()]);
+        assert!(unwired.contains("not wired to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
     }
 
     #[test]
