@@ -757,7 +757,7 @@ mod tests {
         assert!(activate(&state, &home, "../", "claude", None).is_err());
         fs::create_dir_all(home.join(".claude/projects")).unwrap();
         assert!(activate(&state, &home, ".claude/projects", "claude", None).is_err());
-        assert!(activate(&state, &home, "Projects/app", "gemini", None).is_err());
+        assert!(activate(&state, &home, "Projects/app", "antigravity", None).is_err());
         let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
         assert_eq!(bot.name, "app");
         activate(&state, &home, "Projects/app", "claude", None).unwrap();

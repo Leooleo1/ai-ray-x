@@ -13,7 +13,7 @@ const EFFORTS: Partial<Record<BotAgent, string[]>> = {
   claude: ['low', 'medium', 'high', 'xhigh', 'max'],
   codex: ['low', 'medium', 'high', 'xhigh'],
 }
-const MONOGRAMS: Record<string, string> = { claude: 'CC', codex: 'CX', cursor: 'CU', opencode: 'OC', gemini: 'GM', copilot: 'CP' }
+const MONOGRAMS: Record<string, string> = { claude: 'CC', codex: 'CX', cursor: 'CU', opencode: 'OC', antigravity: 'AG', copilot: 'CP' }
 
 type Tone = 'ok' | 'alerta' | ''
 

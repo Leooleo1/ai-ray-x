@@ -29,12 +29,13 @@ pub struct Known {
 }
 
 pub const KNOWN: [Known; 6] = [
-    Known { id: "claude", name: "Claude Code", binary: "claude", install: "npm install -g @anthropic-ai/claude-code", login: "claude auth login", bots: true, xray: true },
+    Known { id: "claude", name: "Claude Code", binary: "claude", install: "curl -fsSL https://claude.ai/install.sh | bash", login: "claude auth login", bots: true, xray: true },
     Known { id: "codex", name: "Codex", binary: "codex", install: "npm install -g @openai/codex", login: "codex login", bots: true, xray: true },
     Known { id: "cursor", name: "Cursor", binary: "cursor-agent", install: "curl https://cursor.com/install -fsS | bash", login: "cursor-agent login", bots: true, xray: false },
     Known { id: "opencode", name: "opencode", binary: "opencode", install: "curl -fsSL https://opencode.ai/install | bash", login: "opencode auth login", bots: false, xray: false },
-    Known { id: "gemini", name: "Gemini CLI", binary: "gemini", install: "npm install -g @google/gemini-cli", login: "gemini", bots: false, xray: false },
-    Known { id: "copilot", name: "GitHub Copilot CLI", binary: "copilot", install: "npm install -g @github/copilot", login: "copilot", bots: false, xray: false },
+    // Google replaced Gemini CLI with Antigravity CLI (`agy`); its first run signs in with Google.
+    Known { id: "antigravity", name: "Antigravity CLI", binary: "agy", install: "curl -fsSL https://antigravity.google/cli/install.sh | bash", login: "agy", bots: false, xray: false },
+    Known { id: "copilot", name: "GitHub Copilot CLI", binary: "copilot", install: "npm install -g @github/copilot", login: "copilot login", bots: false, xray: false },
 ];
 
 pub fn known(id: &str) -> Option<&'static Known> {
@@ -93,6 +94,14 @@ fn version(binary: &str) -> Option<String> {
     line.split_whitespace().find(|w| w.trim_start_matches('v').starts_with(|c: char| c.is_ascii_digit())).map(|w| w.trim_start_matches('v').to_string())
 }
 
+/// Whether opencode's database holds a sign-in (rows counted, never read; read-only).
+fn opencode_signed_in(db: &Path) -> bool {
+    let Ok(conn) = rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX) else { return false };
+    ["credential", "account", "control_account"]
+        .iter()
+        .any(|table| conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get::<_, i64>(0)).unwrap_or(0) > 0)
+}
+
 /// (signed in, how, plan) for the CLIs raiox can ask.
 fn sign_in(id: &str, home: &Path) -> (Option<bool>, Option<String>, Option<String>) {
     match id {
@@ -112,14 +121,17 @@ fn sign_in(id: &str, home: &Path) -> (Option<bool>, Option<String>, Option<Strin
             (Some(ok), ok.then(|| "Cursor".to_string()), None)
         }
         "opencode" => {
-            let providers: Value = std::fs::read_to_string(home.join(".local/share/opencode/auth.json"))
-                .ok()
-                .and_then(|t| serde_json::from_str(&t).ok())
-                .unwrap_or(Value::Null);
-            let ok = providers.as_object().is_some_and(|o| !o.is_empty());
+            let data = home.join(".local/share/opencode");
+            let providers: Value = std::fs::read_to_string(data.join("auth.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            // opencode 2 keeps its sign-ins in its database; 1.x in auth.json.
+            let ok = providers.as_object().is_some_and(|o| !o.is_empty()) || opencode_signed_in(&data.join("opencode.db"));
             (Some(ok), None, None)
         }
-        "gemini" => (Some(home.join(".gemini/oauth_creds.json").exists() || std::env::var_os("GEMINI_API_KEY").is_some()), None, None),
+        // No status command: listing its models answers only when signed in.
+        "antigravity" => {
+            let ok = probe("agy", &["models"]).is_some_and(|o| o.status.success() && text(&o).lines().any(|l| l.contains('\t')));
+            (Some(ok), ok.then(|| "Google".to_string()), None)
+        }
         _ => (None, None, None),
     }
 }
@@ -194,4 +206,24 @@ pub fn statuses(probes: Vec<Probe>, usage: &[(u64, u64)], settings: &Settings) -
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_opencode_sign_in_is_found_in_its_database() {
+        let dir = std::env::temp_dir().join(format!("raiox-opencode-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("opencode.db");
+        assert!(!opencode_signed_in(&db), "no database, no sign-in");
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        conn.execute_batch("CREATE TABLE credential (id TEXT); CREATE TABLE account (id TEXT);").unwrap();
+        assert!(!opencode_signed_in(&db), "empty tables");
+        conn.execute("INSERT INTO credential VALUES ('x')", []).unwrap();
+        assert!(opencode_signed_in(&db));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -580,6 +580,7 @@ dependencies = [
  "qrcode",
  "raiox-core",
  "ring",
+ "rusqlite",
  "serde",
  "serde_json",
  "shell-words",
