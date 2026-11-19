@@ -37,7 +37,7 @@ struct Setup {
 }
 
 impl Setup {
-    fn new(state_dir: &Path, bot: &Bot) -> Self {
+    fn new(state_dir: &Path, bot: &Bot, question: &str) -> Self {
         // Only the projects wired to this one: the bot names no others and can message no others.
         let others = crate::links::linked(state_dir, &bot.name);
         let mut unwired: Vec<String> = list(state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
@@ -46,7 +46,10 @@ impl Setup {
         let defaults = crate::settings::Settings::load(state_dir).defaults_for(&bot.agent);
         let persona = bot.persona.as_ref().map(Persona::prompt).unwrap_or_default();
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
-        let guide = bot_run::guide(&bot.name, &persona, &others, &unwired) + &crate::team::context_for(state_dir, bot);
+        let guide = bot_run::guide(&bot.name, &persona, &others, &unwired)
+            + &crate::team::context_for(state_dir, bot)
+            // The project's own pages that relate to the question, kept decisions included.
+            + &crate::memory::related(&bot.dir, question);
         Setup {
             guide,
             others,
@@ -71,12 +74,12 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         },
         _ => None,
     };
+    let setup = Setup::new(state_dir, bot, &turn.text);
     let mut text = turn.text;
     if let Some(command) = &turn.command {
         let Some(output) = command_output(jobs, bot, command, false, &say) else { return };
         text = output;
     }
-    let setup = Setup::new(state_dir, bot);
     // A draft starts a fresh session in its copy; talk continues the conversation's own.
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;

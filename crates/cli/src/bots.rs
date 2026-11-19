@@ -524,6 +524,25 @@ pub fn allow(state_dir: &Path, id: &str, command: &str, on: bool) -> Result<()> 
     })
 }
 
+/// Keeps one of the bot's answers as a decision of the project in ai-memory, and says so in the conversation.
+pub fn remember(state_dir: &Path, id: &str, thread: &str, answer_ms: i64) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let bot = find(state_dir, id)?;
+    let file = threads::chat_file(state_dir, id, thread);
+    let messages = room::read_messages(&file);
+    if messages.iter().any(|m| m.kind == "remembered" && m.data.get("answer_ms").and_then(Value::as_i64) == Some(answer_ms)) {
+        bail!("this answer is already kept in ai-memory");
+    }
+    let at = messages.iter().position(|m| m.ms == answer_ms && m.author == "bot" && m.kind == "answer").context("no such answer")?;
+    let answer = messages[at].data.pointer("/reply/text").and_then(Value::as_str).context("the answer has no text")?;
+    let question = messages[..at].iter().rev().find(|m| m.author == "you" && m.kind == "ask").and_then(|m| m.data.get("text")).and_then(Value::as_str).unwrap_or("");
+    let agent = crate::connections::KNOWN.iter().find(|k| k.id == bot.agent).map_or(bot.agent.as_str(), |k| k.name);
+    let path = crate::memory::remember(&bot.dir, question, answer, agent, &bot.name)?;
+    room::append_messages(&file, vec![said("remembered", json!({ "answer_ms": answer_ms, "path": path }))])
+}
+
 fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<()> {
     if !threads::valid(thread) {
         bail!("invalid conversation");

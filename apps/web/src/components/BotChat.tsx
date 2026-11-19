@@ -86,6 +86,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
   const pendingRun = latestAnswer(messages)
+  const kept = new Set(messages.filter((m) => m.kind === 'remembered').map((m) => m.data.answer_ms))
   const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
   // Each draft's latest fate: applied, undone or discarded; open until one of those.
@@ -147,7 +148,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
         </header>
 
         <div className="linhas-topo">
-          <MemoriesLine bot={bot} openSignal={memorySignal} />
+          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
           <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
         </div>
         <div className="chat-mensagens" ref={list}>
@@ -177,6 +178,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               previous={messages[index - 1]}
               approvable={index === pending}
               runnable={index === pendingRun}
+              remembered={kept.has(message.ms)}
+              onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
               onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
               onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
               sent={sent}

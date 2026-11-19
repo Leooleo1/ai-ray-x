@@ -5,7 +5,8 @@ import { locale, t } from '../../i18n'
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : '')
 
 /** "Memories: N saved ›" over the chat: what ai-memory keeps for this project, which the bot's CLI can read. */
-export function MemoriesLine({ bot, openSignal = 0 }: { bot: Bot; openSignal?: number }) {
+/** `version` changes when an answer is kept, so the count follows. */
+export function MemoriesLine({ bot, openSignal = 0, version = 0 }: { bot: Bot; openSignal?: number; version?: number }) {
   const [memories, setMemories] = useState<Memories | null>(null)
   const [open, setOpen] = useState(false)
   useEffect(() => {
@@ -14,8 +15,10 @@ export function MemoriesLine({ bot, openSignal = 0 }: { bot: Bot; openSignal?: n
   useEffect(() => {
     setMemories(null)
     setOpen(false)
-    botMemories(bot.id).then(setMemories).catch(() => setMemories(null))
   }, [bot.id])
+  useEffect(() => {
+    botMemories(bot.id).then(setMemories).catch(() => setMemories(null))
+  }, [bot.id, version])
   const count = memories?.count ?? 0
   // Nothing to show takes no room, unless the person asked to see the memories.
   if (!memories?.known || (count === 0 && openSignal === 0)) return null

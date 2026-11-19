@@ -236,7 +236,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered'
   data: {
     text?: string
     proposal?: string
@@ -258,6 +258,8 @@ export interface BotMessage {
     /** A command raiox ran, and whether the person had allowed it for the project. */
     ran?: Ran
     allowed?: boolean
+    /** Where an answer was kept in ai-memory. */
+    path?: string
   }
 }
 
@@ -314,7 +316,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember'
 
 export interface InboxMessage {
   id: string

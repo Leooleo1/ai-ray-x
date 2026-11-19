@@ -6,11 +6,10 @@
 //! out knowing what the others did. ai-memory is the medium: the person's own
 //! sessions with ai-memory see the page too.
 
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
-use anyhow::{bail, Context, Result};
+
+use anyhow::Result;
 use chrono::{Local, TimeZone};
 use serde_json::Value;
 
@@ -18,7 +17,7 @@ use crate::bots::{self, Bot};
 use crate::room::{self, Message};
 use crate::threads;
 
-const PAGE: &str = "raiox/equipe.md";
+pub const PAGE: &str = "raiox/equipe.md";
 /// What a page lists of the latest work, across every bot of the project.
 const ENTRIES: usize = 12;
 const MAX_LINE: usize = 140;
@@ -94,20 +93,7 @@ fn body(state_dir: &Path, dir: &Path) -> Option<String> {
 
 fn write(state_dir: &Path, dir: &Path) -> Result<()> {
     let Some(text) = body(state_dir, dir) else { return Ok(()) };
-    let mut child = Command::new("ai-memory")
-        .args(["write-page", "--path", PAGE, "--body", "-", "--kind", "fact", "--tier", "working", "--pinned", "--tag", "raiox"])
-        .current_dir(dir)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("ai-memory is not installed or not on PATH")?;
-    child.stdin.take().context("no stdin for ai-memory")?.write_all(text.as_bytes())?;
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        bail!("ai-memory write-page failed: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or(""));
-    }
-    Ok(())
+    crate::memory::write_page(dir, PAGE, &text, "fact", "working", &["raiox"])
 }
 
 /// Rewrites the notebooks of these projects in the background; a missing
@@ -132,19 +118,10 @@ pub fn around(state_dir: &Path, name: &str) -> Vec<std::path::PathBuf> {
     dirs
 }
 
-fn read(dir: &Path) -> Option<String> {
-    let output = Command::new("ai-memory").args(["read-page", "--path", PAGE, "--json"]).current_dir(dir).stderr(Stdio::null()).output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let page: Value = serde_json::from_slice(&output.stdout).ok()?;
-    page.get("body").or_else(|| page.pointer("/page/body")).and_then(Value::as_str).map(str::to_string)
-}
-
 /// What a bot reads before answering: its own project's notebook and the
 /// notebooks of the wired projects, from ai-memory, kept short.
 pub fn context_for(state_dir: &Path, bot: &Bot) -> String {
-    let notes: Vec<String> = around(state_dir, &bot.name).iter().filter_map(|dir| read(dir)).collect();
+    let notes: Vec<String> = around(state_dir, &bot.name).iter().filter_map(|dir| crate::memory::read_page(dir, PAGE)).collect();
     if notes.is_empty() {
         return String::new();
     }

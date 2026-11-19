@@ -52,9 +52,12 @@ interface BotLineProps {
   /** The latest answer: the commands it asks for can still run. */
   runnable: boolean
   onRun: (index: number, always: boolean) => void
+  /** Already kept in ai-memory as a decision of the project. */
+  remembered: boolean
+  onRemember: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -75,6 +78,13 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
         {head}
         <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
       </>
+    )
+  }
+  if (message.author === 'you' && message.kind === 'remembered') {
+    return (
+      <p className="linha-sistema" title={message.data.path}>
+        {t.rememberedLine}
+      </p>
     )
   }
   if (message.author === 'you' && message.kind === 'ran') {
@@ -150,6 +160,11 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
                 {pinned ? t.pinned : t.pin}
               </button>
+              {message.kind === 'answer' && (
+                <button type="button" className={`copiar ${remembered ? 'fixada' : ''}`} disabled={remembered} onClick={onRemember}>
+                  {remembered ? t.remembered : t.remember}
+                </button>
+              )}
             </span>
           )}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}

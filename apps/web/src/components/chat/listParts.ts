@@ -10,6 +10,7 @@ import { isHouse } from './HouseLine'
 export function preview(m: BotMessage | undefined): string {
   if (!m) return t.noMessagesYet
   if (isHouse(m.author)) return `${AGENTS[m.author].name} · ${houseAsk(m.author)}`
+  if (m.kind === 'remembered') return t.rememberedLine
   if (m.kind === 'ran') return `${t.ranLine} ${m.data.ran?.command ?? ''}`
   const text = m.data.reply?.text ?? m.data.text ?? m.data.proposal ?? m.data.error ?? ''
   return text.replace(/[`*#>]/g, '').split('\n').find((l) => l.trim()) ?? ''

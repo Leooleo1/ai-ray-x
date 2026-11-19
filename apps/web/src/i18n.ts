@@ -1,6 +1,9 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  remember: 'Keep in ai-memory',
+  remembered: 'Kept',
+  rememberedLine: 'Kept in ai-memory as a project decision',
   runAsk: 'The AI wants to run',
   runOnce: 'Run',
   runAlways: 'Run and always allow',
@@ -335,6 +338,9 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  remember: 'Guardar no ai-memory',
+  remembered: 'Guardada',
+  rememberedLine: 'Guardada no ai-memory como decisão do projeto',
   runAsk: 'A IA quer rodar',
   runOnce: 'Rodar',
   runAlways: 'Rodar e sempre liberar',

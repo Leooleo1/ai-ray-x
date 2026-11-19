@@ -188,6 +188,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
         }
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
+        "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
         "link_toggle" => {

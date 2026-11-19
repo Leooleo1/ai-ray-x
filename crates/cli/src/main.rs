@@ -13,6 +13,7 @@ mod commands;
 mod data;
 mod drafts;
 mod links;
+mod memory;
 mod memo;
 mod pins;
 mod room;
