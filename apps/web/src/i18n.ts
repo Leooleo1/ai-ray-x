@@ -1,6 +1,18 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  tipFree: 'tip · no AI · 0 tokens',
+  tipClose: 'Close this tip',
+  tipMute: 'Mute {name}',
+  tipOpen: 'Open the chat',
+  tipNewThread: 'New conversation',
+  tipSeeCuts: 'See the cuts',
+  tipRaio: 'The last answer in {project} read {n} tokens. For short questions, a new conversation re-reads far less.',
+  tipDieta: '{project} can re-read ~{share} less context: {cut}.',
+  tipMemoTo: 'The {from} bot suggested telling {to}. Review it and send it through ai-memory.',
+  tipMemoResult: 'I measured {cut} in {project}: {result}.',
+  tipsTitle: 'Floating tips',
+  tipsHint: 'Raio, Dieta and Memo suggest things on their own, once each; turn off whoever you want',
   houseLabel: 'Ask the house',
   houseFree: 'no AI · 0 tokens',
   conversationReads: 'This conversation: {n} answers read {total} in all; the last one read {last}.',
@@ -263,6 +275,18 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  tipFree: 'dica · sem IA · 0 tokens',
+  tipClose: 'Fechar esta dica',
+  tipMute: 'Silenciar {name}',
+  tipOpen: 'Abrir a conversa',
+  tipNewThread: 'Nova conversa',
+  tipSeeCuts: 'Ver os cortes',
+  tipRaio: 'A última resposta no {project} leu {n} tokens. Para perguntas curtas, uma conversa nova relê bem menos.',
+  tipDieta: 'O {project} pode reler ~{share} menos contexto: {cut}.',
+  tipMemoTo: 'O bot do {from} sugeriu avisar o {to}. Revise e envie pelo ai-memory.',
+  tipMemoResult: 'Medi {cut} no {project}: {result}.',
+  tipsTitle: 'Dicas flutuantes',
+  tipsHint: 'Raio, Dieta e Memo sugerem sozinhos, uma vez cada; desligue quem quiser',
   houseLabel: 'Perguntar à casa',
   houseFree: 'sem IA · 0 tokens',
   conversationReads: 'Esta conversa: {n} respostas leram {total} ao todo; a última leu {last}.',

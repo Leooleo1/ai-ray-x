@@ -1,0 +1,90 @@
+/* A floating tip: low on the right, over everything, one at a time. */
+.dica-flutuante {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px 16px 16px;
+  border-radius: 18px;
+  background: #121217;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 0 0 1px rgb(255 255 255 / 10%),
+    0 24px 56px -12px rgb(0 0 0 / 85%);
+  animation: dica-entra 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes dica-entra {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.dica-flutuante header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dica-flutuante header span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dica-flutuante header b {
+  font: 500 14px/18px var(--sans);
+}
+
+.dica-flutuante header small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.dica-flutuante p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.dica-flutuante footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dica-acao {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dica-flutuante footer .lado-link {
+  align-self: center;
+  margin: 0 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .dica-flutuante {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dica-flutuante {
+    animation: none;
+  }
+}

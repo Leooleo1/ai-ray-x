@@ -156,13 +156,26 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
     match action {
         "activate" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
-            bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona).map(|_| ())
+            let bot = bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
+            // A new bot finds the team's notes waiting, and the others learn it joined.
+            crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
+            Ok(())
         }
-        "deactivate" => bots::deactivate(state_dir, jobs, field("id")),
+        "deactivate" => {
+            let dir = bots::dir_of(state_dir, field("id"));
+            bots::deactivate(state_dir, jobs, field("id"))?;
+            crate::team::refresh(state_dir, dir.into_iter().collect());
+            Ok(())
+        }
         "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
         "approve" => bots::approve(state_dir, jobs, field("id"), thread),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
-        "link_toggle" => crate::links::toggle(state_dir, field("a"), field("b")),
+        "link_toggle" => {
+            crate::links::toggle(state_dir, field("a"), field("b"))?;
+            let dirs = [field("a"), field("b")].iter().flat_map(|name| crate::team::around(state_dir, name)).collect();
+            crate::team::refresh(state_dir, dirs);
+            Ok(())
+        }
         "ask_many" => {
             let ids: Vec<String> = input.get("ids").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
             crate::batches::ask_many(state_dir, jobs, &ids, field("text"))

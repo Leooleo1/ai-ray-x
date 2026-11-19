@@ -451,7 +451,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
         let target = bot_run::Target {
             agent: &bot.agent,
             dir: &bot.dir,
-            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others),
+            // The team notes from ai-memory: what the other bots here and in wired projects did lately.
+            guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others) + &crate::team::context_for(&state_dir, &bot),
             session: session.as_deref(),
             model: bot.model.as_deref().or(defaults.model.as_deref()),
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
@@ -480,6 +481,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
         };
         let _ = room::append_messages(&file, vec![message]);
         jobs.finish(&bot.id);
+        crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
     });
     Ok(())
 }

@@ -13,6 +13,7 @@ import { SettingsPage } from './components/SettingsPage'
 import { AskMany } from './components/chat/AskMany'
 import { BatchView } from './components/chat/BatchView'
 import type { ChatNav } from './components/chat/nav'
+import { TipToast } from './components/TipToast'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
 import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
@@ -220,6 +221,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           </main>
         )}
       </div>
+      <TipToast bots={bots} report={report} nav={nav} />
     </div>
   )
 }
