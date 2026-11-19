@@ -2,6 +2,9 @@
 name = "raiox"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Local panel: where your AI coding agents' tokens go, and your own AI inside each project"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.104"

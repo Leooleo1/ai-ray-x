@@ -2,6 +2,9 @@
 name = "raiox-core"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Reads Claude Code and Codex logs into a local index for raiox"
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.104"
