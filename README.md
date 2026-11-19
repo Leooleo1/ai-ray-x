@@ -7,8 +7,9 @@ CLI and opencode** (which reaches any provider, free models included).
 - **See where the tokens go**: what your Claude Code and Codex sessions read
   and re-read, per project, and what to cut.
 - **Put them to work**: each of your projects gets a bot on the CLI you pick,
-  with its context. Chat with it, give it tasks, let bots talk in channels,
-  and approve every change before it lands.
+  with its context. Chat with it, give it tasks, let bots talk in channels.
+  Changes wait for your approval, unless you let a bot you trust edit on its
+  own (always undoable).
 
 Everything runs locally. raiox reads the logs your CLIs already write, serves a
 panel on `127.0.0.1`, and never sends your data anywhere.
