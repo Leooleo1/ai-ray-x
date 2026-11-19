@@ -54,7 +54,10 @@ export function SecretsCard({ totals }: SecretsCardProps) {
   const printed = totals.printed ?? 0
   return (
     <section className="cartao segredos">
-      <h2>{t.secrets}</h2>
+      <h2>
+        {t.secrets}
+        <small>{t.secretsHint}</small>
+      </h2>
       <div className="destaque">
         <strong>{compact(printed)}</strong>
         <span>

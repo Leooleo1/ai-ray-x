@@ -7,16 +7,21 @@ const SCALE = 1_000_000
 interface ContextRulerProps {
   sources: SourceReport[]
   main: SourceReport
+  /** Opens Efficiency, where the cuts are. */
+  onCut: () => void
 }
 
 /** Dotted ruler from 0 to 1M tokens, with the median, the 90th percentile and the compaction point. */
-export function ContextRuler({ sources, main }: ContextRulerProps) {
+export function ContextRuler({ sources, main, onCut }: ContextRulerProps) {
   const summary = `${fill(t.overShare, percent(heavyShare(main)))} · ${fill(t.rereadShare, percent(rereadShare(main)))}`
   return (
     <section className="cartao regua">
       <h2>
         {t.context}
         <small>{summary}</small>
+        <button type="button" className="lado-link regua-acao" onClick={onCut}>
+          {t.howToCut}
+        </button>
       </h2>
       <div className="linhas">
         {sources.map((source) => (

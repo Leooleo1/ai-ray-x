@@ -1941,3 +1941,10 @@ body {
 .cartao.projetos-pagina > * {
   flex: none;
 }
+
+/* The way from a number to the cut that shrinks it. */
+.cartao h2 .regua-acao {
+  flex: none;
+  align-self: center;
+  margin: 0 0 0 auto;
+}

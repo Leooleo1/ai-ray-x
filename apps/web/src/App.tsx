@@ -222,9 +222,9 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
               bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
             />
             <Clock hours={hours(report)} />
-            <ContextRuler sources={sources} main={main} />
+            <ContextRuler sources={sources} main={main} onCut={() => go('efficiency')} />
             <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
-            <RowsCard className="projetos" title={t.projects} rows={projects} />
+            <RowsCard className="projetos" title={t.projects} hint={t.projectsHint} rows={projects} />
             <SecretsCard totals={secretTotals(report)} />
           </main>
         )}
