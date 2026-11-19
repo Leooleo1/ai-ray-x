@@ -6,6 +6,7 @@ import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
 import { CarriedBlock } from './Carry'
 import { RanBlock, RunRequestCard } from './RunCards'
+import { ShotBlock } from './ShotBlock'
 import { TrailView } from './TrailView'
 import { Expandable } from './Expandable'
 
@@ -84,6 +85,14 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       <>
         {head}
         <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
+      </>
+    )
+  }
+  if (message.kind === 'shot') {
+    return (
+      <>
+        {head}
+        <ShotBlock bot={bot} message={message} />
       </>
     )
   }

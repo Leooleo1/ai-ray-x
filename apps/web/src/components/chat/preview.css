@@ -22,6 +22,7 @@
 
 .ver-topo > b {
   font: 500 14px/20px var(--sans);
+  white-space: nowrap;
 }
 
 .ver-topo .voltar {
@@ -212,4 +213,37 @@
 .ver-print.simulador {
   align-self: center;
   max-height: 640px;
+}
+
+/* Phone: the tabs go under the title, the address gets its own line and the controls fit one. */
+@media (max-width: 560px) {
+  .ver-topo {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .ver-abas {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .ver-abas button {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ver-corpo {
+    padding: 12px;
+  }
+
+  .ver-barra a,
+  .ver-esperando {
+    flex-basis: 100%;
+  }
+
+  .ver-barra button,
+  .ver-tamanhos button {
+    padding: 0 12px;
+  }
 }

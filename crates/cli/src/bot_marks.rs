@@ -10,6 +10,9 @@ pub const OPEN_MARK: &str = "RAIOX-OPEN:";
 pub const RUN_MARK: &str = "RAIOX-RUN:";
 pub const VERDICT_MARK: &str = "RAIOX-VERDICT:";
 pub const ASK_MARK: &str = "RAIOX-ASK";
+pub const SHOT_MARK: &str = "RAIOX-SHOT:";
+/// Most screenshots one answer can ask for.
+const MAX_SHOTS: usize = 2;
 /// What a reviewing bot can conclude.
 const VERDICTS: [&str; 3] = ["ok", "concerns", "reject"];
 /// Most commands one answer can ask for.
@@ -39,6 +42,8 @@ pub struct Marked {
     pub verdict: Option<String>,
     /// Requests for other members of a channel, from RAIOX-ASK @handle lines (the handle goes in `project`).
     pub asks: Vec<Note>,
+    /// Screenshots the bot asks for, from RAIOX-SHOT lines: a path of the running app, a local URL or "simulator".
+    pub shots: Vec<String>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -68,6 +73,11 @@ pub fn split(answer: &str) -> Marked {
             let place = unquote(place).to_lowercase();
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
                 marked.open.push(place);
+            }
+        } else if let Some(shot) = trimmed.strip_prefix(SHOT_MARK) {
+            let shot = unquote(shot);
+            if !shot.is_empty() && !shot.contains(char::is_whitespace) && marked.shots.len() < MAX_SHOTS && !marked.shots.contains(&shot) {
+                marked.shots.push(shot);
             }
         } else if let Some(ask) = trimmed.strip_prefix(ASK_MARK).and_then(|rest| rest.trim().strip_prefix('@')).and_then(|rest| rest.split_once(':')) {
             let (handle, text) = (ask.0.trim().to_lowercase(), unquote(ask.1));
@@ -104,6 +114,12 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn screenshots_asked_for_become_requests() {
+        let m = split("Vou conferir a tela.\nRAIOX-SHOT: `/login`\nRAIOX-SHOT: simulator\nRAIOX-SHOT: /a\n");
+        assert_eq!((m.text.as_str(), m.shots.clone()), ("Vou conferir a tela.", vec!["/login".to_string(), "simulator".to_string()]));
     }
 
     #[test]

@@ -75,6 +75,13 @@ width, with the server's output, Stop and screenshots (headless Chrome, local
 pages only, never a secrets file). With an iOS simulator booted, it also takes
 screenshots of the simulator.
 
+The AI can look too: while the app runs, each question tells it the address,
+and it asks for a screenshot by ending its answer with `RAIOX-SHOT: /path` (or
+`simulator`, in an iOS project). raiox takes it (at most two per question),
+shows it in the chat and hands it back: Claude Code reads it from a folder that
+holds only the current question's screenshots, Codex gets it as an image, and
+Cursor gets its path.
+
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
 carries and how the project's week compares with the one before, Dieta lists

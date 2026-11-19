@@ -50,6 +50,11 @@ fn log_file(state_dir: &Path, bot: &str) -> PathBuf {
     state_dir.join("previews").join(format!("{bot}.log"))
 }
 
+/// The last command the person ran for a project, offered again after Stop.
+fn last_file(state_dir: &Path, bot: &str) -> PathBuf {
+    state_dir.join("previews").join(format!("{bot}.cmd"))
+}
+
 /// The dev command a project's package.json suggests, with the package manager its lockfile names.
 pub fn suggest(dir: &Path) -> Option<String> {
     let manifest: Value = serde_json::from_str(&fs::read_to_string(dir.join("package.json")).ok()?).ok()?;
@@ -108,6 +113,16 @@ fn address(log: &str) -> Option<String> {
         .map(|url| url.replacen("0.0.0.0", "localhost", 1))
 }
 
+/// The address of a project's app while raiox runs it.
+pub fn url_of(state_dir: &Path, bot: &str) -> Option<String> {
+    let mut open = running();
+    let (_, run) = open.iter_mut().find(|(b, _)| b == bot)?;
+    if run.child.try_wait().ok().flatten().is_some() {
+        return None;
+    }
+    address(&plain(&fs::read_to_string(log_file(state_dir, bot)).ok()?))
+}
+
 /// Starts the person's dev command for a project. One per project at a time.
 pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<()> {
     let words = crate::commands::check(command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
@@ -121,13 +136,14 @@ pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<(
     let log = log_file(state_dir, bot);
     fs::create_dir_all(log.parent().context("no log folder")?)?;
     let out = File::create(&log)?;
+    fs::write(last_file(state_dir, bot), command)?;
     let mut process = Command::new(&words[0]);
     // BROWSER=none keeps dev servers from opening a tab of their own.
     process.args(&words[1..]).current_dir(dir).stdin(Stdio::null()).stdout(out.try_clone()?).stderr(out).env("BROWSER", "none").env("FORCE_COLOR", "0").env("PYTHONUNBUFFERED", "1");
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut process, 0);
     let child = process.spawn().with_context(|| format!("could not start {}", words[0]))?;
-    remember(state_dir, bot, child.id(), command);
+    remember(state_dir, bot, child.id());
     open.push((bot.to_string(), Running { child, command: command.to_string(), started_ms: room::now_ms() }));
     Ok(())
 }
@@ -167,7 +183,7 @@ pub fn status(state_dir: &Path, bot: &str, dir: &Path) -> Result<Value> {
             None => (true, Some(run.command.clone()), Some(run.started_ms), None),
             Some(status) => (false, Some(run.command.clone()), Some(run.started_ms), status.code()),
         },
-        None => (false, None, None, None),
+        None => (false, fs::read_to_string(last_file(state_dir, bot)).ok(), None, None),
     };
     Ok(json!({
         "suggestion": suggest(dir),
@@ -228,6 +244,56 @@ pub fn shots_dir(state_dir: &Path, bot: &str) -> PathBuf {
     state_dir.join("shots").join(bot)
 }
 
+/// The folder a bot's CLI may read: only the screenshots of the current question, so it never
+/// mistakes an older one (of another app, or of a page since changed) for what it asked.
+pub fn ai_dir(state_dir: &Path, bot: &str) -> PathBuf {
+    shots_dir(state_dir, bot).join("now")
+}
+
+/// Empties the folder the CLI reads, at the start of a question (the folder itself stays: a live session keeps its path).
+pub fn clear_ai_dir(state_dir: &Path, bot: &str) {
+    let dir = ai_dir(state_dir, bot);
+    let _ = fs::create_dir_all(&dir);
+    for entry in fs::read_dir(&dir).into_iter().flatten().flatten() {
+        let _ = fs::remove_file(entry.path());
+    }
+}
+
+/// Hands a screenshot to the CLI: a link in the folder it reads (a copy when links are not possible).
+pub fn hand_over(state_dir: &Path, bot: &str, file: &Path) -> Result<PathBuf> {
+    let to = ai_dir(state_dir, bot).join(file.file_name().context("no file name")?);
+    if fs::hard_link(file, &to).is_err() {
+        fs::copy(file, &to)?;
+    }
+    Ok(to)
+}
+
+/// Whether a project builds an iOS app (native, React Native/Expo or Capacitor): only then is the simulator mentioned.
+fn builds_ios(dir: &Path) -> bool {
+    let marked = ["ios", "app.json", "capacitor.config.ts", "capacitor.config.json", "Package.swift"].iter().any(|name| dir.join(name).exists());
+    marked
+        || fs::read_dir(dir).into_iter().flatten().flatten().any(|entry| {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            name.ends_with(".xcodeproj") || name.ends_with(".xcworkspace")
+        })
+}
+
+/// What a question is told about the app and the simulator, when either is running.
+pub fn for_cli(state_dir: &Path, bot: &str, dir: &Path) -> String {
+    let mut seen = Vec::new();
+    if let Some(url) = url_of(state_dir, bot) {
+        seen.push(format!("the project's app is running at {url} (`{} /path` for a page)", crate::bot_marks::SHOT_MARK));
+    }
+    if let Some(device) = crate::simulator::booted().filter(|_| builds_ios(dir)) {
+        seen.push(format!("an iOS simulator ({device}) is open (`{} simulator`)", crate::bot_marks::SHOT_MARK));
+    }
+    if seen.is_empty() {
+        return String::new();
+    }
+    format!("(raiox: {}. To see it, ask for a screenshot; do not look for older ones.)\n\n", seen.join("; "))
+}
+
 /// A saved screenshot of a bot, as a data URL for the panel (only files in its own folder).
 pub fn image(state_dir: &Path, bot: &str, name: &str) -> Result<Value> {
     let valid = name.ends_with(".png") && name.len() <= 40 && name.trim_end_matches(".png").bytes().all(|b| b.is_ascii_hexdigit());
@@ -246,9 +312,14 @@ fn save_pids(state_dir: &Path, map: &HashMap<String, (u32, String)>) {
     let _ = fs::write(state_dir.join(PIDS), serde_json::to_string(map).unwrap_or_default());
 }
 
-fn remember(state_dir: &Path, bot: &str, pid: u32, command: &str) {
+/// When a process started, as `ps` shows it: with the pid, it tells a dev server from a later process given the same pid.
+fn started_at(pid: u32) -> String {
+    Command::new("ps").args(["-o", "lstart=", "-p", &pid.to_string()]).output().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default()
+}
+
+fn remember(state_dir: &Path, bot: &str, pid: u32) {
     let mut map = pids(state_dir);
-    map.insert(bot.to_string(), (pid, command.to_string()));
+    map.insert(bot.to_string(), (pid, started_at(pid)));
     save_pids(state_dir, &map);
 }
 
@@ -260,11 +331,9 @@ fn forget(state_dir: &Path, bot: &str) {
 
 /// At startup: dev servers an earlier raiox left running stop, when the process is still theirs.
 pub fn cleanup(state_dir: &Path) {
-    for (pid, command) in pids(state_dir).into_values() {
-        let shown = Command::new("ps").args(["-o", "command=", "-p", &pid.to_string()]).output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default();
-        // Only a process still running the same command: a pid can be reused by another program.
-        let program = command.split_whitespace().next().unwrap_or("");
-        if !program.is_empty() && shown.contains(program) {
+    for (pid, started) in pids(state_dir).into_values() {
+        // Only the same process (same pid, same start time): a pid can be reused by another program.
+        if !started.is_empty() && started_at(pid) == started {
             kill_group(pid);
         }
     }
@@ -291,6 +360,17 @@ mod tests {
         assert!(!is_local("http://localhost.evil.com/") && !is_local("https://example.com") && !is_local("file:///etc/passwd"));
         assert!(opens_secret("http://127.0.0.1:5199/.env") && opens_secret("http://localhost:3000/config/.dev.vars?x=1"));
         assert!(!opens_secret("http://localhost:3000/") && !opens_secret("http://localhost:3000/env.ts"));
+    }
+
+    #[test]
+    fn the_simulator_is_mentioned_for_ios_projects_only() {
+        let dir = std::env::temp_dir().join(format!("raiox-ios-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        assert!(!builds_ios(&dir));
+        fs::create_dir_all(dir.join("Loja.xcodeproj")).unwrap();
+        assert!(builds_ios(&dir));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

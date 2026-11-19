@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, TO_MARK};
+use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, SHOT_MARK, TO_MARK};
 use crate::bot_trail::{self, Trail};
 
 /// A bot that thinks longer than this is stopped.
@@ -54,6 +54,9 @@ pub struct Reply {
     /// In a channel: requests for other members, passed on only when the person says so.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ask: Vec<crate::bot_marks::Note>,
+    /// Screenshots the bot asked for: a path of the running app, a local URL or "simulator".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shots: Vec<String>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -76,6 +79,10 @@ pub struct Target<'a> {
     /// None keeps the CLI's own default.
     pub model: Option<&'a str>,
     pub effort: Option<&'a str>,
+    /// A folder of screenshots the CLI may read (Claude Code's --add-dir).
+    pub shots: Option<&'a Path>,
+    /// Images handed to the CLI with the prompt (Codex's --image).
+    pub images: &'a [std::path::PathBuf],
 }
 
 /// What the bot is told on every turn: how raiox works, how to propose a
@@ -94,6 +101,9 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
          raiox then shows an Approve button; only after approval are you resumed with edit permission. \
+         To look at the project's app as it runs (when the person started it in raiox's See the app) or at the iOS \
+         simulator, end with one line {SHOT_MARK} <a path such as /login, a local URL, or simulator> (at most two); \
+         raiox takes a screenshot and hands it to you. \
          When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
          holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
          \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
@@ -170,7 +180,11 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     command
         .current_dir(target.dir)
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
-        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", tools, "--strict-mcp-config"])
+        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", tools, "--strict-mcp-config"]);
+    if let Some(shots) = target.shots {
+        command.arg("--add-dir").arg(shots);
+    }
+    command
         .args(["--append-system-prompt", &target.guide]);
     command.arg("--disallowedTools").args(secret_rules(mode));
     if let Some(model) = target.model {
@@ -197,6 +211,10 @@ fn codex(target: &Target, mode: Mode) -> Command {
     command.current_dir(target.dir).arg("exec");
     if let Some(id) = target.session {
         command.args(["resume", id]);
+    }
+    // Each image before an option, so the list ends there and the prompt still comes from stdin.
+    for image in target.images {
+        command.arg("--image").arg(image);
     }
     command.args(["--json", "--skip-git-repo-check", "-c", sandbox]);
     // Values are checked by the caller (letters, digits, dots and dashes), so quoting is safe.
@@ -398,6 +416,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
         ask: marked.asks,
+        shots: marked.shots,
         trail: None,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
@@ -442,6 +461,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
         ask: marked.asks,
+        shots: marked.shots,
         trail: None,
         steps: Some(
             events

@@ -233,6 +233,8 @@ export interface BotReply {
   trail?: Trail
   /** In a channel: requests for other members (the handle in `project`). */
   ask?: BotNote[]
+  /** Screenshots the AI asked for. */
+  shots?: string[]
   /** A reviewer's conclusion about another bot's proposal. */
   verdict?: 'ok' | 'concerns' | 'reject'
   steps?: number | null
@@ -272,7 +274,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot'
   data: {
     text?: string
     proposal?: string
@@ -304,6 +306,10 @@ export interface BotMessage {
     /** Context brought from another conversation: its exchanges and where it came from. */
     items?: { who: 'you' | 'bot'; text: string }[]
     title?: string
+    /** A screenshot the AI asked for: what it asked, where it was taken, and the file. */
+    target?: string
+    place?: string
+    name?: string
     /** A review: the reviewing bot and its CLI. */
     reviewer?: string
     agent?: BotAgent

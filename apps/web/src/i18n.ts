@@ -1,6 +1,10 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  shotTaken: 'Screenshot for the AI · {p}',
+  shotLoading: 'loading the image…',
+  shotLarger: 'Show larger',
+  shotSmaller: 'Show smaller',
   previewOpen: 'See the app',
   previewTitle: 'See the app',
   previewBrowser: 'Browser',
@@ -441,6 +445,10 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  shotTaken: 'Print para a IA · {p}',
+  shotLoading: 'carregando a imagem…',
+  shotLarger: 'Ver maior',
+  shotSmaller: 'Ver menor',
   previewOpen: 'Ver o app',
   previewTitle: 'Ver o app',
   previewBrowser: 'Navegador',

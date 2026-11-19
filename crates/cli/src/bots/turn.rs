@@ -5,6 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
+
 use serde_json::json;
 
 use super::{drafted, find, list, note, said, set_thread_session, Bot, Jobs, Persona};
@@ -14,6 +16,9 @@ use crate::{commands, drafts};
 
 /// Commands that run without asking, per question, before the bot has to answer.
 const MAX_AUTO_RUNS: usize = 3;
+/// Screenshots the bot gets per question.
+const MAX_SHOTS: usize = 2;
+const SHOT_SIZE: (u32, u32) = (1280, 800);
 
 /// What a turn runs: the text for the CLI, or first a command whose output replaces it.
 pub(super) struct Turn {
@@ -39,6 +44,8 @@ pub(super) struct Setup {
     model: Option<String>,
     effort: Option<String>,
     scratch: PathBuf,
+    /// The bot's screenshots folder, which its CLI may read.
+    shots: PathBuf,
 }
 
 impl Setup {
@@ -61,6 +68,7 @@ impl Setup {
             model: if mode == Mode::Talk { bot.talk_model.clone() } else { None }.or_else(|| bot.model.clone()).or(defaults.model),
             effort: bot.effort.clone().or(defaults.effort),
             scratch: state_dir.join("bots").join(format!("{}.run", bot.id)),
+            shots: crate::preview::ai_dir(state_dir, &bot.id),
         }
     }
 }
@@ -80,7 +88,11 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         _ => None,
     };
     let setup = Setup::new(state_dir, bot, &turn.text, turn.mode);
-    let mut text = turn.text;
+    crate::preview::clear_ai_dir(state_dir, &bot.id);
+    let mut text = match turn.mode {
+        Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),
+        Mode::Edit => turn.text,
+    };
     if let Some(command) = &turn.command {
         let Some(output) = command_output(jobs, bot, command, false, &say) else { return };
         text = output;
@@ -88,9 +100,13 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     // A draft starts a fresh session in its copy; talk continues the conversation's own.
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;
+    let mut shots_taken = 0;
+    let mut images: Vec<PathBuf> = Vec::new();
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
-        let reply = match ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id))) {
+        let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
+        images.clear();
+        let reply = match asked {
             Ok(reply) => reply,
             Err(error) => {
                 let stopped = error.to_string() == bot_run::STOPPED;
@@ -128,6 +144,11 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         // Past the project's daily limit, allowed commands wait for a click like any other.
         let within = runs < MAX_AUTO_RUNS && crate::budget::check(state_dir, &bot.name).is_ok();
         let next = if within { allowed_command(state_dir, bot, &reply) } else { None };
+        let wanted: Vec<String> = if next.is_none() && shots_taken < MAX_SHOTS && crate::budget::check(state_dir, &bot.name).is_ok() {
+            reply.shots.iter().take(MAX_SHOTS - shots_taken).cloned().collect()
+        } else {
+            Vec::new()
+        };
         let proposed = reply.proposal.is_some();
         let answer = note("answer", json!({ "mode": "talk", "reply": reply }));
         let answer_ms = answer.ms;
@@ -138,11 +159,66 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         {
             say(note("failed", json!({ "error": format!("{error:#}"), "review": answer_ms })));
         }
-        let Some(command) = next else { return };
-        runs += 1;
-        let Some(output) = command_output(jobs, bot, &command, true, &say) else { return };
-        text = output;
+        if let Some(command) = next {
+            runs += 1;
+            let Some(output) = command_output(jobs, bot, &command, true, &say) else { return };
+            text = output;
+            continue;
+        }
+        if wanted.is_empty() {
+            return;
+        }
+        shots_taken += wanted.len();
+        let Some((prompt, files)) = screenshots(state_dir, jobs, bot, &wanted, &say) else { return };
+        text = prompt;
+        images = files;
     }
+}
+
+/// Where a screenshot request points: the running app's page, a local URL, or the simulator.
+fn take_shot(state_dir: &Path, bot: &Bot, target: &str) -> anyhow::Result<(PathBuf, String)> {
+    if target.eq_ignore_ascii_case("simulator") {
+        let name = crate::simulator::booted().unwrap_or_else(|| "iOS simulator".to_string());
+        return Ok((crate::simulator::shot(state_dir, &bot.id)?, name));
+    }
+    let url = if target.starts_with('/') {
+        let base = crate::preview::url_of(state_dir, &bot.id).context("the app is not running in raiox; the person can start it in See the app")?;
+        format!("{}{target}", base.trim_end_matches('/'))
+    } else {
+        target.to_string()
+    };
+    Ok((crate::preview::shot(state_dir, &bot.id, &url, SHOT_SIZE.0, SHOT_SIZE.1)?, url))
+}
+
+/// Takes the screenshots the bot asked for, shows each in the conversation, and gives the CLI's
+/// next prompt with the files (none when not one could be taken).
+fn screenshots(state_dir: &Path, jobs: &Jobs, bot: &Bot, wanted: &[String], say: &dyn Fn(Message)) -> Option<(String, Vec<PathBuf>)> {
+    let mut taken = Vec::new();
+    for target in wanted {
+        jobs.set_step(&bot.id, crate::bot_steps::Step { kind: "web", target: target.clone() });
+        match take_shot(state_dir, bot, target) {
+            Ok((file, place)) => {
+                let name = file.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+                say(said("shot", json!({ "target": target, "place": place, "name": name })));
+                match crate::preview::hand_over(state_dir, &bot.id, &file) {
+                    Ok(handed) => taken.push((handed, place)),
+                    Err(error) => say(note("failed", json!({ "error": format!("raiox could not hand the screenshot over: {error:#}") }))),
+                }
+            }
+            Err(error) => say(note("failed", json!({ "error": format!("raiox could not take the screenshot of {target}: {error:#}") }))),
+        }
+    }
+    if taken.is_empty() {
+        return None;
+    }
+    let list: Vec<String> = taken.iter().map(|(file, place)| format!("- {place}: {}", file.display())).collect();
+    let prompt = format!(
+        "raiox took the screenshots you asked for ({}×{}):\n{}\nLook at them (open each file with your Read tool if you have one) and go on answering the person's last question.",
+        SHOT_SIZE.0,
+        SHOT_SIZE.1,
+        list.join("\n")
+    );
+    Some((prompt, taken.into_iter().map(|(file, _)| file).collect()))
 }
 
 /// One answer from the CLI; when it lost the session (its history was cleared), talk goes on in a fresh one.
@@ -151,10 +227,12 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
 /// guide it started with. When the CLI lost the session (its history was cleared), talk goes on in
 /// a fresh one.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str, conversation: Option<&str>) -> anyhow::Result<Reply> {
+pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str, conversation: Option<&str>, images: &[PathBuf]) -> anyhow::Result<Reply> {
     let live = conversation.filter(|_| bot.agent == "claude" && mode == Mode::Talk);
     let guide = format!("{}{}{}", setup.stable, setup.team, if live.is_some() { "" } else { &setup.related });
-    let target = bot_run::Target { agent: &bot.agent, dir, guide, session, model: setup.model.as_deref(), effort: setup.effort.as_deref() };
+    // Talk can read the bot's screenshots; an edit works in its draft only.
+    let shots = (mode == Mode::Talk).then_some(setup.shots.as_path());
+    let target = bot_run::Target { agent: &bot.agent, dir, guide, session, model: setup.model.as_deref(), effort: setup.effort.as_deref(), shots, images };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
     if let Some(conversation) = live {

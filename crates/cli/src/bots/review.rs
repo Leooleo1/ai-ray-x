@@ -65,7 +65,7 @@ pub fn request(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms:
         let text = prompt(&proposer, &proposal, &explanation);
         let setup = Setup::new(&state_dir, &reviewer, &text, Mode::Talk);
         // A fresh session in the reviewer's own folder: the review stays out of its conversations.
-        let message = match ask_cli(&jobs, &reviewer, &setup, &reviewer.dir, None, Mode::Talk, &text, None) {
+        let message = match ask_cli(&jobs, &reviewer, &setup, &reviewer.dir, None, Mode::Talk, &text, None, &[]) {
             Ok(reply) => note("review", json!({ "answer_ms": answer_ms, "reviewer": reviewer.id, "agent": reviewer.agent, "reply": reply })),
             Err(error) => note("failed", json!({ "error": format!("{} could not review: {error:#}", named(&reviewer.agent)), "review": answer_ms })),
         };

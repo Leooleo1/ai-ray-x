@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 8] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried"];
+const ASIDE: [&str; 9] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";

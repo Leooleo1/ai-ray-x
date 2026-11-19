@@ -4,7 +4,7 @@ import type { Bot, BotMessage } from '../../api'
 import { t } from '../../i18n'
 
 /** Messages that leave the answer before them current: its proposal and commands still stand. */
-export const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'house', 'remembered', 'review', 'review_asked', 'carried']
+export const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'house', 'remembered', 'review', 'review_asked', 'carried', 'shot']
 
 /** The latest answer, when nothing came after it: the commands it asks for can still run. */
 export function latestAnswer(messages: BotMessage[]): number {
