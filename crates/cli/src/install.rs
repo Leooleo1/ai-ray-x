@@ -113,7 +113,7 @@ pub fn sign_in(id: &str) -> Result<()> {
         // The line is raiox's own constant, never text from a request.
         procs::command("osascript").args(["-e", "tell application \"Terminal\" to activate", "-e", &format!("tell application \"Terminal\" to do script \"{line}\"")]).status()
     } else if cfg!(windows) {
-        procs::command("cmd").args(["/c", "start", "raiox", "cmd", "/k", line]).status()
+        windows_terminal(line)
     } else {
         procs::command("x-terminal-emulator").args(["-e", "sh", "-c", &format!("{line}; exec \"${{SHELL:-sh}}\"")]).status()
     };
@@ -121,6 +121,19 @@ pub fn sign_in(id: &str) -> Result<()> {
         Ok(done) if done.success() => Ok(()),
         _ => bail!("could not open a terminal here: run `{line}` in one"),
     }
+}
+
+/// A new console window running the line. `start` takes its first quoted argument as the
+/// window's title, so the title is passed as it is, quotes and all.
+#[cfg(windows)]
+fn windows_terminal(line: &str) -> std::io::Result<std::process::ExitStatus> {
+    use std::os::windows::process::CommandExt;
+    procs::command("cmd").raw_arg(format!("/c start \"raiox\" cmd /k {line}")).status()
+}
+
+#[cfg(not(windows))]
+fn windows_terminal(_line: &str) -> std::io::Result<std::process::ExitStatus> {
+    Err(std::io::Error::other("not Windows"))
 }
 
 /// Installs going on or finished since the panel started.

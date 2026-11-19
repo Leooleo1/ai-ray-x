@@ -134,6 +134,14 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => Answer::Now(reply),
         },
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        // Opening a terminal can take a moment (or wait on the system): never on the main loop.
+        (Method::Post, "/api/setup/sign_in") => match body(request) {
+            Ok(input) => {
+                let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|()| json!({ "opened": true })))))
+            }
+            Err(reply) => Answer::Now(reply),
+        },
         _ => Answer::Now(dispatch(panel, request, path, port, remote)),
     }
 }
@@ -224,10 +232,6 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         },
         (Method::Post, "/api/setup/install") => match body(request) {
             Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
-            Err(reply) => reply,
-        },
-        (Method::Post, "/api/setup/sign_in") => match body(request) {
-            Ok(input) => respond(crate::install::sign_in(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| json!({ "opened": true }))),
             Err(reply) => reply,
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
