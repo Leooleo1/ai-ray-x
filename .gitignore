@@ -3,3 +3,5 @@
 .DS_Store
 node_modules
 apps/web/dist
+# Local Claude Code settings and skill links of whoever works here
+.claude/
