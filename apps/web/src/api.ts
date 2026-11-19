@@ -355,6 +355,7 @@ export interface Bot {
     web: boolean
     mcp: boolean
     week_limit: number | null
+    auto_edit: boolean
     week_used: number
     week_choices: number[]
     web_possible: boolean

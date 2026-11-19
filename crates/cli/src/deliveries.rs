@@ -84,7 +84,8 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
                 ("bot", "answer") if routine.is_some() => Some(Delivery { detail: cut(text, EXCERPT), ..base("routine", m.ms, routine.unwrap_or("").to_string()) }),
                 ("you", "draft_applied") => {
                     let draft = m.data["draft"].as_str().unwrap_or("");
-                    let files = strings(&m.data["files"]);
+                    // Older applies wrote "files", newer ones "paths".
+                    let files = [strings(&m.data["paths"]), strings(&m.data["files"])].concat();
                     Some(Delivery { undone: undone.contains(&draft), ..base("draft", m.ms, files.join(", ")) }).map(|d| Delivery { files, ..d })
                 }
                 ("you", "shot") => Some(Delivery { detail: m.data["name"].as_str().unwrap_or("").to_string(), ..base("shot", m.ms, m.data["target"].as_str().unwrap_or("").to_string()) }),

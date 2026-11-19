@@ -698,6 +698,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
     std::thread::spawn(move || {
         turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
         jobs.finish(&bot.id);
+        crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
         crate::push::after_turn(&state_dir, &bot, &thread);
         crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
     });

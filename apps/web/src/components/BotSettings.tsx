@@ -276,7 +276,8 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
   const grants = bot.grants
   if (!grants) return null
   const set = (change: Record<string, unknown>) => void bots.act('grants', { id: bot.id, ...change })
-  const rows: { key: 'devices' | 'web' | 'mcp'; label: string; note: string; shown: boolean }[] = [
+  const rows: { key: 'devices' | 'web' | 'mcp' | 'auto_edit'; label: string; note: string; shown: boolean }[] = [
+    { key: 'auto_edit', label: t.grantAutoEdit, note: t.grantAutoEditNote, shown: true },
     { key: 'devices', label: t.grantDevices, note: t.grantDevicesNote, shown: true },
     { key: 'web', label: t.grantWeb, note: t.grantWebNote, shown: grants.web_possible },
     { key: 'mcp', label: t.grantMcp, note: t.grantMcpNote, shown: grants.mcp_possible },
@@ -293,7 +294,7 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
             </button>
             <span>
               <b>{row.label}</b>
-              <small className={row.key === 'mcp' && grants.mcp ? 'permissao-alerta' : ''}>{row.note}</small>
+              <small className={(row.key === 'mcp' || row.key === 'auto_edit') && grants[row.key] ? 'permissao-alerta' : ''}>{row.note}</small>
             </span>
           </label>
         ))}

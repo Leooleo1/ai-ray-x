@@ -33,11 +33,14 @@ pub struct Grants {
     /// Tokens it may read and write in seven days; none means no ceiling.
     #[serde(default)]
     pub week_limit: Option<u64>,
+    /// Edits without asking: its proposals are approved and their drafts applied by themselves (each can be undone).
+    #[serde(default)]
+    pub auto_edit: bool,
 }
 
 impl Default for Grants {
     fn default() -> Self {
-        Grants { devices: true, web: false, mcp: false, week_limit: None }
+        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false }
     }
 }
 
@@ -85,7 +88,7 @@ pub fn changed(current: &Grants, agent: &str, input: &Value) -> Result<Grants> {
             Some(_) => bail!("pick one of the offered ceilings"),
         },
     };
-    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit })
+    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit) })
 }
 
 /// The bots kept on this computer: paired devices neither see nor reach them.
@@ -162,6 +165,7 @@ pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
         "web": bot.grants.web,
         "mcp": bot.grants.mcp,
         "week_limit": bot.grants.week_limit,
+        "auto_edit": bot.grants.auto_edit,
         "week_used": week_used(state_dir, &bot.id),
         "week_choices": WEEK_CHOICES,
         "web_possible": web_possible(&bot.agent),

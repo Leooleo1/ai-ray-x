@@ -88,7 +88,9 @@ your paired phone (off keeps it, and the channels it is in, on the computer,
 with its notifications), whether it reads the web (Claude Code, opencode),
 whether it uses your own MCP servers (Claude Code; it then acts in them
 without asking, so only for an AI you trust with them), and a weekly token
-ceiling of its own, next to the project's daily one.
+ceiling of its own, next to the project's daily one. "Edits without asking"
+approves the AI's own proposals and applies the draft to the project by
+itself; each change can still be undone from the conversation.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
 of things. A page goes with every question, or only when the question shares

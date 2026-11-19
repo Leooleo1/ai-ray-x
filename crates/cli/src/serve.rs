@@ -86,6 +86,7 @@ fn serve(server: Server, mut panel: Panel, token: &str, port: u16) {
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
     crate::telegram::spawn(panel.state_dir.clone(), panel.jobs.clone());
+    crate::auto_edit::set_home(&panel.roots.home);
     // Drafts older than two weeks go, with their copies and backups.
     crate::drafts::cleanup(&panel.state_dir);
     // Dev servers and a tunnel an earlier raiox left running stop now.
