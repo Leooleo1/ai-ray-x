@@ -3,6 +3,7 @@ import type { Bot, BotMessage, Place } from '../../api'
 import { faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
+import { DraftCard, type DraftState } from './DraftCard'
 import { Expandable } from './Expandable'
 
 /** After a pause this long, the time stands above the next message again. */
@@ -44,9 +45,12 @@ interface BotLineProps {
   onOpenPlace: (place: Place) => void
   pinned: boolean
   onPin: () => void
+  /** For a draft: whether it was applied, undone or discarded, and the way to do it. */
+  draftState?: DraftState
+  onDraft?: (action: 'apply' | 'discard' | 'undo') => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -68,6 +72,11 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
         <p className="linha-sistema">{`${t.approved}: ${(message.data.proposal ?? '').replace(/`/g, '')}`}</p>
       </>
     )
+  }
+  if (message.author === 'you' && message.kind.startsWith('draft_')) {
+    const paths = message.data.paths ?? []
+    const what = message.kind === 'draft_applied' ? t.youApplied : message.kind === 'draft_undone' ? t.youUndid : t.youDiscarded
+    return <p className="linha-sistema">{what.replace('{n}', paths.join(', '))}</p>
   }
   if (message.author === 'you' && message.kind === 'sent') {
     const project = message.data.project ?? ''
@@ -131,6 +140,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               </button>
             </span>
           )}
+          {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}
           {reply?.open?.map((place) => (
             <div key={place} className="cartao-acao">
               <span className="cartao-acao-icone" aria-hidden="true">
@@ -156,7 +166,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                   <button className="cheio" disabled={bot.busy} onClick={onApprove}>
                     {t.approveEdit}
                   </button>
-                  <span className="nota">{bot.agent === 'codex' ? t.codexEditScope : t.claudeEditScope}</span>
+                  <span className="nota">{t.draftScope}</span>
                 </span>
               )}
             </div>

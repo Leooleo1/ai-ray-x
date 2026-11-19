@@ -87,6 +87,12 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const pending = pendingProposal(messages)
   const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
+  // Each draft's latest fate: applied, undone or discarded; open until one of those.
+  const draftStates = new Map(
+    messages
+      .filter((m) => m.kind === 'draft_applied' || m.kind === 'draft_undone' || m.kind === 'draft_discarded')
+      .map((m) => [m.data.draft ?? '', m.kind === 'draft_applied' ? ('applied' as const) : m.kind === 'draft_undone' ? ('undone' as const) : ('discarded' as const)]),
+  )
   const waiting = (pending >= 0 ? 1 : 0) + mail.length
 
   const send = async (text: string) => {
@@ -174,6 +180,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
               onOpenExchange={nav.openExchange}
               onOpenPlace={openPlace}
+              draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
+              onDraft={(action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
             />

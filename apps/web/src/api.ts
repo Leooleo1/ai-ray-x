@@ -204,11 +204,21 @@ export interface BotReply {
   duration_ms: number
 }
 
+export interface DraftFile {
+  path: string
+  status: 'modified' | 'added' | 'deleted'
+  added: number
+  removed: number
+  diff: string
+  binary: boolean
+  truncated: boolean
+}
+
 export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone'
   data: {
     text?: string
     proposal?: string
@@ -221,6 +231,12 @@ export interface BotMessage {
     /** A suggestion sent on: which answer and which project. */
     answer_ms?: number
     project?: string
+    /** A draft: its id, the changed files and the secrets files kept out. */
+    draft?: string
+    files?: DraftFile[]
+    blocked?: string[]
+    /** What applying, undoing or discarding a draft touched. */
+    paths?: string[]
   }
 }
 
@@ -275,7 +291,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft'
 
 export interface InboxMessage {
   id: string

@@ -43,6 +43,29 @@ pub fn classify_command(command: &str) -> Option<SecretKind> {
         .max_by_key(|kind| severity(*kind))
 }
 
+/// Whether a file name is a secrets file: `.env` and Cloudflare's `.dev.vars`
+/// with their variants (not the examples), key and certificate files, and the
+/// usual credential stores. raiox keeps these out of the copies its bots edit.
+pub fn is_secret_file(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    for base in [".env", ".dev.vars"] {
+        let Some(rest) = lower.strip_prefix(base) else { continue };
+        if rest.is_empty() {
+            return true;
+        }
+        // `.env.local` is a variant; `.envrc` is another name, checked below.
+        if let Some(variant) = rest.strip_prefix('.') {
+            return !variant.is_empty() && !NOT_SECRET_SUFFIXES.contains(&variant);
+        }
+    }
+    const NAMES: [&str; 7] = [".envrc", ".npmrc", ".pypirc", ".netrc", "credentials.json", "secrets.json", ".git-credentials"];
+    const EXTENSIONS: [&str; 7] = [".env", ".pem", ".key", ".p12", ".pfx", ".keystore", ".jks"];
+    const PREFIXES: [&str; 3] = ["id_rsa", "id_ed25519", "id_ecdsa"];
+    NAMES.contains(&lower.as_str())
+        || EXTENSIONS.iter().any(|ext| lower.ends_with(ext))
+        || PREFIXES.iter().any(|p| lower.starts_with(p) && !lower.ends_with(".pub"))
+}
+
 pub fn mentions_secret_file(text: &str) -> bool {
     secret_mentions(text).next().is_some()
 }
@@ -114,6 +137,21 @@ fn severity(kind: SecretKind) -> u8 {
         SecretKind::Written => 2,
         SecretKind::Mentioned => 1,
         SecretKind::Loaded => 0,
+    }
+}
+
+#[cfg(test)]
+mod file_tests {
+    use super::is_secret_file;
+
+    #[test]
+    fn secret_files_by_name() {
+        for name in [".env", ".env.local", "prod.env", ".envrc", ".dev.vars", ".dev.vars.production", "server.pem", "api.key", "id_rsa", "id_ed25519", ".npmrc", "credentials.json"] {
+            assert!(is_secret_file(name), "{name}");
+        }
+        for name in [".env.example", ".env.sample", ".dev.vars.example", ".environment", "id_rsa.pub", "keys.ts", "env.ts", "README.md", "environment.json"] {
+            assert!(!is_secret_file(name), "{name}");
+        }
     }
 }
 

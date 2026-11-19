@@ -62,6 +62,8 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     }
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
+    // Drafts older than two weeks go, with their copies and backups.
+    crate::drafts::cleanup(&panel.state_dir);
     for mut request in server.incoming_requests() {
         let reply = route(&mut panel, &mut request, &token, &hosts);
         // The browser may have gone away; nothing to do about it.
@@ -180,7 +182,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             Ok(())
         }
         "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
-        "approve" => bots::approve(state_dir, jobs, field("id"), thread),
+        "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
         "link_toggle" => {
             crate::links::toggle(state_dir, field("a"), field("b"))?;

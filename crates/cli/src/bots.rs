@@ -375,6 +375,33 @@ pub fn house(state_dir: &Path, id: &str, thread: &str, agent: &str, data: Value)
     room::append_messages(&threads::chat_file(state_dir, id, thread), vec![message])
 }
 
+/// What an edit left in the bot's working copy: the AI's answer and each changed file with its
+/// diff, kept as a draft (no draft when nothing changed).
+fn drafted(state_dir: &Path, bot: &str, work: &crate::drafts::Workspace, reply: &bot_run::Reply) -> Message {
+    match crate::drafts::collect(state_dir, bot, work) {
+        Ok((draft, found)) => note("draft", json!({ "draft": draft, "reply": reply, "files": found.files, "blocked": found.blocked })),
+        Err(error) => note("failed", json!({ "error": format!("could not read the draft: {error:#}"), "reply": reply })),
+    }
+}
+
+/// Applies, undoes or discards one of this bot's drafts, and says so in the conversation.
+pub fn draft(state_dir: &Path, id: &str, thread: &str, draft: &str, action: &str) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let bot = find(state_dir, id)?;
+    let (kind, files) = match action {
+        "apply" => ("draft_applied", crate::drafts::apply(state_dir, &bot.id, draft)?),
+        "undo" => ("draft_undone", crate::drafts::undo(state_dir, &bot.id, draft)?),
+        "discard" => {
+            crate::drafts::discard(state_dir, &bot.id, draft)?;
+            ("draft_discarded", Vec::new())
+        }
+        _ => bail!("unknown draft action"),
+    };
+    room::append_messages(&threads::chat_file(state_dir, id, thread), vec![said(kind, json!({ "draft": draft, "paths": files }))])
+}
+
 /// The project's house agents.
 pub const HOUSE: [&str; 3] = ["raio", "dieta", "memo"];
 
@@ -394,7 +421,7 @@ fn said(kind: &str, data: Value) -> Message {
 /// The person talks to a bot. The answer arrives later, on its own thread.
 /// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
 pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
-    start(state_dir, jobs, id, MAIN, Mode::Talk, prompt, said("ask", shown))
+    start(state_dir, None, jobs, id, MAIN, Mode::Talk, prompt, said("ask", shown))
 }
 
 pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
@@ -405,35 +432,45 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) ->
     if thread != MAIN {
         threads::name_after(state_dir, id, thread, text, DEFAULT_THREAD_TITLE)?;
     }
-    start(state_dir, jobs, id, thread, Mode::Talk, text, said("ask", json!({ "text": text })))
+    // What happened to a draft since the last question, so the conversation knows.
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let news = messages.iter().rev().take_while(|m| !(m.author == "you" && m.kind == "ask")).find_map(|m| match m.kind.as_str() {
+        "draft_applied" => Some("applied to the project"),
+        "draft_discarded" => Some("discarded"),
+        "draft_undone" => Some("applied and then undid"),
+        _ => None,
+    });
+    let for_cli = match news {
+        Some(what) => format!("(raiox: the person {what} the change you made in a draft copy.)\n\n{text}"),
+        None => text.to_string(),
+    };
+    start(state_dir, None, jobs, id, thread, Mode::Talk, &for_cli, said("ask", json!({ "text": text })))
 }
 
-/// The person approves the proposal in the bot's latest answer.
-pub fn approve(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+/// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
+pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
-    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent" | "stopped"));
+    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent" | "stopped" | "house"));
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
         .map(str::to_string)
         .context("the latest answer has no proposal to approve")?;
-    // Cursor edits in a fresh session, so it gets its earlier answer as context.
-    let agent = find(state_dir, id)?.agent;
+    // Every CLI edits in a fresh session inside the draft, so it gets its earlier answer as context.
     let answer = last.and_then(|m| m.data.pointer("/reply/text")).and_then(Value::as_str).unwrap_or("");
-    let text = if agent == "cursor" { format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.") } else { proposal.clone() };
-    start(state_dir, jobs, id, thread, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
+    let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.");
+    start(state_dir, Some(home), jobs, id, thread, Mode::Edit, &text, said("approve", json!({ "proposal": proposal })))
 }
 
-fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
+/// `home` is given for an edit: the draft copy keeps the project's path under it.
+#[allow(clippy::too_many_arguments)]
+fn start(state_dir: &Path, home: Option<&Path>, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text: &str, asked: Message) -> Result<()> {
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
     let bot = find(state_dir, id)?;
     let session = thread_session(state_dir, &bot, thread)?;
-    if mode == Mode::Edit && session.is_none() && bot.agent != "cursor" {
-        bail!("this conversation was reset; ask the bot again");
-    }
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
     }
@@ -443,6 +480,7 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
         return Err(error);
     }
     let (state_dir, jobs, text, thread) = (state_dir.to_path_buf(), jobs.clone(), text.to_string(), thread.to_string());
+    let home = home.map(Path::to_path_buf);
     std::thread::spawn(move || {
         let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
         // Only the projects wired to this one: the bot names no others and can message no others.
@@ -451,12 +489,26 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
         unwired.sort();
         unwired.dedup();
         let defaults = crate::settings::Settings::load(&state_dir).defaults_for(&bot.agent);
+        // An approved edit happens in the bot's working copy of the project, never in the project itself.
+        let work = match (mode, &home) {
+            (Mode::Edit, Some(home)) => match crate::drafts::prepare(&state_dir, home, &bot.id, &bot.dir) {
+                Ok(work) => Some(work),
+                Err(error) => {
+                    let _ = room::append_messages(&file, vec![note("failed", json!({ "error": format!("could not make the draft copy: {error:#}") }))]);
+                    jobs.finish(&bot.id);
+                    return;
+                }
+            },
+            _ => None,
+        };
+        let work_dir = work.as_ref().map_or_else(|| bot.dir.clone(), |work| work.dir.clone());
         let target = bot_run::Target {
             agent: &bot.agent,
-            dir: &bot.dir,
+            dir: &work_dir,
             // The team notes from ai-memory: what the other bots here and in wired projects did lately.
             guide: bot_run::guide(&bot.name, &bot.persona.as_ref().map(Persona::prompt).unwrap_or_default(), &others, &unwired) + &crate::team::context_for(&state_dir, &bot),
-            session: session.as_deref(),
+            // A draft starts a fresh session there; talk continues the conversation's own.
+            session: if work.is_some() { None } else { session.as_deref() },
             model: bot.model.as_deref().or(defaults.model.as_deref()),
             effort: bot.effort.as_deref().or(defaults.effort.as_deref()),
         };
@@ -473,14 +525,20 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, mode: Mode, text
             Ok(reply) => {
                 // Messages for projects without a bot are dropped: nobody there would read them.
                 let reply = bot_run::Reply { to: reply.to.into_iter().filter(|n| others.contains(&n.project)).collect(), ..reply };
-                if reply.session.is_some() && reply.session != session && bot_run::keeps_session(&bot.agent, mode) {
+                if reply.session.is_some() && reply.session != session && bot_run::keeps_session(mode) {
                     let _ = set_thread_session(&state_dir, &bot.id, &thread, reply.session.clone());
                 }
-                let mode_name = if mode == Mode::Edit { "edit" } else { "talk" };
-                note("answer", json!({ "mode": mode_name, "reply": reply }))
+                match &work {
+                    Some(work) => drafted(&state_dir, &bot.id, work, &reply),
+                    None => note("answer", json!({ "mode": "talk", "reply": reply })),
+                }
             }
-            Err(error) if error.to_string() == bot_run::STOPPED => note("stopped", json!({})),
-            Err(error) => note("failed", json!({ "error": format!("{error:#}") })),
+            Err(error) => {
+                if work.is_some() {
+                    crate::drafts::abandon(&state_dir, &bot.id);
+                }
+                if error.to_string() == bot_run::STOPPED { note("stopped", json!({})) } else { note("failed", json!({ "error": format!("{error:#}") })) }
+            }
         };
         let _ = room::append_messages(&file, vec![message]);
         jobs.finish(&bot.id);
@@ -568,9 +626,9 @@ mod tests {
         let jobs = Jobs::default();
         let answer = |proposal: Value| note("answer", json!({ "mode": "talk", "reply": { "text": "t", "proposal": proposal } }));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(Value::Null)]).unwrap();
-        assert!(approve(&state, &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(json!("rename"))]).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
-        assert!(approve(&state, &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
     }
 }

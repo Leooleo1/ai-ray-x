@@ -10,6 +10,7 @@ mod bot_usage;
 mod bots;
 mod connections;
 mod data;
+mod drafts;
 mod links;
 mod memo;
 mod pins;

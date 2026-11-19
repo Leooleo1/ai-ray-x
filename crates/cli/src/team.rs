@@ -61,7 +61,7 @@ fn pairs(messages: &[Message], who: &str) -> Vec<(i64, String)> {
         .enumerate()
         .filter(|(_, m)| m.author == "you" && m.kind == "ask")
         .filter_map(|(i, ask)| {
-            let answer = messages[i + 1..].iter().take_while(|m| m.author != "you").find(|m| m.kind == "answer")?;
+            let answer = messages[i + 1..].iter().take_while(|m| m.author != "you").find(|m| m.kind == "answer" || m.kind == "draft")?;
             let reply = answer.data.pointer("/reply/text").and_then(Value::as_str)?;
             let question = ask.data.get("text").and_then(Value::as_str).unwrap_or("");
             let from = ask.data.get("via").and_then(Value::as_str).map_or(String::new(), |_| " (mensagem recebida pelo ai-memory)".to_string());

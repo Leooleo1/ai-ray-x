@@ -106,15 +106,33 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
             unwired.join(", ")
         )
     };
+    let secrets = "\n\nNever open, print or quote secrets files (.env and its variants, keys, certificates, credential \
+                   stores). If the person asks for one, say raiox keeps them out of reach.";
     let persona = persona.trim();
-    format!("{base}{mail}{places}{wire}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
+    format!("{base}{secrets}{mail}{places}{wire}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
 
 fn edit_prompt(proposal: &str) -> String {
     format!(
         "Approved by the person: {proposal}\n\
-         Make this change now, only inside this project. End with a short list of the files you changed."
+         Make this change now in the files of this folder, a working copy of the project: the person reviews the \
+         differences before they reach the project. End with a short list of the files you changed."
     )
+}
+
+/// Secrets files Claude Code may never open, by the names raiox keeps out of every draft copy.
+const SECRET_PATTERNS: [&str; 14] = [
+    "**/.env", "**/.env.*", "**/.envrc", "**/*.env", "**/.dev.vars", "**/.dev.vars.*", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx",
+    "**/id_rsa*", "**/id_ed25519*", "**/.npmrc", "**/credentials.json",
+];
+
+/// `--disallowedTools` rules: no reading secrets while talking, and no reading or writing them while editing.
+fn secret_rules(mode: Mode) -> Vec<String> {
+    let tools: &[&str] = match mode {
+        Mode::Talk => &["Read"],
+        Mode::Edit => &["Read", "Edit", "Write"],
+    };
+    tools.iter().flat_map(|tool| SECRET_PATTERNS.iter().map(move |pattern| format!("{tool}({pattern})"))).collect()
 }
 
 pub fn prompt_for(mode: Mode, text: &str) -> String {
@@ -135,6 +153,7 @@ fn claude(target: &Target, mode: Mode) -> Command {
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
         .args(["-p", "--output-format", "stream-json", "--verbose", "--tools", tools, "--strict-mcp-config"])
         .args(["--append-system-prompt", &target.guide]);
+    command.arg("--disallowedTools").args(secret_rules(mode));
     if let Some(model) = target.model {
         command.args(["--model", model]);
     }
@@ -196,9 +215,10 @@ pub fn session_lost(error: &anyhow::Error) -> bool {
     said.contains("No conversation found") || (said.contains("session") && said.contains("not found"))
 }
 
-/// Whether a turn's session becomes the bot's conversation (Cursor's edit sessions do not).
-pub fn keeps_session(agent: &str, mode: Mode) -> bool {
-    !(agent == "cursor" && mode == Mode::Edit)
+/// Whether a turn's session becomes the bot's conversation: an edit runs in a
+/// throwaway session inside its draft copy, for every CLI.
+pub fn keeps_session(mode: Mode) -> bool {
+    mode == Mode::Talk
 }
 
 /// Runs one turn and waits for it, up to the timeout.

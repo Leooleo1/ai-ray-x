@@ -48,7 +48,16 @@ pub fn rewrite_reason(after_compact: bool, model_changed: bool, gap_ms: Option<i
 }
 
 /// Project label: the first two folders under home (`Projects/app`), `~` for home itself.
+/// Where raiox keeps the copies its bots edit: `<…>/raiox/rascunhos/<bot>/copia/<path under home>`.
+const DRAFT_COPY: &str = "/raiox/rascunhos/";
+
 pub fn project_of(cwd: &str, home: &Path) -> String {
+    // A bot editing a draft copy works for the project the copy came from.
+    if let Some(at) = cwd.find(DRAFT_COPY)
+        && let Some(inside) = cwd[at + DRAFT_COPY.len()..].split_once("/copia/").map(|(_, rest)| rest)
+    {
+        return project_of(&home.join(inside).to_string_lossy(), home);
+    }
     let path = Path::new(cwd);
     let Ok(rel) = path.strip_prefix(home) else {
         return path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| cwd.to_string());
@@ -163,6 +172,8 @@ mod tests {
         let home = Path::new("/Users/dev");
         assert_eq!(project_of("/Users/dev/Projects/app/server", home), "Projects/app");
         assert_eq!(project_of("/Users/dev", home), "~");
+        // A draft copy counts for the project it was copied from.
+        assert_eq!(project_of("/Users/dev/Library/Caches/raiox/rascunhos/d1/copia/Projects/app/src", home), "Projects/app");
         assert_eq!(project_of("/tmp/worktree-x", home), "worktree-x");
     }
 

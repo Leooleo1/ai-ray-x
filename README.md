@@ -22,7 +22,10 @@ with a backup and an undo, and raiox measures the result afterwards.
 **Chats.** Turn on a project and talk to the CLI you already use there (Claude
 Code, Codex or Cursor), with the project's context:
 
-- it only reads while talking; edits happen after you approve a proposal;
+- it only reads while talking. When you approve a proposal, it edits a copy
+  of the project (following your `.gitignore`, without secrets files) and you
+  see what changed in each file, then apply it to the project (with undo) or
+  discard it;
 - every answer shows what it read, and the bar shows each step live
   (reading a file, searching, running a command);
 - parallel conversations, pinned answers, routines on a schedule, one
@@ -88,6 +91,10 @@ describes the three house agents.
 - raiox reads your CLIs' logs and keeps an index in your cache folder; it does
   not upload them.
 - Secrets are counted, never stored.
+- Secrets files (`.env` and its variants, `.dev.vars`, keys, certificates)
+  never enter the copies the AIs edit. Claude Code is also denied reading
+  them while talking; Codex and Cursor have no such switch, so they are only
+  told not to.
 - Chats run your own CLI, which talks to its own provider under your account.
 
 ## Status
