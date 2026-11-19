@@ -5,7 +5,7 @@ import { type Exchange as ExchangeData, type ExchangeItem } from '../../exchange
 import { t } from '../../i18n'
 import { Avatar } from '../Avatar'
 import { Markdown } from '../Markdown'
-import { BotList } from './BotList'
+import { ProjectList } from './ProjectList'
 import type { ChatNav } from './nav'
 import { clock } from './BotLine'
 import { Expandable } from './Expandable'
@@ -27,7 +27,16 @@ export function ExchangeView({ exchange, bots, nav, unread }: ExchangeProps) {
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={`${exchange.a}|${exchange.b}`} unread={unread} nav={nav} />
+        <ProjectList
+          bots={bots}
+          project={exchange.a}
+          current={`troca:${exchange.a}|${exchange.b}`}
+          unread={unread}
+          nav={nav}
+          open={false}
+          onThread={(id, thread) => nav.openMessage(id, thread, 0)}
+          onClose={(id, thread) => void bots.act('thread_delete', { id, thread })}
+        />
         <div className="conversa">
           <header className="chat-topo bot-topo troca-topo">
             {ends.map(({ project, bot }, i) => (

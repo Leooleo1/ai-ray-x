@@ -4,14 +4,12 @@ import type { Bots } from '../../bots'
 import { compact, t } from '../../i18n'
 import { Avatar } from '../Avatar'
 import { Markdown } from '../Markdown'
-import { BotList } from './BotList'
 import { clock } from './BotLine'
 import type { ChatNav } from './nav'
 
 interface BatchViewProps {
   batch: Batch
   bots: Bots
-  unread: Set<string>
   nav: ChatNav
 }
 
@@ -21,15 +19,19 @@ function outcome(messages: BotMessage[]): BotMessage | undefined {
 }
 
 /** One question asked to several bots: one column per bot, each with its answer and what it read. */
-export function BatchView({ batch, bots, unread, nav }: BatchViewProps) {
+export function BatchView({ batch, bots, nav }: BatchViewProps) {
   const columns = batch.items.map((item) => ({ item, bot: bots.state.bots.find((b) => b.id === item.bot) }))
   const skipped = batch.skipped.map((id) => bots.state.bots.find((b) => b.id === id)?.name ?? id)
   return (
     <main className="chat">
-      <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={`grupo:${batch.id}`} unread={unread} nav={nav} />
+      <section className="cartao chat-centro bot-chat sem-lista">
         <div className="conversa">
           <header className="chat-topo bot-topo grupo-topo">
+            <button type="button" className="icone-btn" aria-label={t.askMany} title={t.askMany} onClick={nav.askMany}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
             <b className="grupo-titulo">{batch.text}</b>
             <small className="grupo-meta">{[clock(batch.created_ms), skipped.length > 0 ? `${skipped.join(', ')}: ${t.leftOut}` : ''].filter(Boolean).join(' · ')}</small>
             <button type="button" className="icone-btn" title={t.removeGroup} aria-label={t.removeGroup} onClick={() => void bots.act('batch_delete', { batch: batch.id }).then(nav.askMany)}>

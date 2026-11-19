@@ -54,6 +54,10 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
             )}
           </button>
         ))}
+        <button className={`lado-item ${tab === 'agents' && chat.startsWith('grupo') ? 'ativo' : ''}`} onClick={() => onChat('grupo')}>
+          <Icon name="ask-many" />
+          <span className="nome">{t.askMany}</span>
+        </button>
         <button className={`lado-item ${tab === 'agents' && chat === 'bots' ? 'ativo' : ''}`} onClick={() => onChat('bots')}>
           <Icon name="plus" />
           <span className="nome">{t.addProject}</span>

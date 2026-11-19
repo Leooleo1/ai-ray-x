@@ -3,18 +3,17 @@ import { AGENT_LABEL, faceForBot } from '../../avatars'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
 import { Avatar } from '../Avatar'
-import { BotList } from './BotList'
+import { count, when } from './listParts'
 import { Composer } from './Composer'
 import type { ChatNav } from './nav'
 
 interface AskManyProps {
   bots: Bots
-  unread: Set<string>
   nav: ChatNav
 }
 
 /** One question to the bots the person picks; each answers in a new conversation, shown side by side. */
-export function AskMany({ bots, unread, nav }: AskManyProps) {
+export function AskMany({ bots, nav }: AskManyProps) {
   const free = bots.state.bots.filter((b) => !b.busy)
   const [picked, setPicked] = useState<Set<string>>(() => new Set(free.map((b) => b.id)))
   const toggle = (id: string) => setPicked((now) => (now.has(id) ? new Set([...now].filter((x) => x !== id)) : new Set([...now, id])))
@@ -27,8 +26,7 @@ export function AskMany({ bots, unread, nav }: AskManyProps) {
   }
   return (
     <main className="chat">
-      <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current="grupo" unread={unread} nav={nav} />
+      <section className="cartao chat-centro bot-chat sem-lista">
         <div className="conversa">
           <header className="chat-topo bot-topo">
             <b className="grupo-titulo">{t.askManyTitle}</b>
@@ -55,10 +53,25 @@ export function AskMany({ bots, unread, nav }: AskManyProps) {
                 </button>
               ))}
             </div>
+            {bots.state.batches.length > 0 && (
+              <section className="grupo-anteriores">
+                <span className="conversas-grupo">{t.previousGroups}</span>
+                <ul>
+                  {bots.state.batches.map((batch) => (
+                    <li key={batch.id}>
+                      <button type="button" onClick={() => nav.openBatch(batch.id)}>
+                        <b>{batch.text}</b>
+                        <small>{`${count(batch.items.length, t.aisCount)} · ${when(batch.created_ms)}`}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
           <Composer
             draftKey="grupo"
-            placeholder={`${t.askManySend} · ${picked.size} bots`}
+            placeholder={`${t.askManySend} · ${count(picked.size, t.aisCount)}`}
             maxLength={bots.state.max_text}
             busy={false}
             onSend={send}

@@ -758,64 +758,6 @@
   vertical-align: middle;
 }
 
-/* Conversation tabs: the main one and parallel ones, + opens another. */
-.abas {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.abas .bot-aba {
-  flex: none;
-  border: 0;
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 14px/20px var(--sans);
-  cursor: pointer;
-}
-
-.abas .bot-aba.ativa {
-  background: var(--vidro-7);
-  color: var(--giz);
-}
-
-.lateral-aba {
-  display: inline-flex;
-  gap: 2px;
-  max-width: 200px;
-  padding: 0 4px 0 12px;
-}
-
-.lateral-aba button {
-  overflow: hidden;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.lateral-aba .fechar-aba {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  color: var(--nevoa);
-  opacity: 0;
-}
-
-.lateral-aba:hover .fechar-aba,
-.lateral-aba.ativa .fechar-aba,
-.fechar-aba:focus-visible {
-  opacity: 1;
-}
-
 .fechar-aba:hover {
   background: rgb(255 255 255 / 8%);
 }
@@ -1007,40 +949,6 @@
   text-overflow: ellipsis;
   vertical-align: bottom;
   white-space: nowrap;
-}
-
-/* Ask several: one quiet row under the search, like a conversation. */
-.conversas-acao {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 12px;
-  height: 40px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--nevoa);
-  font: 14px/20px var(--sans);
-  text-align: left;
-  cursor: pointer;
-}
-
-.conversas-acao:hover,
-.conversas-acao.ativo {
-  background: var(--vidro-7);
-  color: var(--giz);
-}
-
-.conversas-acao svg {
-  width: 18px;
-  height: 18px;
-  margin: 0 9px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 /* Messages found by the search. */
@@ -1337,5 +1245,204 @@
   /* The before/after table needs the width it has in Efficiency. */
   .casa .comparativo {
     display: none;
+  }
+}
+
+/* The project's conversations: the project on top, then each IA's
+   conversations, its exchanges and its group questions. */
+.projeto-topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px 2px;
+}
+
+.projeto-topo span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.projeto-topo b {
+  overflow: hidden;
+  font: 500 15px/20px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projeto-topo small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversas-ia {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+
+.conversa-item {
+  position: relative;
+}
+
+.conversas .conversa-item > button:first-child {
+  padding-right: 34px;
+}
+
+/* Its own size: the row rule for list buttons would stretch it over the whole row. */
+.conversas .conversa-item .fechar-conversa {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nevoa);
+  opacity: 0;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.conversas .conversa-item:hover .fechar-conversa,
+.conversas .conversa-item .fechar-conversa:focus-visible {
+  opacity: 1;
+}
+
+.conversas .conversa-item .fechar-conversa:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.fechar-conversa svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* The chat's title: which conversation, of which project and IA. */
+.conversa-titulo {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.conversa-titulo > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.conversa-titulo b {
+  overflow: hidden;
+  font: 500 14px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversa-titulo small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.so-celular {
+  display: none;
+}
+
+/* Views without a project list (several AIs at once) use the whole card. */
+.chat-centro.bot-chat.sem-lista {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.grupo-anteriores {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.grupo-anteriores ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grupo-anteriores button {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.grupo-anteriores button:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.grupo-anteriores b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 500 14px/20px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grupo-anteriores small {
+  flex: none;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+@media (max-width: 960px) {
+  .so-celular {
+    display: grid;
+  }
+
+  /* The list opens as a sheet over the chat. */
+  .chat-centro.bot-chat {
+    position: relative;
+  }
+
+  .conversas.aberta {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 15;
+    display: flex;
+    width: min(320px, 88%);
+    overflow-y: auto;
+    background: var(--carvao);
+    box-shadow:
+      1px 0 0 var(--fio),
+      24px 0 48px -12px rgb(0 0 0 / 70%);
+  }
+
+  .conversas .conversa-item .fechar-conversa {
+    opacity: 1;
   }
 }

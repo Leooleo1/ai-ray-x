@@ -1,6 +1,11 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  mainConversation: 'Main conversation',
+  conversationsOf: 'Conversations in {p}',
+  searchAll: 'Search every conversation',
+  aisCount: ['AI', 'AIs'] as [string, string],
+  previousGroups: 'Asked before',
   tipFree: 'tip · no AI · 0 tokens',
   tipClose: 'Close this tip',
   tipMute: 'Mute {name}',
@@ -43,9 +48,9 @@ const en = {
   wiresHint: 'only wired ones message each other',
   noWires: 'Turn on two or more projects with bots to wire them.',
   askMany: 'Ask several',
-  askManyTitle: 'One question, several bots',
+  askManyTitle: 'One question, several AIs',
   askManyHint: 'each answers in a new conversation',
-  askManyPick: 'Bots',
+  askManyPick: 'AIs',
   askManySend: 'Ask',
   groups: 'Asked together',
   skippedBusy: 'busy now',
@@ -275,6 +280,11 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  mainConversation: 'Conversa principal',
+  conversationsOf: 'Conversas do {p}',
+  searchAll: 'Buscar nas conversas',
+  aisCount: ['IA', 'IAs'],
+  previousGroups: 'Perguntas anteriores',
   tipFree: 'dica · sem IA · 0 tokens',
   tipClose: 'Fechar esta dica',
   tipMute: 'Silenciar {name}',
@@ -317,9 +327,9 @@ const pt: Texts = {
   wiresHint: 'só os ligados trocam mensagens',
   noWires: 'Ative bots em dois ou mais projetos para ligá-los.',
   askMany: 'Perguntar a vários',
-  askManyTitle: 'Uma pergunta, vários bots',
+  askManyTitle: 'Uma pergunta, várias IAs',
   askManyHint: 'cada um responde numa conversa nova',
-  askManyPick: 'Bots',
+  askManyPick: 'IAs',
   askManySend: 'Perguntar',
   groups: 'Perguntas em grupo',
   skippedBusy: 'ocupado agora',

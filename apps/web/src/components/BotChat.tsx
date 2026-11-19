@@ -7,7 +7,7 @@ import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
 import { BotLine } from './chat/BotLine'
-import { BotList } from './chat/BotList'
+import { ProjectList } from './chat/ProjectList'
 import { ModelPicker } from './chat/ModelPicker'
 import { Composer } from './chat/Composer'
 import { Expandable } from './chat/Expandable'
@@ -44,6 +44,8 @@ interface BotChatProps {
 /** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
 export function BotChat({ bot, bots, nav, focus, onConnections, unread, report, onChanged }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // On a phone the project's conversations open as a sheet.
+  const [listOpen, setListOpen] = useState(false)
   const [thread, setThread] = useState(focus?.thread ?? MAIN)
   useEffect(() => {
     if (!focus) return undefined
@@ -95,30 +97,38 @@ export function BotChat({ bot, bots, nav, focus, onConnections, unread, report, 
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat">
-        <BotList bots={bots} current={bot.id} unread={unread} nav={nav} />
+        <ProjectList
+          bots={bots}
+          project={bot.name}
+          current={`${bot.id}:${current}`}
+          unread={unread}
+          nav={nav}
+          open={listOpen}
+          onThread={(id, thread) => {
+            setListOpen(false)
+            if (id === bot.id) setThread(thread)
+            else nav.openMessage(id, thread, 0)
+          }}
+          onNew={() => {
+            setListOpen(false)
+            void newThread()
+          }}
+          onClose={(id, thread) => void (id === bot.id ? closeThread(thread) : bots.act('thread_delete', { id, thread }))}
+        />
         <div className="conversa">
         <header className="chat-topo bot-topo">
-          <div className="abas" role="tablist" aria-label={t.newThread}>
-            <button type="button" role="tab" aria-selected={current === MAIN} className={`bot-aba ${current === MAIN ? 'ativa' : ''}`} onClick={() => setThread(MAIN)}>
-              <Avatar agent={face} size={22} state={busyHere && current === MAIN ? 'thinking' : 'still'} />
-              <b>{bot.persona ? `${bot.name} · ${bot.persona.name}` : bot.name}</b>
-            </button>
-            {bot.threads.map((x) => (
-              <span key={x.id} role="tab" aria-selected={current === x.id} className={`bot-aba lateral-aba ${current === x.id ? 'ativa' : ''}`}>
-                <button type="button" onClick={() => setThread(x.id)}>
-                  {x.title}
-                </button>
-                <button type="button" className="fechar-aba" aria-label={t.closeThread} title={t.closeThread} disabled={bot.busy && bot.busy_thread === x.id} onClick={() => void closeThread(x.id)}>
-                  ×
-                </button>
-              </span>
-            ))}
-            <button type="button" className="icone-btn" title={t.newThread} aria-label={t.newThread} onClick={() => void newThread()}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </button>
-          </div>
+          <button type="button" className="icone-btn so-celular" aria-label={t.conversationsOf.replace('{p}', bot.name)} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 7h14M5 12h14M5 17h9" />
+            </svg>
+          </button>
+          <span className="conversa-titulo">
+            <Avatar agent={face} size={24} state={busyHere ? 'thinking' : 'still'} />
+            <span>
+              <b>{side ? side.title : t.mainConversation}</b>
+              <small>{[bot.name, AGENT_LABEL[bot.agent], bot.persona?.name].filter(Boolean).join(' · ')}</small>
+            </span>
+          </span>
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
           <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
             <svg viewBox="0 0 24 24" aria-hidden="true">

@@ -197,8 +197,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && openExchange && (
           <ExchangeView exchange={openExchange} bots={bots} unread={unread} nav={nav} />
         )}
-        {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} unread={unread} nav={nav} />}
-        {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} unread={unread} nav={nav} />}
+        {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} nav={nav} />}
+        {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} nav={nav} />}
         {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
