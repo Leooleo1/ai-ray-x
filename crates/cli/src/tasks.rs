@@ -1,5 +1,5 @@
 //! The team's board: tasks for the bots, from the person or from the bots
-//! themselves (a RAIOX-TASK line). A task runs in its bot's "Tarefas"
+//! themselves (a RAIOX-TASK line). A task runs in its bot's "Tasks"
 //! conversation, from a fresh session each time. When the turn ends it is
 //! done, or it waits for the person when the bot asks for something (a
 //! proposal, a draft, a command). With "pick tasks up" on, the scheduler
@@ -17,7 +17,9 @@ use crate::bots::{self, Jobs};
 use crate::{room, threads};
 
 const FILE: &str = "tarefas.json";
-const THREAD_TITLE: &str = "Tarefas";
+const THREAD_TITLE: &str = "Tasks";
+/// The title tasks' conversations had before (still found).
+const OLD_TITLE: &str = "Tarefas";
 const MAX_TITLE: usize = 120;
 const MAX_DETAIL: usize = 2000;
 const MAX_TASKS: usize = 300;
@@ -106,7 +108,7 @@ pub fn add(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &str) -
 
 /// The bot's conversation for tasks (made when first needed).
 fn task_thread(state_dir: &Path, bot: &str) -> Result<String> {
-    if let Some(thread) = threads::list(state_dir, bot).into_iter().find(|t| t.title == THREAD_TITLE) {
+    if let Some(thread) = threads::list(state_dir, bot).into_iter().find(|t| t.title == THREAD_TITLE || t.title == OLD_TITLE) {
         return Ok(thread.id);
     }
     Ok(threads::create(state_dir, bot, THREAD_TITLE)?.id)
@@ -117,7 +119,7 @@ fn prompt(task: &Task) -> String {
     format!("Task from the team's board: {}{detail}\n\nDo it now. If it needs a change to the project, propose it as usual.", task.title)
 }
 
-/// Starts a task: its bot gets it in its "Tarefas" conversation, from a fresh session.
+/// Starts a task: its bot gets it in its "Tasks" conversation, from a fresh session.
 pub fn start(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     let task = load(state_dir).tasks.into_iter().find(|t| t.id == id).context("no such task")?;
     if !matches!(task.status, Status::Todo | Status::Waiting) {
@@ -236,7 +238,7 @@ pub fn state(state_dir: &Path) -> Value {
     tasks.sort_by_key(|t| std::cmp::Reverse(t.updated_ms));
     let threads: Vec<Value> = tasks
         .iter()
-        .map(|t| threads::list(state_dir, &t.bot).into_iter().find(|th| th.title == THREAD_TITLE).map_or(Value::Null, |th| json!(th.id)))
+        .map(|t| threads::list(state_dir, &t.bot).into_iter().find(|th| th.title == THREAD_TITLE || th.title == OLD_TITLE).map_or(Value::Null, |th| json!(th.id)))
         .collect();
     json!({ "tasks": tasks, "threads": threads, "auto": board.auto })
 }

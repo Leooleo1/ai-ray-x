@@ -839,7 +839,7 @@ export interface Task {
 
 export interface TaskBoardState {
   tasks: Task[]
-  /** Each task's conversation ("Tarefas") id, in the same order. */
+  /** Each task's conversation ("Tasks") id, in the same order. */
   threads: (string | null)[]
   /** The bots pick their next task up by themselves. */
   auto: boolean

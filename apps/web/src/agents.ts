@@ -21,14 +21,14 @@ const pt = locale === 'pt-BR'
 export const AGENTS: Record<AgentId, Agent> = {
   raio: {
     id: 'raio',
-    name: 'Raio',
+    name: pt ? 'Raio' : 'Ray',
     role: pt ? 'lê os registros e mostra o que pesa' : 'reads the logs and shows what weighs',
     color: '#b4a3f5',
     avatar: raio as AvatarDefinition,
   },
   dieta: {
     id: 'dieta',
-    name: 'Dieta',
+    name: pt ? 'Dieta' : 'Diet',
     role: pt ? 'sugere cortes, nunca aplica sozinha' : 'suggests cuts, never applies them',
     color: '#5fd08a',
     avatar: dieta as AvatarDefinition,

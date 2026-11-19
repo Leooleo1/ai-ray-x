@@ -83,7 +83,7 @@ pub fn carry(state_dir: &Path, from: &str, thread: &str, to_bot: Option<&str>, t
     if items.is_empty() {
         bail!("this conversation has nothing to take yet");
     }
-    let title = if thread == threads::MAIN { "Conversa principal".to_string() } else { threads::list(state_dir, from).into_iter().find(|t| t.id == thread).map(|t| t.title).unwrap_or_default() };
+    let title = if thread == threads::MAIN { "Main conversation".to_string() } else { threads::list(state_dir, from).into_iter().find(|t| t.id == thread).map(|t| t.title).unwrap_or_default() };
     let message = carried(&source, thread, &title, items);
     match (to_bot, to_channel) {
         (Some(to), None) => {
@@ -91,7 +91,7 @@ pub fn carry(state_dir: &Path, from: &str, thread: &str, to_bot: Option<&str>, t
             if target.id == source.id {
                 bail!("pick another AI");
             }
-            let made = threads::create(state_dir, &target.id, &format!("De {} · {title}", source.name))?;
+            let made = threads::create(state_dir, &target.id, &format!("From {} · {title}", source.name))?;
             room::append_messages(&threads::chat_file(state_dir, &target.id, &made.id), vec![message])?;
             Ok(made.id)
         }

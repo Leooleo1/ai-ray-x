@@ -1,6 +1,6 @@
 //! The project's own memory in ai-memory. Before answering, a bot reads the
 //! durable pages that relate to the question; and the person can keep an
-//! answer as a decision of the project (`raiox/decisoes/…`), which later
+//! answer as a decision of the project (`raiox/decisions/…`), which later
 //! questions then find. Without ai-memory, both quietly do nothing.
 
 use std::io::Write;
@@ -11,7 +11,7 @@ use anyhow::{bail, Context, Result};
 use serde_json::Value;
 
 /// Where the person's kept answers go, one page each.
-const DECISIONS: &str = "raiox/decisoes";
+const DECISIONS: &str = "raiox/decisions";
 /// Words a question contributes to the search, at most.
 const MAX_TERMS: usize = 8;
 /// Shorter words say little about what the question is about.
@@ -139,7 +139,7 @@ fn short(text: &str) -> String {
 
 /// Keeps an answer as a decision of the project in ai-memory. Gives the page's path.
 pub fn remember(dir: &Path, question: &str, answer: &str, agent: &str, project: &str) -> Result<String> {
-    let first = question.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or("Decisão");
+    let first = question.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or("Decision");
     let title = short(first);
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let path = format!("{DECISIONS}/{date}-{}.md", slug(&title));

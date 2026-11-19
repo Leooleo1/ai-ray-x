@@ -27,7 +27,7 @@ prompts, system text), tokens per project, and how often a secrets file such as
 
 **Efficiency.** Ranked cuts with the estimated saving, measured from your own
 logs: compacting earlier, loading less at startup, keeping screenshots out of
-the main session. In a project's chat, Dieta computes them from that
+the main session. In a project's chat, Diet (one of the three house agents, below) computes them from that
 project's own requests once it has enough. The ones that are a setting apply
 to the project you pick,
 with a backup and an undo, and raiox measures the result afterwards.
@@ -92,7 +92,7 @@ conversation it came from.
 **Board.** On the Desk, a board of tasks for the AIs, in four columns: to
 do, doing, waiting for you, done. Add one and pick the AI, or let an AI leave
 up to three follow-ups at the end of an answer (a `RAIOX-TASK:` line). A task
-runs in that AI's "Tarefas" conversation, from a fresh session; when the turn
+runs in that AI's "Tasks" conversation, from a fresh session; when the turn
 ends it is done, or waiting for you when the AI proposes a change, runs a
 command or writes a draft. Each card shows what its task cost in tokens. With
 "Bots pick tasks up" on, each idle AI starts its next task by itself, on the
@@ -116,7 +116,7 @@ times each page was read this week, by which AI, and roughly what that cost in
 tokens. Any answer can be kept as a page (its question becomes the title).
 
 **Channels.** Rooms with several of your AIs, from any projects. `@handle`
-calls a member (several handles call several; `@todos` calls them all). With
+calls a member (several handles call several; `@all` calls them all). With
 no handle, a free router picks who the message is about, from each member's
 role (and the words that go with it), name, project and project file names,
 without asking any AI; with no clear match, the channel's lead answers. Under
@@ -143,9 +143,9 @@ shows it in the chat and hands it back: Claude Code reads it from a folder that
 holds only the current question's screenshots, Codex gets it as an image, and
 Cursor gets its path.
 
-**Raio, Dieta and Memo.** Three house agents inside every project chat. They
-answer from the logs, without AI and at no cost: Raio reports what the session
-carries and how the project's week compares with the one before, Dieta lists
+**Ray, Diet and Memo.** Three house agents inside every project chat. They
+answer from the logs, without AI and at no cost: Ray reports what the session
+carries and how the project's week compares with the one before, Diet lists
 the cuts with Apply, Memo says what was kept and points to ai-memory pages
 with the same title or untouched for months, which you can delete. They can also
 float a tip now and then; each one can be muted.
@@ -155,7 +155,7 @@ installed, raiox keeps a pinned page per project (`raiox/equipe.md`) with who
 works there and what each AI did last, and every bot reads its own project's
 page and those of the projects wired to it before answering, plus the
 project's pages that relate to the question. Any answer can be kept as a
-decision of the project (`raiox/decisoes/…`) with one click, so later
+decision of the project (`raiox/decisions/…`) with one click, so later
 questions find it. Wired projects
 can message each other through ai-memory, always with your approval.
 
@@ -277,10 +277,10 @@ raiox open      Open the panel (the default)
 raiox report    Print the report in the terminal
 raiox context   What the current session of a folder carries now
 raiox weighs    What weighs most over the indexed period (JSON)
-raiox diet      Dieta's ranked suggestions (JSON); never applies anything
+raiox diet      Diet's ranked suggestions (JSON); never applies anything
 raiox apply     Apply a suggestion to this project (backup and ledger)
 raiox undo      Undo an applied change by its id
-raiox ask       Ask Raio, Dieta or Memo about this project
+raiox ask       Ask Ray, Diet or Memo about this project
 raiox mcp       MCP server over stdio (reads; proposes team changes)
 ```
 

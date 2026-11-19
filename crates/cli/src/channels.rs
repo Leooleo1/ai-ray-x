@@ -2,7 +2,7 @@
 //! projects. A message goes to the members it @mentions, or to the channel's
 //! member the router finds it is about when it mentions none (the lead when
 //! nobody stands out; @todos calls them all). Each member answers in a
-//! conversation of its own ("Canal · #name"), so live sessions, the live path,
+//! conversation of its own ("Channel · #name"), so live sessions, the live path,
 //! corrections and limits all hold; the channel shows the person's messages
 //! and the members' answers together. A member is told what was said in the
 //! channel since it last spoke, and can hand work to another member with a
@@ -168,7 +168,7 @@ fn thread_of(state_dir: &Path, channel: &mut Channel, bot: &str) -> Result<Strin
     if let Some(thread) = known {
         return Ok(thread);
     }
-    let made = threads::create(state_dir, bot, &format!("Canal · #{}", channel.name))?;
+    let made = threads::create(state_dir, bot, &format!("Channel · #{}", channel.name))?;
     channel.threads.insert(bot.to_string(), made.id.clone());
     Ok(made.id)
 }

@@ -11,8 +11,8 @@ lightbulb, sprout) or shapes copied from its gallery into `assets/avatars/`
 
 | Agent | Avatar | Job | Tools |
 | --- | --- | --- | --- |
-| Raio | Magnifying Glass | Reads the logs and shows where the tokens go | `context_status`, `what_weighs` |
-| Dieta | Apple | Proposes cuts with the estimated saving and the exact config diff | `suggest_diet` |
+| Ray | Magnifying Glass | Reads the logs and shows where the tokens go | `context_status`, `what_weighs` |
+| Diet | Apple | Proposes cuts with the estimated saving and the exact config diff | `suggest_diet` |
 | Memo | File Box | Keeps the lessons and hands work over, through ai-memory | ai-memory's own tools |
 
 ## How they work together
@@ -20,11 +20,11 @@ lightbulb, sprout) or shapes copied from its gallery into `assets/avatars/`
 In the panel they live inside each project's bot chat: three chips above the
 composer. They answer from the logs, without AI and without spending the
 person's plan, about that bot's project; turning a bot on is that project's
-opt-in, and Dieta's Apply writes to that project, with a backup and an undo.
+opt-in, and Diet's Apply writes to that project, with a backup and an undo.
 
-1. Raio answers "how much context am I carrying and what is in it" for the
+1. Ray answers "how much context am I carrying and what is in it" for the
    current session, and "what weighs most" over a period.
-2. Dieta turns that into ranked suggestions. It never changes a setting: a
+2. Diet turns that into ranked suggestions. It never changes a setting: a
    person applies a change in the panel, with a backup and an undo.
 3. Memo saves each accepted lesson as an ai-memory page and opens a handoff
    when another agent or project should pick up the work. It uses ai-memory's

@@ -15,7 +15,8 @@ use crate::{bots, threads};
 const MAX_ITEMS: usize = 200;
 /// What a routine's result shows of its answer.
 const EXCERPT: usize = 240;
-const ROUTINE_PREFIX: &str = "Rotina · ";
+/// Routine conversations' titles, now and before.
+const ROUTINE_PREFIXES: [&str; 2] = ["Routine · ", "Rotina · "];
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct Delivery {
@@ -70,7 +71,7 @@ fn edited(reply: &Value) -> Vec<String> {
 fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -> Vec<Delivery> {
     let base = |kind, ms, title: String| Delivery { kind, bot: bot.to_string(), thread: thread.to_string(), ms, title, files: Vec::new(), undone: false, detail: String::new(), tokens: 0 };
     let undone: Vec<&str> = messages.iter().filter(|m| m.kind == "draft_undone").filter_map(|m| m.data["draft"].as_str()).collect();
-    let routine = title.strip_prefix(ROUTINE_PREFIX);
+    let routine = ROUTINE_PREFIXES.iter().find_map(|prefix| title.strip_prefix(prefix));
     messages
         .iter()
         .filter_map(|m| {
@@ -157,5 +158,7 @@ mod tests {
         assert!(found[1].undone, "an undone draft says so");
         let routine = of_conversation("b", "t1", "Rotina · status", &messages[..1]);
         assert_eq!((routine[0].kind, routine[0].title.as_str()), ("routine", "status"));
+        let renamed = of_conversation("b", "t1", "Routine · status", &messages[..1]);
+        assert_eq!((renamed[0].kind, renamed[0].title.as_str()), ("routine", "status"), "old and new titles both count");
     }
 }

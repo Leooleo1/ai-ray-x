@@ -150,7 +150,7 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
         }
         let thread = match routine.thread.clone().filter(|t| threads::list(state_dir, &routine.bot).iter().any(|x| &x.id == t)) {
             Some(thread) => thread,
-            None => match threads::create(state_dir, &routine.bot, &format!("Rotina · {}", routine.text)) {
+            None => match threads::create(state_dir, &routine.bot, &format!("Routine · {}", routine.text)) {
                 Ok(made) => made.id,
                 Err(_) => continue,
             },

@@ -77,7 +77,7 @@ enum Command {
     },
     /// Undo an applied change by its id (see the panel or the ledger).
     Undo { change: String },
-    /// Ask one agent (raio, dieta or memo) in this project's room; only in opted-in projects.
+    /// Ask one agent (ray, diet or memo; raio and dieta also work) in this project's room; only in opted-in projects.
     Ask {
         agent: String,
         /// What the person wrote (kept in the room; the answer comes from data).
@@ -122,6 +122,12 @@ fn main() -> Result<()> {
         }
         Command::Ask { agent, text } => {
             raiox_core::refresh(&mut store, &roots)?;
+            // Ray and Diet are the English names of the agents whose ids are raio and dieta.
+            let agent = match agent.as_str() {
+                "ray" => "raio".to_string(),
+                "diet" => "dieta".to_string(),
+                _ => agent,
+            };
             let messages = room::ask(&store, &roots, &state_dir(&db), &std::env::current_dir()?, &agent, text.as_deref())?;
             emit(serde_json::to_value(messages)?)
         }
