@@ -1,8 +1,14 @@
+import { useState } from 'react'
 import type { Bot, BotAgent, BotsState } from '../api'
-import { AGENT_LABEL, faceForBot } from '../avatars'
+import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
+import { PRESETS } from '../onboarding/presets'
 import { Avatar } from './Avatar'
+
+/** Projects offered before searching; the search reaches all of them. */
+const FIRST_ROWS = 12
+const NEUTRAL_FACE = faceOf(PRESETS[0].shape, '#9a9aa6', PRESETS[0].name)
 
 interface Row {
   project: string
@@ -14,7 +20,7 @@ interface Row {
 
 const inProject = (bot: Bot, project: string) => bot.dir.endsWith(`/${project}`)
 
-/** One row per project: those with bots first, then those with Claude Code or Codex use. */
+/** One row per project folder: where the person used an AI CLI, plus any folder that already has a bot. */
 function rows(state: BotsState): Row[] {
   const byProject = new Map<string, Row>()
   for (const c of state.candidates) {
@@ -23,67 +29,95 @@ function rows(state: BotsState): Row[] {
   }
   const all = [...byProject.values()].map((row) => ({ ...row, bots: state.bots.filter((b) => inProject(b, row.project)) }))
   const listed = new Set(all.flatMap((row) => row.bots.map((b) => b.id)))
-  const outside = state.bots
-    .filter((b) => !listed.has(b.id))
-    .map((b) => ({ project: b.dir, name: b.name, usage: {}, lastMs: null, bots: [b] }))
-  return [...outside, ...all].sort((a, b) => Number(b.bots.length > 0) - Number(a.bots.length > 0))
+  const outside = state.bots.filter((b) => !listed.has(b.id)).map((b) => ({ project: b.dir, name: b.name, usage: {}, lastMs: null, bots: [b] }))
+  return [...outside, ...all]
 }
 
 const day = (ms: number) => new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: 'short' }).replace('.', '').replace(' de ', ' ')
+const usageLine = (row: Row) =>
+  [...(Object.entries(row.usage) as [BotAgent, number][]).map(([agent, n]) => `${AGENT_LABEL[agent]} ${compact(n)}`), row.lastMs ? day(row.lastMs) : ''].filter(Boolean).join(' · ')
 
 interface BotPickerProps {
   bots: Bots
   onOpen: (id: string) => void
 }
 
-/** Each project with one cell per turned-on CLI: a lit cell opens that bot, an unlit one creates it. */
+/** The projects with an AI on top, to open; below, every other project, to turn on with one tap. */
 export function BotPicker({ bots, onOpen }: BotPickerProps) {
-  const list = rows(bots.state)
-  const agents = bots.state.agents
+  const [query, setQuery] = useState('')
+  // The project whose AI choice is open, when more than one CLI is on.
+  const [choosing, setChoosing] = useState<string | null>(null)
+  const all = rows(bots.state)
+  const agents = bots.state.agents.map((a) => a.id)
+  const mine = all.filter((row) => row.bots.length > 0)
+  const needle = query.trim().toLowerCase()
+  const others = all.filter((row) => row.bots.length === 0 && (!needle || `${row.name} ${row.project}`.toLowerCase().includes(needle)))
+  const shown = needle ? others : others.slice(0, FIRST_ROWS)
   const activate = async (row: Row, agent: BotAgent) => {
+    setChoosing(null)
     const before = new Set(bots.state.bots.map((b) => b.id))
     const next = await bots.act('activate', { project: row.project, agent })
     const created = next?.bots.find((b) => !before.has(b.id))
     if (created) onOpen(created.id)
   }
+  const turnOn = (row: Row) => (agents.length === 1 ? void activate(row, agents[0]) : setChoosing(choosing === row.project ? null : row.project))
   return (
     <main className="chat">
-      <section className="cartao bots-lista">
-        <p className="bots-regra">{t.botsRule}</p>
-        {list.length === 0 && <p className="vazio">{t.noCandidates}</p>}
-        <ul className="bots-itens">
-          {list.map((row) => {
-            const usage = (Object.entries(row.usage) as [BotAgent, number][]).map(([agent, n]) => `${AGENT_LABEL[agent]} ${compact(n)}`)
-            const face = faceForBot(row.bots[0] ?? { agent: 'claude', persona: null })
-            return (
-              <li key={row.project} className="bot-linha">
-                <Avatar agent={face} size={28} state="still" />
-                <span className="bot-nome">
-                  <b>{row.name}</b>
-                  <small>{row.project}</small>
+      <section className="cartao projetos-pagina">
+        {mine.length > 0 && (
+          <>
+            <h2 className="projetos-secao">{t.yourProjects}</h2>
+            <ul className="projetos-lista">
+              {mine.map((row) => {
+                const latest = row.bots[0]
+                return (
+                  <li key={row.project} className="projeto-linha">
+                    <Avatar agent={faceForBot(latest)} size={32} state="still" />
+                    <span className="projeto-nome">
+                      <b>{row.name}</b>
+                      <small>{row.bots.map((b) => AGENT_LABEL[b.agent]).join(' · ')}</small>
+                    </span>
+                    <button type="button" className="projeto-acao cheio" onClick={() => onOpen(latest.id)}>
+                      {t.openProject}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </>
+        )}
+        <h2 className="projetos-secao">
+          {t.addProject}
+          <small>{t.addProjectHint}</small>
+        </h2>
+        <input className="projetos-busca" value={query} placeholder={t.searchProjects} aria-label={t.searchProjects} onChange={(event) => setQuery(event.target.value)} />
+        {agents.length === 0 && <p className="nota">{t.noAgentsOn}</p>}
+        {shown.length === 0 && <p className="nota">{t.noCandidates}</p>}
+        <ul className="projetos-lista">
+          {shown.map((row) => (
+            <li key={row.project} className="projeto-linha">
+              <Avatar agent={NEUTRAL_FACE} size={32} state="still" />
+              <span className="projeto-nome">
+                <b>{row.name}</b>
+                <small>{[row.project, usageLine(row)].filter(Boolean).join(' · ')}</small>
+              </span>
+              {choosing === row.project ? (
+                <span className="projeto-ias" role="group" aria-label={t.pickAi}>
+                  {agents.map((agent) => (
+                    <button key={agent} type="button" className="projeto-acao" onClick={() => void activate(row, agent)}>
+                      {AGENT_LABEL[agent]}
+                    </button>
+                  ))}
                 </span>
-                <span className="bot-uso">{[...usage, row.lastMs ? day(row.lastMs) : ''].filter(Boolean).join(' · ')}</span>
-                <span className="bot-agentes" role="group" aria-label={row.name}>
-                  {agents.map(({ id }) => {
-                    const bot = row.bots.find((b) => b.agent === id)
-                    return (
-                      <button
-                        key={id}
-                        type="button"
-                        className={bot ? 'ativo' : ''}
-                        disabled={bot?.busy}
-                        title={bot ? `${t.composeBot} ${AGENT_LABEL[id]}` : `${t.activate} ${AGENT_LABEL[id]}`}
-                        onClick={() => (bot ? onOpen(bot.id) : void activate(row, id))}
-                      >
-                        {bot ? AGENT_LABEL[id] : `+ ${AGENT_LABEL[id]}`}
-                      </button>
-                    )
-                  })}
-                </span>
-              </li>
-            )
-          })}
+              ) : (
+                <button type="button" className="projeto-acao" disabled={agents.length === 0} onClick={() => turnOn(row)}>
+                  {t.activate}
+                </button>
+              )}
+            </li>
+          ))}
         </ul>
+        {!needle && others.length > shown.length && <p className="nota">{t.moreProjects.replace('{n}', String(others.length - shown.length))}</p>}
         {bots.error && <p className="nota failed">{bots.error}</p>}
       </section>
     </main>

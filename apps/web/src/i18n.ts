@@ -1,6 +1,13 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  yourProjects: 'Your projects',
+  openProject: 'Open',
+  searchProjects: 'Search a project',
+  noAgentsOn: 'Turn on an AI in Settings > Connections first.',
+  pickAi: 'Which AI',
+  moreProjects: '{n} more: search to find them',
+  addProjectHint: 'the AI only reads; it edits after you approve; every message counts against your plan',
   mainConversation: 'Main conversation',
   conversationsOf: 'Conversations in {p}',
   searchAll: 'Search every conversation',
@@ -281,6 +288,13 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  yourProjects: 'Seus projetos',
+  openProject: 'Abrir',
+  searchProjects: 'Buscar projeto',
+  noAgentsOn: 'Ligue uma IA em Configurações › Conexões primeiro.',
+  pickAi: 'Qual IA',
+  moreProjects: 'mais {n}: busque para achar',
+  addProjectHint: 'a IA só lê; edita depois que você aprova; cada mensagem conta no seu plano',
   mainConversation: 'Conversa principal',
   conversationsOf: 'Conversas do {p}',
   searchAll: 'Buscar nas conversas',

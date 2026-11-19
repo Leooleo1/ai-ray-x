@@ -1348,98 +1348,6 @@ body {
   color: var(--giz);
 }
 
-/* Bots: activation list */
-
-.bots-lista {
-  grid-column: 1 / -1;
-  align-self: start;
-  gap: 8px;
-  max-height: 100%;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.bots-regra {
-  max-width: 760px;
-  margin: 0 0 8px;
-  color: var(--nevoa);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.bots-itens {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bot-linha {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 52px;
-  box-shadow: inset 0 -1px 0 var(--fio);
-}
-
-.bot-linha:last-child {
-  box-shadow: none;
-}
-
-.bot-nome {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.bot-nome b {
-  font-weight: 500;
-}
-
-.bot-nome small,
-.bot-uso {
-  overflow: hidden;
-  color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* One grouped control per project: a lit cell has a bot, an unlit one creates it. */
-.bot-agentes {
-  display: inline-flex;
-  justify-self: end;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--vidro-7);
-  box-shadow: inset 0 0 0 1px var(--fio);
-}
-
-.bot-agentes button {
-  height: 26px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--nevoa);
-  font: 500 12px/16px var(--sans);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.bot-agentes button:hover {
-  color: var(--giz);
-}
-
-.bot-agentes button.ativo {
-  background: rgb(255 255 255 / 12%);
-  color: var(--giz);
-}
-
 /* Bots: mail through ai-memory */
 
 .correio {
@@ -1884,4 +1792,152 @@ body {
 /* With the project picker in the header, the hint gives way so nothing cuts. */
 .dieta-lista h2:has(.alvo-projeto) > small {
   display: none;
+}
+
+/* Projects page: the ones with an AI to open, then every other one to turn on. */
+.cartao.projetos-pagina {
+  grid-column: 1 / -1;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.projetos-secao {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 8px 0 0;
+  font: 500 15px/20px var(--sans);
+}
+
+.projetos-secao:first-child {
+  margin-top: 0;
+}
+
+.projetos-secao small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projetos-busca {
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  outline: 0;
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+}
+
+.projetos-lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.projeto-linha {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 4px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.projeto-linha:last-child {
+  box-shadow: none;
+}
+
+.projeto-nome {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.projeto-nome b,
+.projeto-nome small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projeto-nome b {
+  font: 500 14px/20px var(--sans);
+}
+
+.projeto-nome small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.projeto-ias {
+  display: flex;
+  gap: 6px;
+}
+
+.projeto-acao {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 500 13px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.projeto-acao:hover {
+  background: rgb(255 255 255 / 12%);
+}
+
+.projeto-acao.cheio {
+  background: var(--giz);
+  box-shadow: none;
+  color: var(--noite);
+}
+
+.projeto-acao:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  /* Name on top, the action under it, so nothing overlaps. */
+  .projeto-linha {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .projeto-linha > button,
+  .projeto-ias {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .projeto-ias {
+    flex-wrap: wrap;
+  }
+
+  .projetos-secao {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .projetos-secao small {
+    white-space: normal;
+  }
+}
+
+/* A long list must not squeeze the search or the headings. */
+.cartao.projetos-pagina > * {
+  flex: none;
 }
