@@ -778,6 +778,27 @@ export function wikiFromAnswer(id: string, thread: string, answer_ms: number): P
   return request<WikiList>('/api/wiki/from_answer', { id, thread, answer_ms })
 }
 
+export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'task'
+
+/** Something a bot produced: a change to its project, a screenshot, a routine's result, a finished task. */
+export interface Delivery {
+  kind: DeliveryKind
+  bot: string
+  thread: string
+  /** The message to open. */
+  ms: number
+  title: string
+  files?: string[]
+  undone?: boolean
+  /** A screenshot's file name, or a routine's answer. */
+  detail?: string
+  tokens?: number
+}
+
+export function fetchDeliveries(): Promise<Delivery[]> {
+  return request<Delivery[]>('/api/deliveries')
+}
+
 export type TaskStatus = 'todo' | 'doing' | 'waiting' | 'done'
 
 /** A task on the team's board. */

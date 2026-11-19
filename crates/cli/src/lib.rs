@@ -19,6 +19,7 @@ pub mod budget;
 pub mod connections;
 pub mod commands;
 pub mod data;
+pub mod deliveries;
 pub mod devices;
 pub mod grants;
 pub mod drafts;

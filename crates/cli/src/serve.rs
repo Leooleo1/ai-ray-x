@@ -141,6 +141,12 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
+        (Method::Get, "/api/deliveries") => {
+            let all = crate::deliveries::list(&panel.state_dir);
+            // A device sees the deliveries of the bots it can reach.
+            let hidden = if remote { crate::grants::desk_only(&panel.state_dir) } else { Vec::new() };
+            respond(Ok(json!(all.into_iter().filter(|d| !hidden.contains(&d.bot)).collect::<Vec<_>>())))
+        }
         (Method::Get, "/api/tasks") => {
             let board = crate::tasks::state(&panel.state_dir);
             respond(Ok(if remote { crate::grants::tasks_for_device(&panel.state_dir, board) } else { board }))

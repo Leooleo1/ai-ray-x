@@ -1,6 +1,15 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  deliveriesTab: 'Deliveries',
+  deliveriesTitle: 'Deliveries',
+  deliveriesSubtitle: 'what your AIs produced, in one place',
+  deliveriesEmpty: 'Nothing yet. Changes your AIs make, screenshots, routine results and finished tasks show up here.',
+  deliveryKinds: { change: 'change', draft: 'draft applied', shot: 'screenshot', routine: 'routine', task: 'task done' } as Record<string, string>,
+  deliveryUndone: 'undone',
+  deliveryShotOf: 'Screen {target}',
+  deliveryOpen: 'Open',
+  yesterday: 'Yesterday',
   requestsTitle: 'Asked from a chat',
   requestsNote: 'an AI you talk to asked for these changes; nothing happens until you approve',
   requestApprove: 'Approve',
@@ -569,6 +578,15 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  deliveriesTab: 'Entregas',
+  deliveriesTitle: 'Entregas',
+  deliveriesSubtitle: 'o que suas IAs produziram, num lugar só',
+  deliveriesEmpty: 'Nada ainda. Mudanças que suas IAs fazem, prints, resultados de rotina e tarefas feitas aparecem aqui.',
+  deliveryKinds: { change: 'mudança', draft: 'rascunho aplicado', shot: 'print', routine: 'rotina', task: 'tarefa feita' } as Record<string, string>,
+  deliveryUndone: 'desfeito',
+  deliveryShotOf: 'Tela {target}',
+  deliveryOpen: 'Abrir',
+  yesterday: 'Ontem',
   requestsTitle: 'Pedidos pelo chat',
   requestsNote: 'uma IA com quem você conversa pediu estas mudanças; nada acontece até você aprovar',
   requestApprove: 'Aprovar',

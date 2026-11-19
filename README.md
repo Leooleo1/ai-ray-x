@@ -60,6 +60,11 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Deliveries.** One page with what your AIs produced, by day: the changes
+they made to a project (with the files), drafts you applied (marked when
+undone), screenshots, routine results and finished tasks. Each opens the
+conversation it came from.
+
 **Board.** On the Desk, a board of tasks for the AIs, in four columns: to
 do, doing, waiting for you, done. Add one and pick the AI, or let an AI leave
 up to three follow-ups at the end of an answer (a `RAIOX-TASK:` line). A task

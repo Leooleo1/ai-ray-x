@@ -1,7 +1,7 @@
 // Line icons, one set and one stroke (1.6), drawn for this panel.
 
 interface IconProps {
-  name: 'xray' | 'efficiency' | 'agents' | 'desk' | 'wiki' | 'ask-many' | 'plus' | 'sliders'
+  name: 'xray' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'ask-many' | 'plus' | 'sliders'
 }
 
 const PATHS: Record<IconProps['name'], string> = {
@@ -10,6 +10,7 @@ const PATHS: Record<IconProps['name'], string> = {
   agents:
     'M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v4a2.5 2.5 0 0 1-2.5 2.5H9l-3.5 3v-3.1A2.5 2.5 0 0 1 4 10.5zM19 9.5a1.8 1.8 0 0 1 1 1.6V15a2 2 0 0 1-2 2v2.5L15 17h-3.2',
   desk: 'M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z',
+  deliveries: 'M4 7.5 12 3.5l8 4v9l-8 4-8-4zM4 7.5l8 4 8-4M12 11.5v9',
   wiki: 'M5 4.5h9.5A2.5 2.5 0 0 1 17 7v12.5H7.5A2.5 2.5 0 0 1 5 17zM5 17a2.5 2.5 0 0 1 2.5-2.5H17M9 8h5M9 11h3',
   'ask-many': 'M4 12h5M13 6l7-2M13 12h7M13 18l7 2M9 12l4-6M9 12l4 6',
   plus: 'M12 5v14M5 12h14',
