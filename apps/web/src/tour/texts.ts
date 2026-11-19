@@ -1,9 +1,10 @@
 // The mini tutorial's words. Its scenes play in a made-up shop project
-// ("loja", "api", "site"), so nothing of the person's own code shows up.
+// ("shop" or "loja", "api", "site"), so nothing of the person's own code shows up.
 
 import { locale } from '../i18n'
 
 const en = {
+  shop: 'shop',
   label: 'How it works',
   previous: 'Previous',
   next: 'Next',
@@ -50,6 +51,7 @@ const en = {
 }
 
 const pt: typeof en = {
+  shop: 'loja',
   label: 'Como funciona',
   previous: 'Anterior',
   next: 'Próximo',

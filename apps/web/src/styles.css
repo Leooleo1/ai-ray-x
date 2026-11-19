@@ -580,6 +580,15 @@ body {
   bottom: 0;
 }
 
+/* Two close markers, one label: from the first marker on, or up to the last one near the end. */
+.rotulo-marca.junto {
+  transform: translateX(-6px);
+}
+
+.rotulo-marca.junto-fim {
+  transform: translateX(calc(-100% + 6px));
+}
+
 .rotulo-marca.antes {
   transform: translateX(calc(-100% - 8px));
   color: var(--nevoa);

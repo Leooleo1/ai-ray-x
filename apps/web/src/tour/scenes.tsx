@@ -67,7 +67,7 @@ function SceneAsk({ cast }: SceneProps) {
   const [doing, target] = steps[Math.min(Math.max(beat - 2, 0), steps.length - 1)]
   return (
     <div className="tour-cena" ref={stage}>
-      <Window face={cast.face} project="loja" agent={cast.agent} composer={<Composer text={beat === 1 ? <Typed text={tt.ask1} active /> : ''} />}>
+      <Window face={cast.face} project={tt.shop} agent={cast.agent} composer={<Composer text={beat === 1 ? <Typed text={tt.ask1} active /> : ''} />}>
         <From beat={beat} at={2} className="tour-minha">
           {tt.ask1}
         </From>
@@ -92,7 +92,7 @@ function SceneApprove({ cast }: SceneProps) {
   const editing = beat === 3 || beat === 4 ? tt.files2[beat - 3] : null
   return (
     <div className="tour-cena" ref={stage}>
-      <Window face={cast.face} project="loja" agent={cast.agent} composer={<Composer text="" />}>
+      <Window face={cast.face} project={tt.shop} agent={cast.agent} composer={<Composer text="" />}>
         <div className="tour-minha dentro tour-surge">{tt.ask2}</div>
         <div className="tour-resposta dentro tour-surge">
           <p>{tt.answer2}</p>
@@ -114,7 +114,7 @@ function SceneApprove({ cast }: SceneProps) {
 }
 
 const BEATS_MANY = [500, 1200, 1600, 3200, 3900, 4600]
-const PROJECTS = ['loja', 'api', 'site']
+const PROJECTS = [tt.shop, 'api', 'site']
 
 function SceneMany({ cast }: SceneProps) {
   const stage = useRef<HTMLDivElement>(null)
@@ -168,7 +168,7 @@ function SceneWire({ cast }: SceneProps) {
   return (
     <div className="tour-cena tour-fios" ref={stage}>
       <div className="tour-par">
-        {node(cast.face, 'loja')}
+        {node(cast.face, tt.shop)}
         <span className={`tour-fio ${wired ? 'ligado' : ''}`}>
           <i className={`tour-envelope ${beat >= 6 ? 'viajando' : ''}`}>{tt.via}</i>
         </span>
@@ -204,7 +204,7 @@ function ScenePin({ cast }: SceneProps) {
   const pinned = beat >= 2
   return (
     <div className="tour-cena" ref={stage}>
-      <Window face={cast.face} project="loja" agent={cast.agent}>
+      <Window face={cast.face} project={tt.shop} agent={cast.agent}>
         <span className={`tour-fixadas ${pinned ? 'contou' : ''}`}>{`${tt.pins}: ${pinned ? 1 : 0}`}</span>
         <div className="tour-resposta dentro tour-surge">
           <p>

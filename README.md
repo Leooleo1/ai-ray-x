@@ -7,6 +7,10 @@ each of your projects.
 Everything runs locally. raiox reads the logs your CLIs already write, serves a
 panel on `127.0.0.1`, and never sends your data anywhere.
 
+![The X-ray: tokens read and written, when you use your AIs most, how much each request re-reads, and where it goes](docs/screenshots/xray.webp)
+
+<sub>Screenshots show a demo with made-up projects and usage.</sub>
+
 ## What it does
 
 **X-ray.** Tokens your AIs read and wrote, what that would cost paying per use,
@@ -20,6 +24,8 @@ the main session. In a project's chat, Dieta computes them from that
 project's own requests once it has enough. The ones that are a setting apply
 to the project you pick,
 with a backup and an undo, and raiox measures the result afterwards.
+
+![Efficiency: ranked cuts with the estimated saving, and what the current session carries](docs/screenshots/efficiency.webp)
 
 **Chats.** Turn on a project and talk to the CLI you already use there (Claude
 Code, Codex, Cursor, Google's Antigravity CLI `agy`, or opencode, which reaches
@@ -53,6 +59,8 @@ plan. With Claude Code, a conversation keeps its CLI process open between
 messages (closed after ten idle minutes), so a follow-up skips the CLI's start:
 about 0.9 s instead of 1.7 s for a short answer, with the same tokens.
 
+![A chat with a project's AI: the steps it took, what it read, and a proposal waiting for approval](docs/screenshots/chat.webp)
+
 **Desk.** Every agent working now in one grid, ordered by project: what it
 does, for how long, the tokens so far (Claude Code), its last steps, and Stop,
 Correct and Open. Below, what waits for you across all projects (proposals to
@@ -82,6 +90,8 @@ ends it is done, or waiting for you when the AI proposes a change, runs a
 command or writes a draft. Each card shows what its task cost in tokens. With
 "Bots pick tasks up" on, each idle AI starts its next task by itself, on the
 routines' clock.
+
+![The Desk: the task board, what waits for you and the team](docs/screenshots/desk.webp)
 
 **Permissions per AI.** In each AI's settings: whether it is reachable from
 your paired phone (off keeps it, and the channels it is in, on the computer,
@@ -161,8 +171,13 @@ cd ../.. && cargo build --release
 ./target/release/raiox open
 ```
 
-The first run walks you through connecting your AIs, GitHub and projects. The
-binary serves the panel from `apps/web/dist`, so run it from the checkout (or
+The first run walks you through connecting your AIs, GitHub and projects, and
+making a bot for each project.
+
+![First run: the six setup steps](docs/screenshots/onboarding.webp)
+![First run: pick a ready bot or make your own](docs/screenshots/onboarding-bot.webp)
+
+The binary serves the panel from `apps/web/dist`, so run it from the checkout (or
 pass `--web-dir`).
 
 ## Desktop app (macOS and Windows)

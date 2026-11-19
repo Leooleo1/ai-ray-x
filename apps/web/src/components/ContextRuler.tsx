@@ -3,6 +3,10 @@ import { compact, fill, percent, t } from '../i18n'
 import { heavyShare, rereadShare } from '../model'
 
 const SCALE = 1_000_000
+/** Markers closer than this share of the ruler share one label, or their labels would overlap. */
+const CLOSE = 0.25
+/** Past this point a shared label grows to the left, to stay inside the ruler. */
+const LATE = 0.6
 
 interface ContextRulerProps {
   sources: SourceReport[]
@@ -52,12 +56,20 @@ function RulerRow({ source }: RulerRowProps) {
         {compaction > 0 && <span className="corte" style={at(compaction)} />}
         <span className="marcador mediana" style={at(median)} />
         <span className="marcador p90" style={at(p90)} />
-        <span className="rotulo-marca acima" style={at(median)}>
-          {t.median} {compact(median)}
-        </span>
-        <span className="rotulo-marca acima" style={at(p90)}>
-          {t.p90} {compact(p90)}
-        </span>
+        {(p90 - median) / SCALE < CLOSE ? (
+          <span className={`rotulo-marca acima ${median / SCALE > LATE ? 'junto-fim' : 'junto'}`} style={at(median / SCALE > LATE ? p90 : median)}>
+            {`${t.median} ${compact(median)} · ${t.p90} ${compact(p90)}`}
+          </span>
+        ) : (
+          <>
+            <span className="rotulo-marca acima" style={at(median)}>
+              {t.median} {compact(median)}
+            </span>
+            <span className="rotulo-marca acima" style={at(p90)}>
+              {t.p90} {compact(p90)}
+            </span>
+          </>
+        )}
         {compaction > 0 && (
           <span className="rotulo-marca abaixo antes" style={at(compaction)}>
             {t.compacts} {compact(compaction)}
