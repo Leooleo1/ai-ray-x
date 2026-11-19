@@ -11,6 +11,9 @@ pub const RUN_MARK: &str = "RAIOX-RUN:";
 pub const VERDICT_MARK: &str = "RAIOX-VERDICT:";
 pub const ASK_MARK: &str = "RAIOX-ASK";
 pub const SHOT_MARK: &str = "RAIOX-SHOT:";
+/// A task the bot leaves on the team's board.
+pub const TASK_MARK: &str = "RAIOX-TASK:";
+const MAX_TASKS: usize = 3;
 /// Most screenshots one answer can ask for.
 const MAX_SHOTS: usize = 2;
 /// What a reviewing bot can conclude.
@@ -44,6 +47,8 @@ pub struct Marked {
     pub asks: Vec<Note>,
     /// Screenshots the bot asks for, from RAIOX-SHOT lines: a path of the running app, a local URL or "simulator".
     pub shots: Vec<String>,
+    /// Tasks the bot leaves on the team's board, from RAIOX-TASK lines.
+    pub tasks: Vec<String>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -73,6 +78,11 @@ pub fn split(answer: &str) -> Marked {
             let place = unquote(place).to_lowercase();
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
                 marked.open.push(place);
+            }
+        } else if let Some(task) = trimmed.strip_prefix(TASK_MARK) {
+            let task = unquote(task).trim_matches(['"', '\u{201c}', '\u{201d}']).trim().to_string();
+            if !task.is_empty() && marked.tasks.len() < MAX_TASKS && !marked.tasks.contains(&task) {
+                marked.tasks.push(task);
             }
         } else if let Some(shot) = trimmed.strip_prefix(SHOT_MARK) {
             let shot = unquote(shot);
@@ -114,6 +124,12 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn tasks_left_for_the_board_are_read_and_capped() {
+        let m = split("Feito.\nRAIOX-TASK: Revisar o checkout\nRAIOX-TASK: \"Testar no celular\"\nRAIOX-TASK: c\nRAIOX-TASK: d\n");
+        assert_eq!((m.text.as_str(), m.tasks.clone()), ("Feito.", vec!["Revisar o checkout".to_string(), "Testar no celular".to_string(), "c".to_string()]));
     }
 
     #[test]

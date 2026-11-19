@@ -167,6 +167,8 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
 pub fn spawn(state_dir: PathBuf, jobs: Jobs) {
     std::thread::spawn(move || loop {
         tick(&state_dir, &jobs);
+        // The board moves on with the same clock: finished tasks, and the next ones when bots pick them up.
+        crate::tasks::tick(&state_dir, &jobs);
         std::thread::sleep(TICK);
     });
 }

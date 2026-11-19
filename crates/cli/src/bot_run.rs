@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, SHOT_MARK, TO_MARK};
+use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, SHOT_MARK, TASK_MARK, TO_MARK};
 use crate::bot_trail::{self, Trail};
 
 /// A bot that thinks longer than this is stopped.
@@ -57,6 +57,9 @@ pub struct Reply {
     /// Screenshots the bot asked for: a path of the running app, a local URL or "simulator".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shots: Vec<String>,
+    /// Tasks it left on the team's board.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tasks: Vec<String>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -108,6 +111,8 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
          To look at the project's app as it runs (when the person started it in raiox's See the app) or at the iOS \
          simulator, end with one line {SHOT_MARK} <a path such as /login, a local URL, or simulator> (at most two); \
          raiox takes a screenshot and hands it to you. \
+         To leave work for later on the person's task board (for you, at most three), end with one line per task: \
+         {TASK_MARK} <a short title>. \
          When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
          holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
          \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
@@ -436,6 +441,7 @@ pub fn reply_from(text: &str) -> Reply {
         verdict: marked.verdict,
         ask: marked.asks,
         shots: marked.shots,
+        tasks: marked.tasks,
         trail: None,
         session: None,
         steps: None,

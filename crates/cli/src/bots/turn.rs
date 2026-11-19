@@ -150,6 +150,8 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             Vec::new()
         };
         let proposed = reply.proposal.is_some();
+        // Tasks it left for the board go there, for this bot.
+        crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
         let answer = note("answer", json!({ "mode": "talk", "reply": reply }));
         let answer_ms = answer.ms;
         say(answer);

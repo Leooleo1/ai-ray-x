@@ -752,6 +752,40 @@ export function wikiFromAnswer(id: string, thread: string, answer_ms: number): P
   return request<WikiList>('/api/wiki/from_answer', { id, thread, answer_ms })
 }
 
+export type TaskStatus = 'todo' | 'doing' | 'waiting' | 'done'
+
+/** A task on the team's board. */
+export interface Task {
+  id: string
+  title: string
+  detail: string
+  bot: string
+  status: TaskStatus
+  /** "person", or the id of the bot that left it. */
+  from: string
+  created_ms: number
+  updated_ms: number
+  started_ms: number | null
+  answer_ms: number | null
+  tokens: number
+}
+
+export interface TaskBoardState {
+  tasks: Task[]
+  /** Each task's conversation ("Tarefas") id, in the same order. */
+  threads: (string | null)[]
+  /** The bots pick their next task up by themselves. */
+  auto: boolean
+}
+
+export function fetchTasks(): Promise<TaskBoardState> {
+  return request<TaskBoardState>('/api/tasks')
+}
+
+export function taskAction(action: 'add' | 'start' | 'done' | 'reopen' | 'delete' | 'auto', body: Record<string, unknown>): Promise<TaskBoardState> {
+  return request<TaskBoardState>(`/api/tasks/${action}`, body)
+}
+
 export function fetchRemote(): Promise<RemoteState> {
   return request<RemoteState>('/api/remote')
 }

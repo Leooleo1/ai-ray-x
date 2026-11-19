@@ -60,6 +60,15 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Board.** On the Desk, a board of tasks for the AIs, in four columns: to
+do, doing, waiting for you, done. Add one and pick the AI, or let an AI leave
+up to three follow-ups at the end of an answer (a `RAIOX-TASK:` line). A task
+runs in that AI's "Tarefas" conversation, from a fresh session; when the turn
+ends it is done, or waiting for you when the AI proposes a change, runs a
+command or writes a draft. Each card shows what its task cost in tokens. With
+"Bots pick tasks up" on, each idle AI starts its next task by itself, on the
+routines' clock.
+
 **Permissions per AI.** In each AI's settings: whether it is reachable from
 your paired phone (off keeps it, and the channels it is in, on the computer,
 with its notifications), whether it reads the web (Claude Code, opencode),

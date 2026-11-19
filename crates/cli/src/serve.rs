@@ -141,6 +141,19 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
     match (request.method(), path) {
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/wiki") => respond(Ok(crate::wiki::list(&panel.state_dir))),
+        (Method::Get, "/api/tasks") => {
+            let board = crate::tasks::state(&panel.state_dir);
+            respond(Ok(if remote { crate::grants::tasks_for_device(&panel.state_dir, board) } else { board }))
+        }
+        (Method::Post, p) if p.starts_with("/api/tasks/") => match body(request) {
+            Ok(input) if remote => respond(
+                crate::grants::device_may(&panel.state_dir, &input)
+                    .and_then(|()| task_action(panel, &p["/api/tasks/".len()..], &input))
+                    .map(|board| crate::grants::tasks_for_device(&panel.state_dir, board)),
+            ),
+            Ok(input) => respond(task_action(panel, &p["/api/tasks/".len()..], &input)),
+            Err(reply) => reply,
+        },
         (Method::Post, p) if p.starts_with("/api/wiki/") => match body(request) {
             Ok(input) => respond(wiki_action(&panel.state_dir, &p["/api/wiki/".len()..], &input)),
             Err(reply) => reply,
@@ -357,6 +370,22 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
+}
+
+/// The board's actions; each answers with the board, so the panel redraws at once.
+fn task_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Value> {
+    let field = |name: &str| input.get(name).and_then(Value::as_str).unwrap_or("");
+    let state_dir = &panel.state_dir;
+    match action {
+        "add" => {
+            crate::tasks::add(state_dir, field("bot"), field("title"), field("detail"), "person")?;
+        }
+        "start" => crate::tasks::start(state_dir, &panel.jobs, field("id"))?,
+        "done" | "reopen" | "delete" => crate::tasks::mark(state_dir, field("id"), action)?,
+        "auto" => crate::tasks::set_auto(state_dir, input.get("on").and_then(Value::as_bool).unwrap_or(false))?,
+        other => anyhow::bail!("unknown task action {other}"),
+    }
+    Ok(crate::tasks::state(state_dir))
 }
 
 /// The wiki's actions; each but `page` answers with the list, so the panel redraws at once.

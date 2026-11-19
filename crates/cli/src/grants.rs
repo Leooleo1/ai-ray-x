@@ -137,6 +137,20 @@ pub fn for_device(state_dir: &Path, mut state: Value) -> Value {
     state
 }
 
+/// The board as a device sees it: without the tasks of bots kept on this computer.
+pub fn tasks_for_device(state_dir: &Path, mut board: Value) -> Value {
+    let hidden = desk_only(state_dir);
+    if hidden.is_empty() {
+        return board;
+    }
+    let tasks = board["tasks"].as_array().cloned().unwrap_or_default();
+    let threads = board["threads"].as_array().cloned().unwrap_or_default();
+    let kept: Vec<(Value, Value)> = tasks.into_iter().zip(threads).filter(|(task, _)| !task["bot"].as_str().is_some_and(|bot| hidden.iter().any(|h| h == bot))).collect();
+    board["tasks"] = Value::Array(kept.iter().map(|(task, _)| task.clone()).collect());
+    board["threads"] = Value::Array(kept.into_iter().map(|(_, thread)| thread).collect());
+    board
+}
+
 /// What the panel shows: the grants, what this CLI can be given, and the week so far.
 pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
     json!({
