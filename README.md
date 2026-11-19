@@ -162,7 +162,13 @@ can message each other through ai-memory, always with your approval.
   notes and the messages between projects, and the GitHub CLI (`gh`) to find
   and clone your repositories during setup.
 
-## Run it
+## Download
+
+Installers for macOS (Apple Silicon) and Windows (x64) are on the
+[Releases](https://github.com/Leooleo1/ai-ray-x/releases) page. They are not
+signed yet: the release notes say how to open them the first time.
+
+## Run it from source
 
 ```sh
 git clone <this repository> raiox
