@@ -28,7 +28,7 @@ pub(super) struct Turn {
 }
 
 /// How this bot's CLI is called, the same for every round of the turn.
-struct Setup {
+pub(super) struct Setup {
     guide: String,
     others: Vec<String>,
     model: Option<String>,
@@ -37,7 +37,7 @@ struct Setup {
 }
 
 impl Setup {
-    fn new(state_dir: &Path, bot: &Bot, question: &str, mode: Mode) -> Self {
+    pub(super) fn new(state_dir: &Path, bot: &Bot, question: &str, mode: Mode) -> Self {
         // Only the projects wired to this one: the bot names no others and can message no others.
         let others = crate::links::linked(state_dir, &bot.name);
         let mut unwired: Vec<String> = list(state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
@@ -108,7 +108,16 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         // Past the project's daily limit, allowed commands wait for a click like any other.
         let within = runs < MAX_AUTO_RUNS && crate::budget::check(state_dir, &bot.name).is_ok();
         let next = if within { allowed_command(state_dir, bot, &reply) } else { None };
-        say(note("answer", json!({ "mode": "talk", "reply": reply })));
+        let proposed = reply.proposal.is_some();
+        let answer = note("answer", json!({ "mode": "talk", "reply": reply }));
+        let answer_ms = answer.ms;
+        say(answer);
+        // A project pair: the chosen reviewer reads every proposal before the person approves it.
+        if proposed && let Some(reviewer) = find(state_dir, &bot.id).ok().and_then(|b| b.reviewer)
+            && let Err(error) = super::review::request(state_dir, jobs, &bot.id, thread, answer_ms, &reviewer)
+        {
+            say(note("failed", json!({ "error": format!("{error:#}"), "review": answer_ms })));
+        }
         let Some(command) = next else { return };
         runs += 1;
         let Some(output) = command_output(jobs, bot, &command, true, &say) else { return };
@@ -117,7 +126,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
 }
 
 /// One answer from the CLI; when it lost the session (its history was cleared), talk goes on in a fresh one.
-fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str) -> anyhow::Result<Reply> {
+pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session: Option<&str>, mode: Mode, text: &str) -> anyhow::Result<Reply> {
     let target = bot_run::Target {
         agent: &bot.agent,
         dir,

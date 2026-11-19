@@ -18,8 +18,13 @@ use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
 use crate::threads::{self, MAIN};
 
+mod review;
 mod turn;
 use turn::Turn;
+
+/// Messages that come between an answer and the person's next step and leave the answer
+/// current: its proposal can still be approved and its commands still run.
+const ASIDE: [&str; 7] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -56,6 +61,9 @@ pub struct Bot {
     /// A lighter model for talk; changes still run on `model`. None uses `model` for both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub talk_model: Option<String>,
+    /// Another bot of the project that reviews every proposal of this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewer: Option<String>,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -301,6 +309,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         created_ms: room::now_ms(),
         allowed: Vec::new(),
         talk_model: None,
+        reviewer: None,
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -462,7 +471,7 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) ->
 pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
-    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "approve" | "sent" | "stopped" | "house"));
+    let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
@@ -470,7 +479,8 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
         .context("the latest answer has no proposal to approve")?;
     // Every CLI edits in a fresh session inside the draft, so it gets its earlier answer as context.
     let answer = last.and_then(|m| m.data.pointer("/reply/text")).and_then(Value::as_str).unwrap_or("");
-    let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}\n\nAnswer in the same language as that earlier answer.");
+    let review = last.and_then(|m| review::for_answer(&messages, m.ms)).unwrap_or_default();
+    let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}{review}\n\nAnswer in the same language as that earlier answer.");
     let asked = Some(said("approve", json!({ "proposal": proposal })));
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None })
 }
@@ -488,7 +498,7 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
         bail!("the bot is still answering");
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
-    let last = messages.iter().rev().find(|m| !matches!(m.kind.as_str(), "failed" | "sent" | "stopped" | "house"));
+    let last = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
     let command = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer(&format!("/reply/run/{index}/command")).and_then(Value::as_str))
@@ -510,6 +520,23 @@ pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&st
     find(state_dir, id)?;
     let talk_model = check_model(model)?;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { talk_model: talk_model.clone(), ..b } } else { b }).collect()))
+}
+
+/// Asks another bot of the project to review a proposal in this conversation.
+pub fn request_review(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: i64, reviewer: &str) -> Result<()> {
+    review::request(state_dir, jobs, id, thread, answer_ms, reviewer)
+}
+
+/// Sets the bot that reviews every proposal of this one (empty: none).
+pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
+    let bot = find(state_dir, id)?;
+    let reviewer = (!reviewer.is_empty()).then(|| reviewer.to_string());
+    if let Some(r) = &reviewer
+        && !review::reviewers(state_dir, &bot).iter().any(|b| &b.id == r)
+    {
+        bail!("the reviewer has to be another AI of this project");
+    }
+    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { reviewer: reviewer.clone(), ..b } } else { b }).collect()))
 }
 
 /// Sets or clears the daily token limit of this bot's project (0 clears it).
@@ -609,6 +636,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "effort": bot.effort,
                 "allowed": bot.allowed,
                 "talk_model": bot.talk_model,
+                "reviewer": bot.reviewer,
                 "budget": { "limit": crate::budget::limit(state_dir, &bot.name), "used": crate::budget::used_today(state_dir, &bot.name), "choices": crate::budget::CHOICES },
                 "busy": jobs.is_busy(&bot.id),
                 "busy_thread": jobs.thread_of(&bot.id),
@@ -672,6 +700,9 @@ mod tests {
         room::append_messages(&chat_file(&state, "b1"), vec![answer(Value::Null)]).unwrap();
         assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(json!("rename"))]).unwrap();
+        // Keeping the answer and a review of it leave the proposal approvable.
+        let aside = vec![said("remembered", json!({})), said("review_asked", json!({})), note("review", json!({ "reply": { "text": "ok" } }))];
+        room::append_messages(&chat_file(&state, "b1"), aside).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
         assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
     }

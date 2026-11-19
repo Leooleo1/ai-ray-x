@@ -1,6 +1,14 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  reviewAsk: 'Ask {a} to review',
+  reviewing: '{a} is reviewing…',
+  reviewAsked: 'You asked {a} for a review',
+  reviewBy: 'Review by {a}',
+  verdicts: { ok: 'agrees', concerns: 'with concerns', reject: 'advises against' } as Record<string, string>,
+  reviewerLabel: 'Reviews every proposal',
+  noReviewer: 'Nobody',
+  reviewerNote: 'another AI of this project reads each proposal before you approve it',
   talkModelLabel: 'For talk',
   sameModel: 'Same',
   talkModelNote: 'questions can run on a lighter model; changes always use the model above',
@@ -269,7 +277,7 @@ const en = {
   approved: 'You approved',
   editedBadge: 'edited',
   readWord: 'read',
-  draftScope: 'the AI edits a copy without secrets; you see the changes before they reach the project',
+  draftScope: 'edits a copy, without secrets',
   conversationReset: 'new conversation',
   composeBot: 'Ask',
   botStarters: ['What does this project do?', 'What changed last?', 'Where is the biggest risk?'],
@@ -347,6 +355,14 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  reviewAsk: 'Pedir revisão ao {a}',
+  reviewing: '{a} está revisando…',
+  reviewAsked: 'Você pediu revisão ao {a}',
+  reviewBy: 'Revisão do {a}',
+  verdicts: { ok: 'concorda', concerns: 'com ressalvas', reject: 'não recomenda' },
+  reviewerLabel: 'Revisa cada proposta',
+  noReviewer: 'Ninguém',
+  reviewerNote: 'outra IA deste projeto lê cada proposta antes de você aprovar',
   talkModelLabel: 'Na conversa',
   sameModel: 'Igual',
   talkModelNote: 'perguntas podem usar um modelo mais leve; mudanças usam sempre o modelo acima',
@@ -615,7 +631,7 @@ const pt: Texts = {
   approved: 'Você aprovou',
   editedBadge: 'editou',
   readWord: 'leu',
-  draftScope: 'a IA edita uma cópia sem segredos; você vê as mudanças antes de irem para o projeto',
+  draftScope: 'edita numa cópia, sem segredos',
   conversationReset: 'nova conversa',
   composeBot: 'Pergunte ao',
   botStarters: ['O que este projeto faz?', 'O que mudou por último?', 'Onde está o maior risco?'],

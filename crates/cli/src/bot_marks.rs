@@ -8,6 +8,9 @@ pub const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 pub const TO_MARK: &str = "RAIOX-TO";
 pub const OPEN_MARK: &str = "RAIOX-OPEN:";
 pub const RUN_MARK: &str = "RAIOX-RUN:";
+pub const VERDICT_MARK: &str = "RAIOX-VERDICT:";
+/// What a reviewing bot can conclude.
+const VERDICTS: [&str; 3] = ["ok", "concerns", "reject"];
 /// Most commands one answer can ask for.
 const MAX_RUNS: usize = 2;
 /// Places in the panel a bot can point to with a card.
@@ -31,6 +34,8 @@ pub struct Marked {
     pub open: Vec<String>,
     /// Commands the bot asks raiox to run, from RAIOX-RUN lines.
     pub run: Vec<String>,
+    /// A reviewer's conclusion: "ok", "concerns" or "reject".
+    pub verdict: Option<String>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -61,6 +66,11 @@ pub fn split(answer: &str) -> Marked {
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
                 marked.open.push(place);
             }
+        } else if let Some(verdict) = trimmed.strip_prefix(VERDICT_MARK) {
+            let verdict = unquote(verdict).to_lowercase();
+            if VERDICTS.contains(&verdict.as_str()) {
+                marked.verdict = Some(verdict);
+            }
         } else if let Some(command) = trimmed.strip_prefix(RUN_MARK) {
             let command = unquote(command);
             if !command.is_empty() && marked.run.len() < MAX_RUNS && !marked.run.contains(&command) {
@@ -86,6 +96,13 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn a_review_ends_with_its_verdict() {
+        let m = split("Looks right.\nRAIOX-VERDICT: `Concerns`\n");
+        assert_eq!((m.text.as_str(), m.verdict.as_deref()), ("Looks right.", Some("concerns")));
+        assert_eq!(split("RAIOX-VERDICT: maybe").verdict, None);
     }
 
     #[test]

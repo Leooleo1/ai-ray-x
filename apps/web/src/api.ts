@@ -199,6 +199,8 @@ export interface BotReply {
   open?: Place[]
   /** Commands the AI asks raiox to run, each with why raiox refuses it, if it does. */
   run?: RunRequest[]
+  /** A reviewer's conclusion about another bot's proposal. */
+  verdict?: 'ok' | 'concerns' | 'reject'
   steps?: number | null
   read_tokens: number
   output_tokens: number
@@ -236,7 +238,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked'
   data: {
     text?: string
     proposal?: string
@@ -260,6 +262,11 @@ export interface BotMessage {
     allowed?: boolean
     /** Where an answer was kept in ai-memory. */
     path?: string
+    /** A review: the reviewing bot and its CLI. */
+    reviewer?: string
+    agent?: BotAgent
+    /** A failed review: the answer it was about. */
+    review?: number
   }
 }
 
@@ -284,6 +291,8 @@ export interface Bot {
   allowed?: string[]
   /** A lighter model for talk; changes run on `model`. */
   talk_model?: string | null
+  /** Another bot of the project that reviews this one's proposals. */
+  reviewer?: string | null
   /** The project's daily token limit for its bots and what they used today. */
   budget?: { limit: number | null; used: number; choices: number[] }
   name: string
@@ -320,7 +329,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer'
 
 export interface InboxMessage {
   id: string

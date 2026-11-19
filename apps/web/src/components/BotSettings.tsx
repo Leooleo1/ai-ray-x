@@ -56,6 +56,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
   const changed = JSON.stringify(persona) !== JSON.stringify(bot.persona)
   const days = usage?.days ?? 30
   const models = usage?.models ?? []
+  const partners = bots.state.bots.filter((b) => b.dir === bot.dir && b.id !== bot.id)
   const efforts = usage?.efforts ?? []
 
   return (
@@ -111,6 +112,23 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               onPick={(model) => void bots.act('talk_model', { id: bot.id, model: model ?? '' })}
             />
             <p className="ajustes-nota">{`${t.talkModelNote}; ${t.nextMessages}`}</p>
+          </>
+        )}
+
+        {partners.length > 0 && (
+          <>
+            <span className="ajustes-grupo">{t.reviewerLabel}</span>
+            <Choice
+              label={t.reviewerLabel}
+              current={bot.reviewer ?? null}
+              fallback={null}
+              options={partners.map((p) => p.id)}
+              busy={false}
+              show={(id) => AGENT_LABEL[partners.find((p) => p.id === id)?.agent ?? bot.agent]}
+              nullLabel={t.noReviewer}
+              onPick={(reviewer) => void bots.act('reviewer', { id: bot.id, reviewer: reviewer ?? '' })}
+            />
+            <p className="ajustes-nota">{t.reviewerNote}</p>
           </>
         )}
 

@@ -45,6 +45,9 @@ pub struct Reply {
     /// Commands the bot asks raiox to run, each with why raiox refuses it, if it does.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub run: Vec<crate::commands::Request>,
+    /// A reviewer's conclusion about another bot's proposal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<String>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -340,6 +343,29 @@ impl Tail {
 }
 
 /// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.
+/// cursor-agent joins the messages of a turn with nothing between them ("I will read it.The
+/// change…"): a sentence end right before a capital, outside code, starts a new paragraph.
+fn separate_messages(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len() + 8);
+    let mut in_code = false;
+    for (i, c) in chars.iter().enumerate() {
+        if *c == '`' {
+            in_code = !in_code;
+        }
+        out.push(*c);
+        let joined = !in_code
+            && matches!(c, '.' | '!' | '?' | ':')
+            && i > 0
+            && (chars[i - 1].is_lowercase() || matches!(chars[i - 1], '`' | ')' | '"' | '*'))
+            && chars.get(i + 1).is_some_and(|next| next.is_uppercase());
+        if joined {
+            out.push_str("\n\n");
+        }
+    }
+    out
+}
+
 pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
     let value: Value = serde_json::from_str(out.trim()).with_context(|| format!("{agent} did not answer in JSON"))?;
     let text = value.get("result").and_then(Value::as_str).unwrap_or("").to_string();
@@ -348,6 +374,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
     }
     let usage = value.get("usage").cloned().unwrap_or(Value::Null);
     let either = |a: &str, b: &str| number(&usage, a) + number(&usage, b);
+    let text = if agent == "cursor" { separate_messages(&text) } else { text };
     let marked = bot_marks::split(&text);
     Ok(Reply {
         text: marked.text,
@@ -355,6 +382,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         to: marked.notes,
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
+        verdict: marked.verdict,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
@@ -396,6 +424,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         to: marked.notes,
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
+        verdict: marked.verdict,
         steps: Some(
             events
                 .iter()
@@ -414,6 +443,12 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cursor_messages_glued_together_get_a_paragraph_each() {
+        assert_eq!(separate_messages("Vou ler `a.Js`.A proposta acerta: Sim."), "Vou ler `a.Js`.\n\nA proposta acerta: Sim.");
+        assert_eq!(separate_messages("Use README.md e U.S.A ok."), "Use README.md e U.S.A ok.");
+    }
 
     #[test]
     fn the_persona_follows_the_raiox_guide() {

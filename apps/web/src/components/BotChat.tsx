@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
+import { ReviewLine } from './chat/ReviewLine'
 import { BotLine } from './chat/BotLine'
 import { ProjectList } from './chat/ProjectList'
 import { ModelPicker } from './chat/ModelPicker'
@@ -86,6 +87,18 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const speaker = speakerOf(bot)
   const pending = pendingProposal(messages)
   const pendingRun = latestAnswer(messages)
+  const partners = bots.state.bots.filter((b) => b.dir === bot.dir && b.id !== bot.id)
+  const reviewState = (ms: number): 'none' | 'pending' | 'done' => {
+    const about = messages.filter((m) => m.data.answer_ms === ms || (m.kind === 'failed' && m.data.review === ms))
+    if (about.some((m) => m.kind === 'review')) return 'done'
+    const asked = about.findLast((m) => m.kind === 'review_asked')
+    return asked && !about.some((m) => m.kind === 'failed' && m.ms > asked.ms) ? 'pending' : 'none'
+  }
+  const reviewerOf = (ms: number) => {
+    const asked = messages.findLast((m) => m.kind === 'review_asked' && m.data.answer_ms === ms)
+    const partner = bots.state.bots.find((b) => b.id === asked?.data.reviewer)
+    return partner ? AGENT_LABEL[partner.agent] : ''
+  }
   const kept = new Set(messages.filter((m) => m.kind === 'remembered').map((m) => m.data.answer_ms))
   const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
@@ -168,7 +181,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             </div>
           )}
           {messages.map((message, index) =>
-            isHouse(message.author) ? (
+            message.kind === 'review' || message.kind === 'review_asked' ? (
+              <ReviewLine key={`${message.ms}-${index}`} message={message} reviewer={bots.state.bots.find((b) => b.id === message.data.reviewer)} />
+            ) : isHouse(message.author) ? (
               <HouseLine key={`${message.ms}-${index}`} bot={bot} message={message} messages={messages} report={report} onChanged={onChanged} />
             ) : (
             <BotLine
@@ -178,6 +193,10 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               previous={messages[index - 1]}
               approvable={index === pending}
               runnable={index === pendingRun}
+              partners={partners}
+              reviewState={reviewState(message.ms)}
+              reviewerName={reviewerOf(message.ms)}
+              onReview={(reviewer) => void bots.act('review', { id: bot.id, thread: current, answer_ms: message.ms, reviewer })}
               remembered={kept.has(message.ms)}
               onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
               onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
@@ -263,10 +282,13 @@ function useInbox(bot: Bot) {
 
 /** The answer whose proposal can still be approved: the latest one, if nothing but failures came after it. */
 /** The latest answer, when nothing came after it: the commands it asks for can still run. */
+/** Messages that leave the answer before them current: its proposal and commands still stand. */
+const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'house', 'remembered', 'review', 'review_asked']
+
 function latestAnswer(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]
-    if (m.kind === 'failed' || m.kind === 'sent' || m.kind === 'stopped' || m.kind === 'house') continue
+    if (ASIDE.includes(m.kind)) continue
     return m.author === 'bot' && m.kind === 'answer' ? i : -1
   }
   return -1
@@ -275,7 +297,7 @@ function latestAnswer(messages: BotMessage[]): number {
 function pendingProposal(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]
-    if (m.kind === 'failed' || m.kind === 'sent' || m.kind === 'stopped' || m.kind === 'house') continue
+    if (ASIDE.includes(m.kind)) continue
     if (m.kind === 'approve') return -1
     return m.kind === 'answer' && m.data.reply?.proposal ? i : -1
   }

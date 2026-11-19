@@ -190,6 +190,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
         }
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
+        "review" => bots::request_review(state_dir, jobs, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("reviewer")),
+        "reviewer" => bots::set_reviewer(state_dir, field("id"), field("reviewer")),
         "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
         "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),

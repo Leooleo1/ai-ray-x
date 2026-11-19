@@ -28,6 +28,9 @@ Code, Codex or Cursor), with the project's context:
   of the project (following your `.gitignore`, without secrets files) and you
   see what changed in each file, then apply it to the project (with undo) or
   discard it;
+- with two AIs in a project, one can review the other's proposal before you
+  approve it (on a click, or every time), and the edit is told what the
+  review said;
 - when an answer needs a command's output (the git history, the tests), the AI
   asks for it and raiox runs that exact command in the project folder, without
   a shell, after you approve it, or on its own once you allow it for the

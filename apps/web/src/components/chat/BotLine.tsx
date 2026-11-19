@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Bot, BotMessage, Place } from '../../api'
-import { faceForBot } from '../../avatars'
+import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
@@ -55,9 +55,14 @@ interface BotLineProps {
   /** Already kept in ai-memory as a decision of the project. */
   remembered: boolean
   onRemember: () => void
+  /** The other AIs of the project, which can review a proposal. */
+  partners: Bot[]
+  reviewState: 'none' | 'pending' | 'done'
+  reviewerName: string
+  onReview: (reviewer: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember, partners, reviewState, reviewerName, onReview }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -196,6 +201,16 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                   <span className="nota">{t.draftScope}</span>
                 </span>
               )}
+              {approvable && reviewState === 'none' && partners.length > 0 && (
+                <span className="acao">
+                  {partners.map((partner) => (
+                    <button key={partner.id} type="button" className="link" disabled={partner.busy} onClick={() => onReview(partner.id)}>
+                      {t.reviewAsk.replace('{a}', AGENT_LABEL[partner.agent])}
+                    </button>
+                  ))}
+                </span>
+              )}
+              {reviewState === 'pending' && <span className="nota revisando">{t.reviewing.replace('{a}', reviewerName)}</span>}
             </div>
           )}
           {reply?.run?.map((request, index) => (
