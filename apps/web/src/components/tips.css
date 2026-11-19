@@ -82,23 +82,23 @@
 }
 
 @media (max-width: 960px) {
+  /* Above the tab bar, and above the composer on the pages that have one. */
   .dica-flutuante {
     right: 16px;
     left: 16px;
-    bottom: 16px;
+    bottom: 84px;
     width: auto;
   }
 
   .dica-rosto {
     right: 16px;
     left: auto;
-    bottom: 16px;
+    bottom: 84px;
   }
 
-  /* Over the composer on the pages that have one. */
   .dica-flutuante.elevada,
   .dica-rosto.elevada {
-    bottom: 120px;
+    bottom: 156px;
   }
 }
 

@@ -32,7 +32,7 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
         <Mark />
         raiox
       </span>
-      <nav className="lado-grupo" aria-label="raiox">
+      <nav className="lado-grupo lado-menu" aria-label="raiox">
         {nav.map((item) => (
           <button key={item.id} className={`lado-item ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => onTab(item.id)}>
             <Icon name={item.icon} />
@@ -40,7 +40,7 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
           </button>
         ))}
       </nav>
-      <div className="lado-grupo">
+      <div className="lado-grupo lado-projetos">
         <span className="lado-titulo">{t.projects}</span>
         {/* One row per project; a project can have bots on several CLIs, the newest one opens. */}
         {projectsOf(bots).map(({ name, latest, busy, agents }) => (

@@ -40,10 +40,11 @@ const usageLine = (row: Row) =>
 interface BotPickerProps {
   bots: Bots
   onOpen: (id: string) => void
+  onAskMany: () => void
 }
 
 /** The projects with an AI on top, to open; below, every other project, to turn on with one tap. */
-export function BotPicker({ bots, onOpen }: BotPickerProps) {
+export function BotPicker({ bots, onOpen, onAskMany }: BotPickerProps) {
   const [query, setQuery] = useState('')
   // The project whose AI choice is open, when more than one CLI is on.
   const [choosing, setChoosing] = useState<string | null>(null)
@@ -66,6 +67,10 @@ export function BotPicker({ bots, onOpen }: BotPickerProps) {
       <section className="cartao projetos-pagina">
         {mine.length > 0 && (
           <>
+            {/* On a phone the menu has no room for it, so Ask several lives here too. */}
+            <button type="button" className="projetos-varios so-celular" onClick={onAskMany}>
+              {t.askMany}
+            </button>
             <h2 className="projetos-secao">{t.yourProjects}</h2>
             <ul className="projetos-lista">
               {mine.map((row) => {

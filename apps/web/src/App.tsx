@@ -179,7 +179,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
   const heading = HEADINGS[tab]
   return (
-    <div className="app">
+    <div className={`app ${tab === 'agents' && (openBot || openExchange || openBatch || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
       <Sidebar
         tab={tab}
         chat={chat}
@@ -207,7 +207,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         )}
         {tab === 'agents' && chat === 'grupo' && <AskMany bots={bots} nav={nav} />}
         {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} nav={nav} />}
-        {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} />}
+        {tab === 'agents' && !openBot && !openExchange && !chat.startsWith('grupo') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} />}
         {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />

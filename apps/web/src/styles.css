@@ -880,22 +880,77 @@ body {
     min-height: 100dvh;
   }
 
+  /* On a phone the menu is a tab bar at the bottom: icon over name, nothing cut.
+     The projects live in Chats, which lists them. */
   .lateral {
-    flex-direction: row;
-    gap: 4px;
-    padding: 12px;
-    overflow-x: auto;
-    box-shadow: inset 0 -1px 0 var(--fio);
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    display: block;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    overflow: visible;
+    background: #09090c;
+    box-shadow: inset 0 1px 0 var(--fio);
   }
 
-  .lado-grupo {
-    flex-direction: row;
-  }
-
+  .lateral .marca,
+  .lateral .lado-projetos,
   .lado-titulo,
   .lado-rodape,
   .presenca {
     display: none;
+  }
+
+  .lateral .lado-menu {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .lateral .lado-menu .lado-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 52px;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .lateral .lado-menu .nome {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Room under everything for the tab bar. */
+  .principal {
+    padding-bottom: 84px;
+  }
+
+  /* A conversation open: the chat fills the screen, only its messages scroll. */
+  .app.conversa-aberta {
+    height: 100dvh;
+  }
+
+  .app.conversa-aberta .principal {
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    padding-top: 12px;
+  }
+
+  .app.conversa-aberta .titulo {
+    display: none;
+  }
+
+  .app.conversa-aberta .chat,
+  .app.conversa-aberta .chat-centro {
+    min-height: 0;
+    height: 100%;
   }
 
   .agente,
@@ -1947,4 +2002,26 @@ body {
   flex: none;
   align-self: center;
   margin: 0 0 0 auto;
+}
+
+.projetos-varios {
+  flex: none;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 500 14px/18px var(--sans);
+  cursor: pointer;
+}
+
+.projetos-varios.so-celular {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .projetos-varios.so-celular {
+    display: block;
+  }
 }
