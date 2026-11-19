@@ -2028,13 +2028,21 @@ body {
   cursor: pointer;
 }
 
-.projetos-varios.so-celular {
+.projetos-varios.so-celular,
+.projetos-secao.so-celular,
+.projetos-lista.so-celular {
   display: none;
 }
 
+/* On a phone the sidebar is a tab bar: Ask several and the channels live in the projects page. */
 @media (max-width: 960px) {
   .projetos-varios.so-celular {
     display: block;
+  }
+
+  .projetos-secao.so-celular,
+  .projetos-lista.so-celular {
+    display: flex;
   }
 }
 

@@ -9,6 +9,7 @@ pub const TO_MARK: &str = "RAIOX-TO";
 pub const OPEN_MARK: &str = "RAIOX-OPEN:";
 pub const RUN_MARK: &str = "RAIOX-RUN:";
 pub const VERDICT_MARK: &str = "RAIOX-VERDICT:";
+pub const ASK_MARK: &str = "RAIOX-ASK";
 /// What a reviewing bot can conclude.
 const VERDICTS: [&str; 3] = ["ok", "concerns", "reject"];
 /// Most commands one answer can ask for.
@@ -36,6 +37,8 @@ pub struct Marked {
     pub run: Vec<String>,
     /// A reviewer's conclusion: "ok", "concerns" or "reject".
     pub verdict: Option<String>,
+    /// Requests for other members of a channel, from RAIOX-ASK @handle lines (the handle goes in `project`).
+    pub asks: Vec<Note>,
 }
 
 /// Drops one pair of backticks wrapping the whole value; backticks inside stay.
@@ -65,6 +68,11 @@ pub fn split(answer: &str) -> Marked {
             let place = unquote(place).to_lowercase();
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
                 marked.open.push(place);
+            }
+        } else if let Some(ask) = trimmed.strip_prefix(ASK_MARK).and_then(|rest| rest.trim().strip_prefix('@')).and_then(|rest| rest.split_once(':')) {
+            let (handle, text) = (ask.0.trim().to_lowercase(), unquote(ask.1));
+            if !handle.is_empty() && !handle.contains(char::is_whitespace) && !text.is_empty() {
+                marked.asks.push(Note { project: handle, text: text.chars().take(MAX_NOTE).collect() });
             }
         } else if let Some(verdict) = trimmed.strip_prefix(VERDICT_MARK) {
             let verdict = unquote(verdict).to_lowercase();
@@ -96,6 +104,13 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn a_member_asks_another_through_the_person() {
+        let m = split("Feito o front.\nRAIOX-ASK @Docs: atualize o README com a rota nova\nRAIOX-ASK nobody: sem arroba\n");
+        assert_eq!(m.text, "Feito o front.\nRAIOX-ASK nobody: sem arroba");
+        assert_eq!(m.asks, vec![Note { project: "docs".into(), text: "atualize o README com a rota nova".into() }]);
     }
 
     #[test]

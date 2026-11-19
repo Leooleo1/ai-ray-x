@@ -192,6 +192,16 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
         "review" => bots::request_review(state_dir, jobs, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("reviewer")),
         "reviewer" => bots::set_reviewer(state_dir, field("id"), field("reviewer")),
+        "channel_new" => {
+            let members: Vec<String> = input.get("members").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+            crate::channels::create(state_dir, field("name"), &members).map(|_| ())
+        }
+        "channel_delete" => crate::channels::delete(state_dir, field("channel")),
+        "channel_post" => crate::channels::post(state_dir, jobs, field("channel"), field("text")),
+        "channel_pass" => {
+            let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
+            crate::channels::pass(state_dir, jobs, field("channel"), field("id"), input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), index)
+        }
         "memory_forget" => {
             let bot = bots::find(state_dir, field("id"))?;
             crate::room::require_opt_in(state_dir, &bot.dir)?;

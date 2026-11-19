@@ -41,10 +41,12 @@ interface BotPickerProps {
   bots: Bots
   onOpen: (id: string) => void
   onAskMany: () => void
+  /** Opens a channel, or the new-channel form with `novo`. */
+  onChannel: (id: string) => void
 }
 
 /** The projects with an AI on top, to open; below, every other project, to turn on with one tap. */
-export function BotPicker({ bots, onOpen, onAskMany }: BotPickerProps) {
+export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps) {
   const [query, setQuery] = useState('')
   // The project whose AI choice is open, when more than one CLI is on.
   const [choosing, setChoosing] = useState<string | null>(null)
@@ -88,6 +90,40 @@ export function BotPicker({ bots, onOpen, onAskMany }: BotPickerProps) {
                   </li>
                 )
               })}
+            </ul>
+          </>
+        )}
+        {mine.length > 0 && (
+          <>
+            {/* On a phone the menu has no room for the channels either, so they live here too. */}
+            <h2 className="projetos-secao so-celular">{t.channels}</h2>
+            <ul className="projetos-lista so-celular">
+              {(bots.state.channels ?? []).map((channel) => (
+                <li key={channel.id} className="projeto-linha">
+                  <span className="projeto-cerquilha" aria-hidden="true">
+                    #
+                  </span>
+                  <span className="projeto-nome">
+                    <b>{channel.name}</b>
+                    <small>{channel.members.map((m) => `@${m.handle}`).join(' ')}</small>
+                  </span>
+                  <button type="button" className="projeto-acao cheio" onClick={() => onChannel(channel.id)}>
+                    {t.openProject}
+                  </button>
+                </li>
+              ))}
+              <li className="projeto-linha">
+                <span className="projeto-cerquilha" aria-hidden="true">
+                  #
+                </span>
+                <span className="projeto-nome">
+                  <b>{t.channelNewNav}</b>
+                  <small>{t.channelNewHint}</small>
+                </span>
+                <button type="button" className="projeto-acao" onClick={() => onChannel('novo')}>
+                  {t.channelCreate}
+                </button>
+              </li>
             </ul>
           </>
         )}

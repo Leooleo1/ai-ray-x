@@ -579,6 +579,13 @@ pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&st
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { talk_model: talk_model.clone(), ..b } } else { b }).collect()))
 }
 
+/// A turn whose message for the CLI differs from what the conversation shows: a channel's
+/// context goes to the CLI, the person's words to the screen.
+pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<()> {
+    let asked = Some(said("ask", json!({ "text": shown, "channel": channel })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None })
+}
+
 /// Asks another bot of the project to review a proposal in this conversation.
 pub fn request_review(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: i64, reviewer: &str) -> Result<()> {
     review::request(state_dir, jobs, id, thread, answer_ms, reviewer)
@@ -721,6 +728,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         "agents": agents,
         "links": crate::links::list(state_dir),
         "batches": crate::batches::list(state_dir),
+        "channels": crate::channels::state(state_dir),
         "max_text": MAX_TEXT,
     }))
 }

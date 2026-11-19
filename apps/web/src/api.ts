@@ -231,6 +231,8 @@ export interface BotReply {
   run?: RunRequest[]
   /** The path the turn took. */
   trail?: Trail
+  /** In a channel: requests for other members (the handle in `project`). */
+  ask?: BotNote[]
   /** A reviewer's conclusion about another bot's proposal. */
   verdict?: 'ok' | 'concerns' | 'reject'
   steps?: number | null
@@ -270,7 +272,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass'
   data: {
     text?: string
     proposal?: string
@@ -294,6 +296,11 @@ export interface BotMessage {
     allowed?: boolean
     /** Where an answer was kept in ai-memory. */
     path?: string
+    /** In a channel: who a message went to, and a pass from one member to another. */
+    to?: string[] | string
+    from?: string
+    index?: number
+    channel?: string
     /** A review: the reviewing bot and its CLI. */
     reviewer?: string
     agent?: BotAgent
@@ -366,10 +373,29 @@ export interface BotsState {
   /** Wired project pairs: only these can message each other. */
   links: [string, string][]
   batches: Batch[]
+  channels: Channel[]
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct'
+/** One item of a channel: the person's message or pass (no bot), or a member's message in its channel conversation. */
+export interface ChannelItem {
+  bot: string | null
+  thread?: string
+  message: BotMessage
+}
+
+export interface Channel {
+  id: string
+  name: string
+  /** The first member answers when a message mentions nobody. */
+  members: { bot: string; handle: string }[]
+  /** Each member's conversation for this channel. */
+  threads: Record<string, string>
+  messages: ChannelItem[]
+  created_ms: number
+}
+
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass'
 
 export interface InboxMessage {
   id: string

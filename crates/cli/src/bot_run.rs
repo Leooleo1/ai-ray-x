@@ -51,6 +51,9 @@ pub struct Reply {
     /// A reviewer's conclusion about another bot's proposal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verdict: Option<String>,
+    /// In a channel: requests for other members, passed on only when the person says so.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ask: Vec<crate::bot_marks::Note>,
     #[serde(skip)]
     pub session: Option<String>,
     /// Model rounds or actions the CLI took, when it says (Claude Code: turns; Codex: commands and edits).
@@ -394,6 +397,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
+        ask: marked.asks,
         trail: None,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
@@ -437,6 +441,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
         verdict: marked.verdict,
+        ask: marked.asks,
         trail: None,
         steps: Some(
             events

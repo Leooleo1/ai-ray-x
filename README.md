@@ -59,6 +59,12 @@ approve, drafts to apply, commands asked), and the team: each agent with the
 role you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
+**Channels.** Rooms with several of your AIs, from any projects. `@handle`
+calls a member (several handles call several; none calls the channel's lead).
+Each member answers in a conversation of its own, is told what was said in
+the channel since it last spoke, and can ask another member for help; the
+request shows as a card and goes on only when you pass it.
+
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
 carries and how the project's week compares with the one before, Dieta lists

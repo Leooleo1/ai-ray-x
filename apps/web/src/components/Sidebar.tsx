@@ -5,7 +5,7 @@ import { Avatar } from './Avatar'
 import { Icon } from './Icons'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'settings'
-export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}`
+export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
 
 interface SidebarProps {
   tab: Tab
@@ -13,13 +13,15 @@ interface SidebarProps {
   bots: Bot[]
   /** Bots with an answer not seen yet. */
   unread: Set<string>
+  /** The channels, and whether a member works in each now. */
+  channels: { id: string; name: string; working: boolean }[]
   updatedAt: Date
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
 }
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
-export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: SidebarProps) {
+export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, onChat }: SidebarProps) {
   const nav: { id: Tab; label: string; short?: string; icon: 'xray' | 'efficiency' | 'agents' | 'desk' | 'sliders' }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, icon: 'efficiency' },
@@ -56,6 +58,22 @@ export function Sidebar({ tab, chat, bots, unread, updatedAt, onTab, onChat }: S
             )}
           </button>
         ))}
+        {channels.length > 0 && <span className="lado-titulo lado-titulo-canais">{t.channels}</span>}
+        {channels.map((channel) => (
+          <button key={channel.id} className={`lado-item ${tab === 'agents' && chat === `canal:${channel.id}` ? 'ativo' : ''}`} onClick={() => onChat(`canal:${channel.id}`)}>
+            <span className="lado-cerquilha" aria-hidden="true">
+              #
+            </span>
+            <span className="nome">{channel.name}</span>
+            {channel.working && <span className="presenca digitando">{t.typingShort}</span>}
+          </button>
+        ))}
+        <button className={`lado-item ${tab === 'agents' && chat === 'canal:novo' ? 'ativo' : ''}`} onClick={() => onChat('canal:novo')}>
+          <span className="lado-cerquilha" aria-hidden="true">
+            #
+          </span>
+          <span className="nome">{t.channelNewNav}</span>
+        </button>
         <button className={`lado-item ${tab === 'agents' && chat.startsWith('grupo') ? 'ativo' : ''}`} onClick={() => onChat('grupo')}>
           <Icon name="ask-many" />
           <span className="nome">{t.askMany}</span>
