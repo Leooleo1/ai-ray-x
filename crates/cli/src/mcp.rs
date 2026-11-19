@@ -103,7 +103,7 @@ fn call_tool(store: &mut Store, roots: &Roots, params: &Value) -> Value {
     }
 }
 
-pub(crate) fn context_status(store: &Store, args: &Value) -> Result<Value> {
+pub fn context_status(store: &Store, args: &Value) -> Result<Value> {
     let session = args.get("session").and_then(Value::as_str);
     Ok(match advice::context_status(store.conn(), session)? {
         Some(status) => serde_json::to_value(status)?,
@@ -127,7 +127,7 @@ fn pick_source(store: &Store, args: &Value) -> Result<String> {
     Ok(busiest.unwrap_or_else(|| CLAUDE.to_string()))
 }
 
-pub(crate) fn what_weighs(store: &Store, args: &Value) -> Result<Value> {
+pub fn what_weighs(store: &Store, args: &Value) -> Result<Value> {
     let source = pick_source(store, args)?;
     let e = efficiency::efficiency(store.conn(), &source)?;
     let loaded: Vec<Value> = e
@@ -149,7 +149,7 @@ pub(crate) fn what_weighs(store: &Store, args: &Value) -> Result<Value> {
     }))
 }
 
-pub(crate) fn suggest_diet(store: &Store, args: &Value) -> Result<Value> {
+pub fn suggest_diet(store: &Store, args: &Value) -> Result<Value> {
     let source = pick_source(store, args)?;
     let e = efficiency::efficiency(store.conn(), &source)?;
     let listed = e.snapshots.get("skill_listing_items").and_then(|v| v.as_u64().or_else(|| v.as_str()?.parse().ok()));
@@ -162,7 +162,7 @@ fn round(value: f64) -> f64 {
 }
 
 /// Three decimals are enough for shares; longer floats only cost the caller tokens.
-pub(crate) fn round_floats(value: Value) -> Value {
+pub fn round_floats(value: Value) -> Value {
     match value {
         Value::Number(n) if n.is_f64() => n.as_f64().map_or(Value::Number(n), |f| json!(round(f))),
         Value::Array(items) => Value::Array(items.into_iter().map(round_floats).collect()),

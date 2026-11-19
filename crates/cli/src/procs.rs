@@ -43,6 +43,26 @@ pub fn kill_group(pid: u32) {
     }
 }
 
+const PANEL_LOCK: &str = "panel.lock";
+
+/// Marks this process as the panel of a state folder, unless another live raiox already is
+/// (the terminal's `raiox open` and the desktop app must not serve the same data at once).
+pub fn claim_panel(state_dir: &Path) -> anyhow::Result<()> {
+    let lock = state_dir.join(PANEL_LOCK);
+    let held: Option<(u32, String)> = fs::read_to_string(&lock).ok().and_then(|text| serde_json::from_str(&text).ok());
+    if let Some((pid, started)) = held
+        && pid != std::process::id()
+        && !started.is_empty()
+        && started_at(pid) == started
+    {
+        anyhow::bail!("raiox is already open (process {pid}); close it first");
+    }
+    fs::create_dir_all(state_dir)?;
+    let me = std::process::id();
+    fs::write(&lock, serde_json::to_string(&(me, started_at(me)))?)?;
+    Ok(())
+}
+
 /// At startup: children an earlier raiox left running stop, when the process is still theirs.
 pub fn cleanup(state_dir: &Path) {
     for (pid, started) in load(state_dir).into_values() {

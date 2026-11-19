@@ -186,13 +186,29 @@ fn note_for(bot: &crate::bots::Bot, thread: &str, last: &crate::room::Message) -
     Some(json!({ "kind": kind, "title": title, "body": body, "url": format!("/bots/{}", bot.id), "tag": format!("{}:{thread}", bot.id) }))
 }
 
-/// After a turn: the paired devices hear how it ended.
+type Listener = Box<dyn Fn(&Value) + Send + Sync>;
+
+/// Who else hears that a turn ended: the desktop app, for a notification of its own.
+static LISTENER: std::sync::OnceLock<Listener> = std::sync::OnceLock::new();
+
+/// Registers the program that hears every finished turn (once; later calls are ignored).
+pub fn on_turn_end(listener: impl Fn(&Value) + Send + Sync + 'static) {
+    let _ = LISTENER.set(Box::new(listener));
+}
+
+/// After a turn: the app around the panel and the paired devices hear how it ended.
 pub fn after_turn(state_dir: &Path, bot: &crate::bots::Bot, thread: &str) {
-    if devices::pushes(state_dir).is_empty() {
+    let listener = LISTENER.get();
+    let to_devices = !devices::pushes(state_dir).is_empty();
+    if listener.is_none() && !to_devices {
         return;
     }
     let messages = crate::room::read_messages(&crate::threads::chat_file(state_dir, &bot.id, thread));
-    if let Some(note) = messages.iter().rev().find(|m| m.author == "bot").and_then(|last| note_for(bot, thread, last)) {
+    let Some(note) = messages.iter().rev().find(|m| m.author == "bot").and_then(|last| note_for(bot, thread, last)) else { return };
+    if let Some(listener) = listener {
+        listener(&note);
+    }
+    if to_devices {
         notify(state_dir, note);
     }
 }

@@ -120,6 +120,26 @@ The first run walks you through connecting your AIs, GitHub and projects. The
 binary serves the panel from `apps/web/dist`, so run it from the checkout (or
 pass `--web-dir`).
 
+## Desktop app (macOS)
+
+`crates/desktop` is raiox as an app ([Tauri 2](https://v2.tauri.app)): the same
+panel in a window of its own, an icon in the menu bar with how many AIs are
+working, and a notification when one finishes while you look elsewhere.
+Closing the window keeps raiox in the menu bar; the menu opens it again, opens
+it in the browser, turns on opening at login, and quits (which also stops the
+dev servers and the tunnel raiox started). The panel server runs inside the
+app, so phone access keeps working. One raiox serves a data folder at a time:
+the app and `raiox open` refuse to run on the same data at once.
+
+```sh
+pnpm --dir crates/desktop install
+CI=true pnpm --dir crates/desktop build   # target/release/bundle/macos/raiox.app and dmg/
+```
+
+The build is not signed yet: on another Mac, open it the first time with a
+right click › Open. (`CI=true` skips the Finder step that arranges the dmg
+window.) Windows comes next.
+
 ## From your phone
 
 Settings › Phone opens the panel to your phone through

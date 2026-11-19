@@ -57,16 +57,32 @@ pub struct Panel {
     pub clones: setup::Clones,
 }
 
-pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
-    let server = Server::http(("127.0.0.1", port)).map_err(|e| anyhow!("cannot listen on 127.0.0.1:{port}: {e}"))?;
-    let port = server.server_addr().to_ip().map(|addr| addr.port()).ok_or_else(|| anyhow!("no TCP address"))?;
-    let token = session_token();
-    let url = format!("http://127.0.0.1:{port}/#t={token}");
+/// The panel in the terminal: started, announced, and kept until Ctrl+C.
+pub fn run(panel: Panel, port: u16, open_browser: bool) -> Result<()> {
+    let (url, _) = start(panel, port)?;
     println!("raiox panel: {url}");
     println!("Only this machine can open it (and devices you pair, when phone access is on). Ctrl+C stops it.");
     if open_browser && let Err(error) = open::that(&url) {
         eprintln!("could not open the browser ({error}); open the link above");
     }
+    loop {
+        std::thread::park();
+    }
+}
+
+/// Starts the panel server on its own thread; gives its address (with the session token) and port.
+/// One panel per state folder: another raiox already serving the same data refuses this one.
+pub fn start(panel: Panel, port: u16) -> Result<(String, u16)> {
+    crate::procs::claim_panel(&panel.state_dir)?;
+    let server = Server::http(("127.0.0.1", port)).map_err(|e| anyhow!("cannot listen on 127.0.0.1:{port}: {e}"))?;
+    let port = server.server_addr().to_ip().map(|addr| addr.port()).ok_or_else(|| anyhow!("no TCP address"))?;
+    let token = session_token();
+    let url = format!("http://127.0.0.1:{port}/#t={token}");
+    std::thread::Builder::new().name("raiox-panel".into()).spawn(move || serve(server, panel, &token, port))?;
+    Ok((url, port))
+}
+
+fn serve(server: Server, mut panel: Panel, token: &str, port: u16) {
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
     crate::routines::spawn(panel.state_dir.clone(), panel.jobs.clone());
     // Drafts older than two weeks go, with their copies and backups.
@@ -77,7 +93,7 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     crate::tunnel::resume(&panel.state_dir, port);
     for mut request in server.incoming_requests() {
         // The browser may have gone away; nothing to do about it.
-        match route(&mut panel, &mut request, &token, &hosts, port) {
+        match route(&mut panel, &mut request, token, &hosts, port) {
             Answer::Now(reply) => {
                 let _ = request.respond(reply);
             }
@@ -88,7 +104,6 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
             }
         }
     }
-    Ok(())
 }
 
 fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String], port: u16) -> Answer {

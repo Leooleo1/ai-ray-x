@@ -1,0 +1,21 @@
+[package]
+name = "raiox-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "raiox as a desktop app: the panel in its own window, in the menu bar, with native notifications"
+license = "MIT"
+
+[dependencies]
+raiox = { version = "0.1.0", path = "../cli" }
+anyhow = "1.0.104"
+serde_json = "1.0.154"
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+open = "5"
+sys-locale = "0.3.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

@@ -242,6 +242,11 @@ impl Jobs {
         }
     }
 
+    /// How many bots are working now (the desktop app's menu bar shows it).
+    pub fn busy_count(&self) -> usize {
+        self.0.lock().map_or(0, |map| map.len())
+    }
+
     pub fn is_busy(&self, id: &str) -> bool {
         self.0.lock().is_ok_and(|map| map.contains_key(id))
     }

@@ -1,0 +1,13 @@
+{
+  "name": "raiox-desktop",
+  "private": true,
+  "description": "Builds the raiox desktop app (Tauri)",
+  "scripts": {
+    "tauri": "tauri",
+    "icons": "tauri icon icons/source.png --output icons",
+    "build": "pnpm --dir ../../apps/web build && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

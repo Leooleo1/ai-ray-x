@@ -1,48 +1,10 @@
 //! raiox: where your AI coding agents' tokens go. Reads local logs only.
 
-mod access;
-mod actions;
-mod bot_mail;
-mod bot_marks;
-mod bot_run;
-mod batches;
-mod bot_steps;
-mod bot_trail;
-mod bot_usage;
-mod bots;
-mod carry;
-mod channels;
-mod budget;
-mod connections;
-mod commands;
-mod data;
-mod devices;
-mod drafts;
-mod links;
-mod live;
-mod memory;
-mod memo;
-mod pins;
-mod preview;
-mod procs;
-mod profile;
-mod room;
-mod routines;
-mod mcp;
-mod print;
-mod push;
-mod remote;
-mod serve;
-mod settings;
-mod simulator;
-mod setup;
-mod team;
-mod threads;
-mod tunnel;
 
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use raiox::{actions, bots, data, mcp, print, room, serve, setup};
 use clap::{Args, Parser, Subcommand};
 use raiox_core::model::{CLAUDE, CODEX};
 use raiox_core::{efficiency, report, Roots, Store};

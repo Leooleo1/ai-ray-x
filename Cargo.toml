@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/cli"]
+members = ["crates/core", "crates/cli", "crates/desktop"]
+# The desktop app builds on its own (`cargo build -p raiox-desktop`); the CLI stays quick to build.
+default-members = ["crates/core", "crates/cli"]
 
 [profile.release]
 lto = "thin"
