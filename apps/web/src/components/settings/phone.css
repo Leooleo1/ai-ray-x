@@ -99,3 +99,9 @@
   align-self: flex-start;
   margin-left: 0;
 }
+
+.celular-codigo {
+  color: var(--giz);
+  font: 500 18px/24px var(--mono);
+  letter-spacing: 0.04em;
+}

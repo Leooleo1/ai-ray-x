@@ -125,7 +125,18 @@ export function App() {
 
   if (state.kind === 'loading') return <div className="tela-estado">{t.loading}</div>
   if (state.kind === 'failed') return <div className="tela-estado">{`${t.failed}: ${state.message}`}</div>
-  if (state.kind === 'unpaired') return <PairScreen message={state.message} />
+  if (state.kind === 'unpaired') {
+    const pair = async (code: string) => {
+      try {
+        await pairDevice(code)
+        setState({ kind: 'loading' })
+        setVersion((v) => v + 1)
+      } catch (error: unknown) {
+        setState({ kind: 'unpaired', message: messageOf(error) })
+      }
+    }
+    return <PairScreen message={state.message} onPair={pair} />
+  }
   if (!state.report.setup.done || setupOpen) {
     const finish = (firstBot: string | null) => {
       history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : '/')

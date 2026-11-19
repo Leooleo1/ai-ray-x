@@ -17,8 +17,10 @@ function ago(ms: number, now: number): string {
   if (gone < MINUTE_MS) return t.phoneNow
   if (gone < HOUR_MS) return t.phoneMinutes.replace('{n}', String(Math.floor(gone / MINUTE_MS)))
   if (gone < 24 * HOUR_MS) return t.phoneHours.replace('{n}', String(Math.floor(gone / HOUR_MS)))
-  return new Date(ms).toLocaleDateString()
+  return shortDate(ms)
 }
+
+const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
 
 function countdown(ms: number): string {
   const seconds = Math.max(0, Math.ceil(ms / 1000))
@@ -138,6 +140,8 @@ export function PhonePanel() {
         {pairing && live && left > 0 ? (
           <div className="celular-qr">
             <img src={pairing.qr} alt={t.phonePair} width={232} height={232} />
+            <span className="cfg-faz">{t.phonePairTyped}</span>
+            <span className="celular-codigo">{pairing.code}</span>
             <span className="cfg-faz">{t.phonePairExpires.replace('{t}', countdown(left))}</span>
           </div>
         ) : (
@@ -162,7 +166,7 @@ export function PhonePanel() {
               <li key={device.id}>
                 <span>
                   <b>{device.name}</b>
-                  <small>{[t.phonePaired.replace('{d}', new Date(device.created_ms).toLocaleDateString()), t.phoneSeen.replace('{t}', ago(device.seen_ms, now))].join(' · ')}</small>
+                  <small title={t.phonePaired.replace('{d}', shortDate(device.created_ms))}>{[t.phoneSeen.replace('{t}', ago(device.seen_ms, now)), device.notifies ? t.phoneNotifies : ''].filter(Boolean).join(' · ')}</small>
                 </span>
                 <button
                   type="button"

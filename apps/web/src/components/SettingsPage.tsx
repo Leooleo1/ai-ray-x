@@ -8,6 +8,7 @@ import { TourDialog } from '../tour/TourDialog'
 import { BotsPanel } from './settings/BotsPanel'
 import { ConnectionTile, GitHubTile } from './settings/ConnectionTile'
 import { type SetupStep, SetupHero, type StepId } from './settings/SetupHero'
+import { DevicePanel } from './settings/DevicePanel'
 import { PhonePanel } from './settings/PhonePanel'
 import { WiresPanel } from './settings/WiresPanel'
 import './settings-page.css'
@@ -88,8 +89,8 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     { id: 'conexoes', label: t.tabConnections, count: settings ? aisOn : null },
     { id: 'bots', label: t.tabBots, count: projects },
     { id: 'fios', label: t.tabWires, count: links },
-    // Pairing and the tunnel are managed on this machine only.
-    ...(IS_REMOTE ? [] : [{ id: 'celular' as const, label: t.tabPhone, count: null }]),
+    // On the computer: the tunnel and pairing; on a paired device: this device (install, notifications).
+    { id: 'celular', label: t.tabPhone, count: null },
   ]
   const first = bots.state.bots[0]
   const face = first ? faceForBot(first) : faceOf(PRESETS[0].shape, PRESETS[0].color, PRESETS[0].name)
@@ -138,7 +139,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
         )}
         {tab === 'bots' && <BotsPanel bots={bots} onOpenBot={onOpenBot} onAddBot={onAddBot} />}
         {tab === 'fios' && <WiresPanel bots={bots} />}
-        {tab === 'celular' && !IS_REMOTE && <PhonePanel />}
+        {tab === 'celular' && (IS_REMOTE ? <DevicePanel /> : <PhonePanel />)}
         {(error ?? bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
       </div>
       {touring && <TourDialog face={face} agent={AGENT_LABEL[first?.agent ?? 'claude']} onClose={() => setTouring(false)} />}

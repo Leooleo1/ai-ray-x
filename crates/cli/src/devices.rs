@@ -25,6 +25,17 @@ const FAIL_WINDOW_MS: i64 = 60 * 1000;
 /// How often a device's last visit is written (the panel asks every few seconds).
 const SEEN_EVERY_MS: i64 = 60 * 1000;
 const MAX_DEVICES: usize = 20;
+/// Pairing codes: letters and digits that cannot be mistaken for one another, ten of them (about 49 bits).
+const CODE_LETTERS: &[u8] = b"ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const CODE_LENGTH: usize = 10;
+
+/// Where a paired device receives notifications (its browser's Web Push subscription).
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub struct Subscription {
+    pub endpoint: String,
+    pub p256dh: String,
+    pub auth: String,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Device {
@@ -34,6 +45,8 @@ struct Device {
     hash: String,
     created_ms: i64,
     seen_ms: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    push: Option<Subscription>,
 }
 
 /// Codes shown and not used yet: their hash and when they expire.
@@ -69,9 +82,17 @@ fn save(state_dir: &Path, devices: &[Device]) -> Result<()> {
     Ok(())
 }
 
-/// A new pairing code and when it expires. Only this machine's panel asks for one.
+/// A code as the person may type it: case and separators do not matter.
+fn normalize(code: &str) -> String {
+    code.chars().filter(char::is_ascii_alphanumeric).map(|c| c.to_ascii_uppercase()).collect()
+}
+
+/// A new pairing code (short enough to type) and when it expires. Only this machine's panel asks for one.
 pub fn new_code() -> Result<(String, i64)> {
-    let code = random_hex(16)?;
+    let mut buffer = [0u8; CODE_LENGTH];
+    SystemRandom::new().fill(&mut buffer).map_err(|_| anyhow::anyhow!("no secure randomness available"))?;
+    // 256 is not a multiple of the 31 letters; the slight bias costs well under a bit.
+    let code: String = buffer.iter().map(|b| CODE_LETTERS[usize::from(*b) % CODE_LETTERS.len()] as char).collect();
     let expires = room::now_ms() + CODE_TTL_MS;
     let mut codes = guard(&CODES);
     codes.retain(|(_, until)| *until > room::now_ms());
@@ -106,7 +127,7 @@ pub fn pair(state_dir: &Path, code: &str, name: &str) -> Result<String> {
         }
         let mut codes = guard(&CODES);
         codes.retain(|(_, until)| *until > now);
-        let given = hash(code.trim());
+        let given = hash(&normalize(code));
         let Some(index) = codes.iter().position(|(stored, _)| crate::serve::constant_time_eq(stored.as_bytes(), given.as_bytes())) else {
             fails.push(now);
             bail!("this code is not valid (it lasts five minutes and works once); scan a new QR");
@@ -119,7 +140,7 @@ pub fn pair(state_dir: &Path, code: &str, name: &str) -> Result<String> {
     }
     let token = random_hex(32)?;
     let name: String = name.chars().filter(|c| !c.is_control()).take(40).collect();
-    devices.push(Device { id: random_hex(4)?, name, hash: hash(&token), created_ms: now, seen_ms: now });
+    devices.push(Device { id: random_hex(4)?, name, hash: hash(&token), created_ms: now, seen_ms: now, push: None });
     save(state_dir, &devices)?;
     Ok(token)
 }
@@ -139,7 +160,30 @@ pub fn check(state_dir: &Path, token: &str) -> Option<String> {
 
 /// The paired devices as the panel lists them (never their hashes).
 pub fn list(state_dir: &Path) -> Vec<Value> {
-    load(state_dir).into_iter().map(|d| json!({ "id": d.id, "name": d.name, "created_ms": d.created_ms, "seen_ms": d.seen_ms })).collect()
+    load(state_dir).into_iter().map(|d| json!({ "id": d.id, "name": d.name, "created_ms": d.created_ms, "seen_ms": d.seen_ms, "notifies": d.push.is_some() })).collect()
+}
+
+/// Sets (or clears) where a device receives notifications.
+pub fn set_push(state_dir: &Path, id: &str, push: Option<Subscription>) -> Result<()> {
+    let devices: Vec<Device> = load(state_dir).into_iter().map(|d| if d.id == id { Device { push: push.clone(), ..d } } else { d }).collect();
+    save(state_dir, &devices)
+}
+
+/// A device's notification subscription, if it has one.
+pub fn push_of(state_dir: &Path, id: &str) -> Option<Subscription> {
+    load(state_dir).into_iter().find(|d| d.id == id).and_then(|d| d.push)
+}
+
+/// Every device that receives notifications, with its subscription.
+pub fn pushes(state_dir: &Path) -> Vec<(String, Subscription)> {
+    load(state_dir).into_iter().filter_map(|d| d.push.map(|push| (d.id, push))).collect()
+}
+
+/// Drops a subscription the push service no longer knows, if it is still the device's.
+pub fn drop_push(state_dir: &Path, id: &str, gone: &Subscription) {
+    if push_of(state_dir, id).as_ref() == Some(gone) {
+        let _ = set_push(state_dir, id, None);
+    }
 }
 
 pub fn remove(state_dir: &Path, id: &str) -> Result<()> {
@@ -166,7 +210,9 @@ mod tests {
     fn a_code_pairs_one_device_once() {
         let dir = folder("once");
         let (code, _) = new_code().unwrap();
-        let token = pair(&dir, &code, "iPhone · Safari").unwrap();
+        assert_eq!(code.len(), CODE_LENGTH);
+        let typed = format!("{}-{}", code[..5].to_lowercase(), &code[5..]);
+        let token = pair(&dir, &typed, "iPhone · Safari").unwrap();
         assert_eq!(token.len(), 64);
         assert!(pair(&dir, &code, "outro").is_err(), "a code works once");
         let id = check(&dir, &token).expect("the token opens");

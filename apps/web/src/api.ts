@@ -654,6 +654,8 @@ export interface PairedDevice {
   name: string
   created_ms: number
   seen_ms: number
+  /** Whether it receives notifications. */
+  notifies: boolean
 }
 
 export interface RemoteState {
@@ -673,6 +675,8 @@ export interface RemoteState {
 /** A one-time pairing link and its QR code (an SVG data URL). */
 export interface Pairing {
   url: string
+  /** The same code, to type on the device (XXXXX-XXXXX). */
+  code: string
   qr: string
   expires_ms: number
 }
@@ -691,6 +695,28 @@ export function newPairing(): Promise<Pairing> {
 
 export function forgetDevice(id: string): Promise<RemoteState> {
   return request<RemoteState>('/api/remote/forget', { id })
+}
+
+/** Notifications on this paired device: raiox's public key to subscribe with, and whether they are on. */
+export interface PushState {
+  public_key: string
+  on: boolean
+}
+
+export function fetchPush(): Promise<PushState> {
+  return request<PushState>('/api/push')
+}
+
+export function subscribePush(subscription: PushSubscriptionJSON): Promise<PushState> {
+  return request<PushState>('/api/push/subscribe', { ...subscription })
+}
+
+export function unsubscribePush(): Promise<PushState> {
+  return request<PushState>('/api/push/unsubscribe', {})
+}
+
+export function testPush(): Promise<PushState> {
+  return request<PushState>('/api/push/test', {})
 }
 
 export function botMemories(id: string): Promise<Memories> {

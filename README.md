@@ -147,11 +147,19 @@ Settings › Phone opens the panel to your phone through
   address, your team domain (`yourteam.cloudflareaccess.com`) and the AUD.
 
 Either way, only devices you pair get in: Settings › Phone shows a QR code
-that lasts five minutes and works once. The device trades it for a token of
+(and the same code to type, for an app opened from the home screen) that
+lasts five minutes and works once. The device trades it for a token of
 its own (raiox keeps only its hash), and Remove ends its access at once. A
 paired device can read the panel, chat, approve and take screenshots; managing
 the phone access, changing the setup or the CLIs, starting a dev server and
 always-allowing a command stay on the computer.
+
+On the phone, add raiox to the home screen to open it as an app. Its Settings ›
+Phone turns on notifications: a short note when an AI finishes, with what it
+needs from you. They use Web Push: raiox signs each request with its own key
+and encrypts each note for the device, so the push service (Apple's, Google's,
+Mozilla's or Microsoft's) only carries it. On iPhone, notifications need raiox
+on the home screen.
 
 ## Command line
 

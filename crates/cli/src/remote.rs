@@ -39,8 +39,11 @@ pub fn gate(state_dir: &Path, request: &mut Request, path: &str) -> Option<Reply
     if path == "/api/pair" {
         return Some(pair(state_dir, request));
     }
-    if bearer(request).and_then(|token| devices::check(state_dir, token)).is_none() {
+    let Some(device) = bearer(request).and_then(|token| devices::check(state_dir, token)) else {
         return Some(text(401, "this device is not paired"));
+    };
+    if path.starts_with("/api/push") {
+        return Some(push_route(state_dir, request, path, &device));
     }
     if desk_only(request.method(), path) {
         return Some(text(403, "only on the computer"));
@@ -59,6 +62,21 @@ fn pair(state_dir: &Path, request: &mut Request) -> Reply {
     }
 }
 
+/// Notifications for the device asking: its state, turning them on and off, a test note.
+fn push_route(state_dir: &Path, request: &mut Request, path: &str, device: &str) -> Reply {
+    let state = || -> anyhow::Result<Value> { Ok(json!({ "public_key": crate::push::public_key(state_dir)?, "on": devices::push_of(state_dir, device).is_some() })) };
+    match (request.method().clone(), path) {
+        (Method::Get, "/api/push") => respond(state()),
+        (Method::Post, "/api/push/subscribe") => match body(request) {
+            Ok(input) => respond(crate::push::subscription(&input).and_then(|push| devices::set_push(state_dir, device, Some(push))).and_then(|()| state())),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/push/unsubscribe") => respond(devices::set_push(state_dir, device, None).and_then(|()| state())),
+        (Method::Post, "/api/push/test") => respond(crate::push::test(state_dir, device).and_then(|()| state())),
+        _ => text(404, "not found"),
+    }
+}
+
 fn state(state_dir: &Path) -> anyhow::Result<Value> {
     Ok(json!({ "tunnel": tunnel::status(state_dir), "devices": devices::list(state_dir) }))
 }
@@ -68,9 +86,11 @@ fn new_pairing(state_dir: &Path) -> anyhow::Result<Value> {
     let host = tunnel::public_host(state_dir).ok_or_else(|| anyhow::anyhow!("turn the phone access on first"))?;
     let (code, expires_ms) = devices::new_code()?;
     let url = format!("https://{host}/#pair={code}");
+    let typed = format!("{}-{}", &code[..5], &code[5..]);
     let image = QrCode::new(url.as_bytes()).map_err(|error| anyhow::anyhow!("could not draw the QR code: {error:?}"))?.render::<svg::Color>().min_dimensions(232, 232).dark_color(svg::Color("#0b0b0e")).light_color(svg::Color("#ffffff")).build();
     Ok(json!({
         "url": url,
+        "code": typed,
         "qr": format!("data:image/svg+xml;base64,{}", base64::engine::general_purpose::STANDARD.encode(image)),
         "expires_ms": expires_ms,
     }))

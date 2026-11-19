@@ -2087,3 +2087,36 @@ body {
   font-size: 14px;
   line-height: 20px;
 }
+
+.parear form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.parear input {
+  width: 168px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--giz);
+  font: 15px/20px var(--mono);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.parear .cheio {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 14px/18px var(--sans);
+}
+
+.parear .cheio:disabled {
+  opacity: 0.45;
+}

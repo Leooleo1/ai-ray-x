@@ -29,6 +29,7 @@ mod room;
 mod routines;
 mod mcp;
 mod print;
+mod push;
 mod remote;
 mod serve;
 mod settings;
