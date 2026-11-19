@@ -180,16 +180,18 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
               {/* Each part stays whole ("12 s", "62 mil tokens"); the line breaks only between parts. */}
-              {[clock(message.ms), ...meta].filter(Boolean).map((part) => part.replace(/ /g, '\u00a0')).join(' · ')}
-              <CopyButton text={reply.text} />
-              <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
-                {pinned ? t.pinned : t.pin}
-              </button>
-              {message.kind === 'answer' && (
-                <button type="button" className={`copiar ${remembered ? 'fixada' : ''}`} disabled={remembered} onClick={onRemember}>
-                  {remembered ? t.remembered : t.remember}
+              <span className="bot-meta-texto">{[clock(message.ms), ...meta].filter(Boolean).map((part) => part.replace(/ /g, '\u00a0')).join(' · ')}</span>
+              <span className="bot-meta-acoes">
+                <CopyButton text={reply.text} />
+                <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
+                  {pinned ? t.pinned : t.pin}
                 </button>
-              )}
+                {message.kind === 'answer' && (
+                  <button type="button" className={`copiar ${remembered ? 'fixada' : ''}`} disabled={remembered} onClick={onRemember}>
+                    {remembered ? t.remembered : t.remember}
+                  </button>
+                )}
+              </span>
             </span>
           )}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}

@@ -133,15 +133,49 @@ fn usage(store: &Store, source: &str) -> (u64, u64) {
         .unwrap_or((0, 0))
 }
 
+/// What running a CLI tells: its version, and whether (and how) it is signed in.
+#[derive(Default)]
+pub struct Probe {
+    version: Option<String>,
+    sign_in: (Option<bool>, Option<String>, Option<String>),
+}
+
+/// Every known CLI's version and sign-in, checked all at once (some take most of a second each).
+pub fn probe_all(home: &Path) -> Vec<Probe> {
+    std::thread::scope(|scope| {
+        let checks: Vec<_> = KNOWN
+            .iter()
+            .map(|k| {
+                scope.spawn(move || {
+                    let version = version(k.binary);
+                    let sign_in = if version.is_some() { sign_in(k.id, home) } else { (Some(false), None, None) };
+                    Probe { version, sign_in }
+                })
+            })
+            .collect();
+        checks.into_iter().map(|check| check.join().unwrap_or_default()).collect()
+    })
+}
+
+/// Sessions and requests of each known CLI in the index (fast; needs the store).
+pub fn usage_all(store: &Store) -> Vec<(u64, u64)> {
+    KNOWN.iter().map(|k| if k.xray { usage(store, k.id) } else { (0, 0) }).collect()
+}
+
 /// Every known CLI, probed now.
 pub fn detect(store: &Store, home: &Path, settings: &Settings) -> Vec<Status> {
+    statuses(probe_all(home), &usage_all(store), settings)
+}
+
+/// The probes, the usage and the person's choices, as the settings page shows each CLI.
+pub fn statuses(probes: Vec<Probe>, usage: &[(u64, u64)], settings: &Settings) -> Vec<Status> {
     KNOWN
         .iter()
-        .map(|k| {
-            let version = version(k.binary);
+        .zip(probes)
+        .zip(usage)
+        .map(|((k, probe), &(sessions, requests))| {
+            let Probe { version, sign_in: (logged_in, method, plan) } = probe;
             let installed = version.is_some();
-            let (logged_in, method, plan) = if installed { sign_in(k.id, home) } else { (Some(false), None, None) };
-            let (sessions, requests) = if k.xray { usage(store, k.id) } else { (0, 0) };
             Status {
                 id: k.id,
                 name: k.name,

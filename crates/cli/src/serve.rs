@@ -22,6 +22,13 @@ const MAX_BODY: u64 = 32 * 1024;
 
 pub(crate) type Reply = Response<Cursor<Vec<u8>>>;
 
+/// A request answered now, or slow work that touches nothing of the panel, answered from its own
+/// thread so the rest of the panel (chats, polls) does not wait behind it.
+enum Answer {
+    Now(Reply),
+    Later(Box<dyn FnOnce() -> Reply + Send>),
+}
+
 const SECURITY_HEADERS: [(&str, &str); 5] = [
     (
         "Content-Security-Policy",
@@ -69,14 +76,22 @@ pub fn run(mut panel: Panel, port: u16, open_browser: bool) -> Result<()> {
     // Phone access opens again if the person left it on.
     crate::tunnel::resume(&panel.state_dir, port);
     for mut request in server.incoming_requests() {
-        let reply = route(&mut panel, &mut request, &token, &hosts, port);
         // The browser may have gone away; nothing to do about it.
-        let _ = request.respond(reply);
+        match route(&mut panel, &mut request, &token, &hosts, port) {
+            Answer::Now(reply) => {
+                let _ = request.respond(reply);
+            }
+            Answer::Later(work) => {
+                std::thread::spawn(move || {
+                    let _ = request.respond(work());
+                });
+            }
+        }
     }
     Ok(())
 }
 
-fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String], port: u16) -> Reply {
+fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String], port: u16) -> Answer {
     let host = header(request, "Host").unwrap_or("");
     // This machine by 127.0.0.1/localhost, or a paired device by the tunnel's public address; nothing else.
     let remote = if hosts.iter().any(|h| h == host) {
@@ -84,15 +99,31 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
     } else if crate::tunnel::public_host(&panel.state_dir).is_some_and(|public| public == host) {
         true
     } else {
-        return text(403, "forbidden host");
+        return Answer::Now(text(403, "forbidden host"));
     };
     let path = request.url().split(['?', '#']).next().unwrap_or("/").to_string();
     let path = path.as_str();
     if remote && let Some(reply) = crate::remote::gate(&panel.state_dir, request, path) {
-        return reply;
+        return Answer::Now(reply);
     }
+    if path.starts_with("/api/") && !remote && !authorized(request, token) {
+        return Answer::Now(text(401, "missing or wrong session token"));
+    }
+    match (request.method().clone(), path) {
+        (Method::Get, "/api/settings") => Answer::Later(settings_later(panel)),
+        (Method::Post, "/api/settings") => match body(request).map(|input| crate::settings::update(&panel.state_dir, &input)) {
+            Ok(Ok(_)) => Answer::Later(settings_later(panel)),
+            Ok(Err(error)) => Answer::Now(respond(Err(error))),
+            Err(reply) => Answer::Now(reply),
+        },
+        (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        _ => Answer::Now(dispatch(panel, request, path, port)),
+    }
+}
+
+/// The requests answered on the panel's own thread (they read or change its state).
+fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16) -> Reply {
     match (request.method(), path) {
-        (_, p) if p.starts_with("/api/") && !remote && !authorized(request, token) => text(401, "missing or wrong session token"),
         (_, p) if p.starts_with("/api/remote") => crate::remote::desk(&panel.state_dir, request, p, port),
         (Method::Get, "/api/report") => respond(report(panel)),
         (Method::Post, "/api/apply") => match body(request) {
@@ -135,17 +166,11 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => reply,
         },
         (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
-        (Method::Get, "/api/setup/github") => respond(Ok(setup::github())),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(
                 setup::clone(&panel.store, &panel.roots.home, &panel.clones, input.get("repo").and_then(Value::as_str).unwrap_or(""))
                     .and_then(|()| setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
             ),
-            Err(reply) => reply,
-        },
-        (Method::Get, "/api/settings") => respond(settings_state(panel)),
-        (Method::Post, "/api/settings") => match body(request) {
-            Ok(input) => respond(crate::settings::update(&panel.state_dir, &input).and_then(|_| settings_state(panel))),
             Err(reply) => reply,
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
@@ -305,13 +330,17 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
 }
 
-/// The settings page: every known CLI probed now, and the person's choices.
-fn settings_state(panel: &Panel) -> anyhow::Result<Value> {
+/// The settings page: every known CLI probed now (off the panel's thread), and the person's choices.
+fn settings_later(panel: &Panel) -> Box<dyn FnOnce() -> Reply + Send> {
+    let usage = crate::connections::usage_all(&panel.store);
     let settings = crate::settings::Settings::load(&panel.state_dir);
-    Ok(json!({
-        "connections": crate::connections::detect(&panel.store, &panel.roots.home, &settings),
-        "defaults": settings.defaults,
-    }))
+    let home = panel.roots.home.clone();
+    Box::new(move || {
+        respond(Ok(json!({
+            "connections": crate::connections::statuses(crate::connections::probe_all(&home), &usage, &settings),
+            "defaults": settings.defaults,
+        })))
+    })
 }
 
 pub(crate) fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {

@@ -103,10 +103,22 @@
 }
 
 /* Copy shows on hover and on keyboard focus, never moving the line. */
+/* The answer's numbers keep the line; its actions go under them when the width runs out. */
 .bot-meta {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 2px 10px;
   align-items: center;
+}
+
+.bot-meta-texto {
+  min-width: 0;
+}
+
+.bot-meta-acoes {
+  display: inline-flex;
+  gap: 10px;
+  white-space: nowrap;
 }
 
 .copiar {
@@ -119,6 +131,13 @@
 .linha:hover .copiar,
 .copiar:focus-visible {
   opacity: 1;
+}
+
+/* Touch screens have no hover: the actions show. */
+@media (hover: none) {
+  .copiar {
+    opacity: 1;
+  }
 }
 
 /* Read further up and something new came: a pill to the end. */
