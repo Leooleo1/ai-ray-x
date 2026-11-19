@@ -13,6 +13,7 @@ pub mod scan;
 pub mod secrets;
 pub mod sources;
 pub mod store;
+pub mod week;
 mod util;
 
 pub use scan::{Roots, ScanStats, refresh};

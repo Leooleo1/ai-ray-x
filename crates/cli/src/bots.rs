@@ -635,6 +635,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "model": bot.model,
                 "effort": bot.effort,
                 "allowed": bot.allowed,
+                "week": crate::room::week_of(store, home, &bot.dir),
                 "talk_model": bot.talk_model,
                 "reviewer": bot.reviewer,
                 "budget": { "limit": crate::budget::limit(state_dir, &bot.name), "used": crate::budget::used_today(state_dir, &bot.name), "choices": crate::budget::CHOICES },

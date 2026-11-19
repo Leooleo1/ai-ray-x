@@ -192,6 +192,17 @@ fn walk(dir: &Path, gitignore: bool) -> Result<Vec<String>> {
     Ok(found)
 }
 
+/// The project's files as they are now, hashed from their paths, sizes and times (the same files a
+/// draft copy would take): equal fingerprints mean nothing changed.
+pub fn fingerprint(project: &Path) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for rel in walk(project, true).ok()? {
+        (rel.as_str(), stamp(&project.join(&rel))).hash(&mut hasher);
+    }
+    Some(hasher.finish())
+}
+
 /// Copies the project into the bot's working copy, replacing what an earlier edit left there.
 pub fn prepare(state_dir: &Path, home: &Path, bot: &str, project: &Path) -> Result<Workspace> {
     let rel = relative(project, home);
@@ -545,6 +556,20 @@ mod tests {
         undo(&state, "b1", &id).unwrap();
         assert_eq!(fs::read_to_string(project.join("src/a.ts")).unwrap(), "export const a = 1\n");
         assert!(!project.join("src/b.ts").exists() && project.join("old.txt").exists());
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn the_fingerprint_changes_only_when_a_file_does() {
+        let home = scratch("print");
+        let project = project(&home);
+        let first = fingerprint(&project).unwrap();
+        assert_eq!(fingerprint(&project), Some(first));
+        // Ignored folders do not count.
+        fs::write(project.join("scratch/notes.txt"), "changed\n").unwrap();
+        assert_eq!(fingerprint(&project), Some(first));
+        fs::write(project.join("src/a.ts"), "export const a = 10\n").unwrap();
+        assert_ne!(fingerprint(&project), Some(first));
         let _ = fs::remove_dir_all(&home);
     }
 

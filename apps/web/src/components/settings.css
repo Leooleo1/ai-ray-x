@@ -370,3 +370,28 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* A routine's mode: always, or only when the project changed. */
+.rotina-modo {
+  flex: none;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--nevoa);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rotina-modo[aria-pressed='true'] {
+  color: var(--giz);
+}
+
+.rotina-mudou {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}

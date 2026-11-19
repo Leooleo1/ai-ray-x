@@ -184,7 +184,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             message.kind === 'review' || message.kind === 'review_asked' ? (
               <ReviewLine key={`${message.ms}-${index}`} message={message} reviewer={bots.state.bots.find((b) => b.id === message.data.reviewer)} />
             ) : isHouse(message.author) ? (
-              <HouseLine key={`${message.ms}-${index}`} bot={bot} message={message} messages={messages} report={report} onChanged={onChanged} />
+              <HouseLine key={`${message.ms}-${index}`} bot={bot} bots={bots} message={message} messages={messages} report={report} onChanged={onChanged} />
             ) : (
             <BotLine
               key={`${message.ms}-${index}`}

@@ -27,8 +27,31 @@ export function houseAsk(agent: AgentId): string {
   return pt ? ptText : enText
 }
 
+interface WeekData {
+  this: number
+  last: number
+  top: { tool: string; tokens: number } | null
+}
+
+/** The week against the one before, and what weighed most, in one or two sentences. */
+function weekLine(week: WeekData | undefined): string {
+  if (!week || (week.this === 0 && week.last === 0)) return ''
+  const ratio = week.last > 0 ? week.this / week.last : 0
+  const versus =
+    week.last === 0
+      ? ''
+      : ratio >= 1.5
+        ? pt ? `, ${ratio.toFixed(1).replace('.', ',')}× a anterior (${compact(week.last)})` : `, ${ratio.toFixed(1)}× the week before (${compact(week.last)})`
+        : ratio <= 0.67
+          ? pt ? `, ${percent(1 - ratio)} menos que a anterior (${compact(week.last)})` : `, ${percent(1 - ratio)} less than the week before (${compact(week.last)})`
+          : pt ? `, parecido com a anterior (${compact(week.last)})` : `, close to the week before (${compact(week.last)})`
+  const top = week.top ? (pt ? ` Maior peso: saídas do ${week.top.tool}, ~${compact(week.top.tokens)} relidos.` : ` Heaviest: ${week.top.tool} output, ~${compact(week.top.tokens)} re-read.`) : ''
+  return pt ? ` Na semana: ${compact(week.this)} tokens${versus}.${top}` : ` This week: ${compact(week.this)} tokens${versus}.${top}`
+}
+
 function raio(d: Data): string {
-  if (!d.found) return pt ? 'Ainda não achei nenhuma sessão do Claude Code neste projeto.' : 'No Claude Code session in this project yet.'
+  const week = weekLine(d.week as WeekData | undefined)
+  if (!d.found) return (pt ? 'Ainda não achei nenhuma sessão do Claude Code neste projeto.' : 'No Claude Code session in this project yet.') + week
   const ctx = num(d, 'context_tokens')
   const top = (d.top as { name: string; tokens: number }[] | undefined) ?? []
   const named: Record<string, string> = { 'your prompts': t.yourPrompts, 'injected text': t.injected }
@@ -37,9 +60,10 @@ function raio(d: Data): string {
     ctx >= HEAVY
       ? pt ? 'Passou de 400 mil: feche o passo atual e rode /compact.' : 'Over 400K: finish the current step and run /compact.'
       : pt ? 'Está leve, pode seguir.' : 'Light enough, carry on.'
-  return pt
+  const report = pt
     ? `Laudo da última sessão neste projeto: ${compact(ctx)} de contexto, ${compact(num(d, 'startup_tokens'))} vieram da partida, ${num(d, 'requests')} pedidos desde a última compactação. Mais pesado: ${heavy}. ${verdict}`
     : `Report on this project's latest session: ${compact(ctx)} of context, ${compact(num(d, 'startup_tokens'))} from startup, ${num(d, 'requests')} requests since the last compaction. Heaviest: ${heavy}. ${verdict}`
+  return report + week
 }
 
 function dieta(d: Data): string {

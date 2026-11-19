@@ -9,7 +9,7 @@ use std::process::Command;
 
 use anyhow::{bail, Result};
 use raiox_core::outcome::{self, Outcome};
-use raiox_core::{advice, apply, efficiency, Roots, Store};
+use raiox_core::{advice, apply, efficiency, week, Roots, Store};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -137,15 +137,35 @@ pub fn ask(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path, a
     Ok(new)
 }
 
+/// How long a project's week is reused before it is read again from the index.
+const WEEK_TTL_MS: i64 = 10 * 60_000;
+static WEEKS: std::sync::Mutex<Vec<(String, i64, week::Week)>> = std::sync::Mutex::new(Vec::new());
+
+/// A project's week for Raio's report and tips, read from the index at most every ten minutes.
+pub fn week_of(store: &Store, home: &Path, project_dir: &Path) -> Option<week::Week> {
+    let project = raiox_core::project_label(project_dir, home);
+    let now = now_ms();
+    let mut cache = WEEKS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((_, _, cached)) = cache.iter().find(|(p, at, _)| *p == project && now - at < WEEK_TTL_MS) {
+        return Some(cached.clone());
+    }
+    let fresh = week::week(store.conn(), &project, now).ok()?;
+    cache.retain(|(p, _, _)| *p != project);
+    cache.push((project, now, fresh.clone()));
+    Some(fresh)
+}
+
 fn raio(store: &Store, roots: &Roots, project_dir: &Path) -> Result<Value> {
+    let week = week_of(store, &roots.home, project_dir);
     let Some(session) = current_session(store, roots, project_dir) else {
-        return Ok(json!({ "found": false }));
+        return Ok(json!({ "found": false, "week": week }));
     };
     let Some(status) = advice::context_status(store.conn(), Some(&session))? else {
-        return Ok(json!({ "found": false }));
+        return Ok(json!({ "found": false, "week": week }));
     };
     Ok(json!({
         "found": true,
+        "week": week,
         "context_tokens": status.context_tokens,
         "startup_tokens": status.startup_tokens,
         "requests": status.requests_since_compaction,
@@ -218,7 +238,62 @@ fn memo(store: &Store, roots: &Roots, state_dir: &Path, project_dir: &Path) -> R
             "kept_now": kept_now,
         }));
     }
-    Ok(json!({ "lessons": lessons, "ai_memory": ai_memory_state(project_dir), "min_requests": outcome::MIN_REQUESTS, "min_sessions": outcome::MIN_SESSIONS }))
+    Ok(json!({
+        "lessons": lessons,
+        "ai_memory": ai_memory_state(project_dir),
+        "care": care(project_dir),
+        "min_requests": outcome::MIN_REQUESTS,
+        "min_sessions": outcome::MIN_SESSIONS,
+    }))
+}
+
+/// A durable page untouched this long is worth a look.
+const STALE_DAYS: i64 = 120;
+
+/// Memo's look at the project's durable pages in ai-memory: titles repeated across pages, and
+/// pages untouched for months. Session transcripts are left out: ai-memory prunes those itself.
+pub fn care(project_dir: &Path) -> Vec<Value> {
+    let pages = crate::bot_mail::pages(project_dir).ok().flatten().unwrap_or_default();
+    durable_findings(&pages, chrono::Utc::now())
+}
+
+fn durable_findings(pages: &[Value], now: chrono::DateTime<chrono::Utc>) -> Vec<Value> {
+    let durable: Vec<&Value> = pages
+        .iter()
+        .filter(|p| p["path"].as_str().is_some_and(|path| !path.starts_with("sessions/") && path != crate::team::PAGE))
+        .collect();
+    let mut by_title: std::collections::BTreeMap<String, Vec<&str>> = std::collections::BTreeMap::new();
+    for page in &durable {
+        let title = page["title"].as_str().unwrap_or("").trim().to_lowercase();
+        if !title.is_empty() {
+            by_title.entry(title).or_default().push(page["path"].as_str().unwrap_or(""));
+        }
+    }
+    let mut findings: Vec<Value> =
+        by_title.into_iter().filter(|(_, paths)| paths.len() > 1).map(|(title, paths)| json!({ "kind": "duplicate", "message": title, "pages": paths })).collect();
+    let limit = now - chrono::Duration::days(STALE_DAYS);
+    let stale: Vec<&str> = durable
+        .iter()
+        .filter(|p| p["updated_at"].as_str().and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).is_some_and(|at| at < limit))
+        .filter_map(|p| p["path"].as_str())
+        .collect();
+    if !stale.is_empty() {
+        findings.push(json!({ "kind": "stale", "message": null, "pages": stale }));
+    }
+    findings
+}
+
+/// Deletes one durable page Memo pointed to in the project's ai-memory (only those it pointed to).
+pub fn forget(project_dir: &Path, path: &str) -> Result<()> {
+    let listed = care(project_dir).iter().any(|f| f["pages"].as_array().is_some_and(|pages| pages.iter().any(|p| p.as_str() == Some(path))));
+    if !listed {
+        bail!("Memo only deletes pages it pointed to as repeated or stale");
+    }
+    let output = Command::new("ai-memory").args(["delete-page", "--path", path]).current_dir(project_dir).output()?;
+    if !output.status.success() {
+        bail!("ai-memory delete-page failed: {}", String::from_utf8_lossy(&output.stderr).lines().last().unwrap_or(""));
+    }
+    Ok(())
 }
 
 /// Whether ai-memory knows this project, asked through its own CLI.
@@ -228,5 +303,28 @@ fn ai_memory_state(project_dir: &Path) -> &'static str {
         Ok(out) if out.status.success() => "known",
         Ok(out) if String::from_utf8_lossy(&out.stderr).contains("not found") => "new_project",
         Ok(_) => "unreachable",
+    }
+}
+
+#[cfg(test)]
+mod care_tests {
+    use super::*;
+
+    #[test]
+    fn memo_looks_only_at_durable_pages() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-11-19T12:00:00Z").unwrap().to_utc();
+        let page = |path: &str, title: &str, at: &str| json!({ "path": path, "title": title, "updated_at": at });
+        let pages = vec![
+            page("sessions/a.md", "pre-tool-use", "2026-11-18T10:00:00Z"),
+            page("sessions/b.md", "pre-tool-use", "2026-11-18T10:00:00Z"),
+            page("notas/a.md", "Convenção de testes", "2026-11-18T10:00:00Z"),
+            page("notas/b.md", "convenção de testes ", "2026-11-18T10:00:00Z"),
+            page("notas/velha.md", "Deploy antigo", "2026-05-01T10:00:00Z"),
+            page("raiox/equipe.md", "Equipe", "2026-01-01T10:00:00Z"),
+        ];
+        let found = durable_findings(&pages, now);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found[0]["pages"], json!(["notas/a.md", "notas/b.md"]));
+        assert_eq!((found[1]["kind"].as_str(), &found[1]["pages"]), (Some("stale"), &json!(["notas/velha.md"])));
     }
 }

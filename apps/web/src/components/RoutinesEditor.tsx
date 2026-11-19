@@ -35,10 +35,12 @@ export function RoutinesEditor({ bot, bots }: RoutinesEditorProps) {
   const [text, setText] = useState('')
   const [days, setDays] = useState<number[]>(WORKDAYS)
   const [time, setTime] = useState('09:00')
+  // New routines skip days when nothing in the project changed.
+  const [onlyIfChanged, setOnlyIfChanged] = useState(true)
   const toggleDay = (d: number) => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort())
   const create = async () => {
     const [hour, minute] = time.split(':').map(Number)
-    const done = await bots.act('routine_new', { id: bot.id, text, days, hour, minute })
+    const done = await bots.act('routine_new', { id: bot.id, text, days, hour, minute, only_if_changed: onlyIfChanged })
     if (done) setText('')
   }
   return (
@@ -48,13 +50,23 @@ export function RoutinesEditor({ bot, bots }: RoutinesEditorProps) {
         <ul className="rotinas-lista">
           {bot.routines.map((r) => {
             const read = lastRead(bot, r)
+            const skipped = r.skipped_ms != null && r.skipped_ms === r.last_ms
             const last = r.last_ms ? new Date(r.last_ms).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : t.neverRan
             return (
               <li key={r.id}>
                 <span className="rotina-texto">
                   <b>{r.text}</b>
-                  <small>{`${daysLabel(r.days)} · ${two(r.hour)}:${two(r.minute)} · ${t.lastRun} ${last}${read ? ` · ${t.readWord} ${compact(read)}` : ''}`}</small>
+                  <small>{`${daysLabel(r.days)} · ${two(r.hour)}:${two(r.minute)} · ${skipped ? t.skippedNothing : `${t.lastRun} ${last}${read ? ` · ${t.readWord} ${compact(read)}` : ''}`}`}</small>
                 </span>
+                <button
+                  type="button"
+                  className="rotina-modo"
+                  title={t.onlyIfChanged}
+                  aria-pressed={Boolean(r.only_if_changed)}
+                  onClick={() => void bots.act('routine_changed', { id: bot.id, routine: r.id, on: !r.only_if_changed })}
+                >
+                  {r.only_if_changed ? t.routineIfChanged : t.routineAlways}
+                </button>
                 <button
                   type="button"
                   className={`config-chave ${r.enabled ? 'ligada' : ''}`}
@@ -87,6 +99,12 @@ export function RoutinesEditor({ bot, bots }: RoutinesEditorProps) {
         </div>
         <input type="time" className="ajustes-modelo" value={time} aria-label={t.routineTime} onChange={(event) => setTime(event.target.value)} />
       </div>
+      <label className="rotina-mudou">
+        <button type="button" className={`config-chave ${onlyIfChanged ? 'ligada' : ''}`} role="switch" aria-checked={onlyIfChanged} onClick={() => setOnlyIfChanged(!onlyIfChanged)}>
+          <i />
+        </button>
+        <span>{t.onlyIfChanged}</span>
+      </label>
       <span className="acao">
         <button type="button" className="cheio" disabled={!text.trim() || days.length === 0} onClick={() => void create()}>
           {t.createRoutine}

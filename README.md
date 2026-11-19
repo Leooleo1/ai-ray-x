@@ -37,7 +37,9 @@ Code, Codex or Cursor), with the project's context:
   project;
 - every answer shows what it read, and the bar shows each step live
   (reading a file, searching, running a command);
-- parallel conversations, pinned answers, routines on a schedule, one
+- parallel conversations, pinned answers, routines on a schedule (which can
+  skip days when nothing in the project changed, and float their answer as a
+  tip), one
   question to several projects at once with the answers side by side;
 - model and effort per project, optionally a lighter model just for talk
   (changes keep the main one), and a daily token limit per project for its
@@ -48,7 +50,9 @@ plan.
 
 **Raio, Dieta and Memo.** Three house agents inside every project chat. They
 answer from the logs, without AI and at no cost: Raio reports what the session
-carries, Dieta lists the cuts with Apply, Memo says what was kept. They can also
+carries and how the project's week compares with the one before, Dieta lists
+the cuts with Apply, Memo says what was kept and points to ai-memory pages
+with the same title or untouched for months, which you can delete. They can also
 float a tip now and then; each one can be muted.
 
 **ai-memory.** With [ai-memory](https://github.com/akitaonrails/ai-memory)

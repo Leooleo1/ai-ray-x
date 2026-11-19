@@ -1792,3 +1792,73 @@
   color: var(--nevoa);
   font-size: 12px;
 }
+
+/* Memo's look at ai-memory: repeated or stale pages, each deletable after a second click. */
+.cuidado {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 8px;
+}
+
+.cuidado-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.cuidado-tipo {
+  color: var(--alerta);
+  font: 500 11px/14px var(--sans);
+}
+
+.cuidado ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cuidado li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cuidado code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cuidado button,
+.cuidado small {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cuidado button {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cuidado button.confirmar {
+  color: var(--brasa);
+}

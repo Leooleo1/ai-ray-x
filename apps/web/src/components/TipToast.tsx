@@ -48,7 +48,8 @@ export function TipToast({ bots, report, nav, raised }: TipToastProps) {
     const { action } = current
     if (action.kind === 'house') await bots.act('house', { id: action.bot, agent: action.agent })
     if (action.kind === 'new-thread') await bots.act('thread_new', { id: action.bot })
-    nav.openBot(action.bot)
+    if (action.kind === 'message') nav.openMessage(action.bot, action.thread, action.ms)
+    else nav.openBot(action.bot)
   }
   const face = AGENTS[tip.agent]
   const place = raised ? 'elevada' : ''

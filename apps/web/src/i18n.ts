@@ -1,6 +1,17 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  onlyIfChanged: 'Only if the project changed',
+  routineAlways: 'always',
+  routineIfChanged: 'if it changed',
+  skippedNothing: 'skipped: nothing changed',
+  tipWeek: '{project} re-read {x}× more than last week ({this}); the heaviest is {tool} output.',
+  tipRoutine: 'Routine in {project}: {text}',
+  careTitle: 'Pages to look at in ai-memory',
+  careKinds: { duplicate: 'same title', stale: 'untouched for months' } as Record<string, string>,
+  forget: 'Delete',
+  forgetSure: 'Delete for good?',
+  forgotten: 'deleted',
   reviewAsk: 'Ask {a} to review',
   reviewing: '{a} is reviewing…',
   reviewAsked: 'You asked {a} for a review',
@@ -355,6 +366,17 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  onlyIfChanged: 'Só se o projeto mudou',
+  routineAlways: 'sempre',
+  routineIfChanged: 'se mudou',
+  skippedNothing: 'pulada: nada mudou',
+  tipWeek: '{project} releu {x}× mais que na semana passada ({this}); o maior peso são as saídas do {tool}.',
+  tipRoutine: 'Rotina em {project}: {text}',
+  careTitle: 'Páginas para olhar no ai-memory',
+  careKinds: { duplicate: 'mesmo título', stale: 'paradas há meses' },
+  forget: 'Apagar',
+  forgetSure: 'Apagar de vez?',
+  forgotten: 'apagada',
   reviewAsk: 'Pedir revisão ao {a}',
   reviewing: '{a} está revisando…',
   reviewAsked: 'Você pediu revisão ao {a}',

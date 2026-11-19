@@ -192,6 +192,12 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
         "review" => bots::request_review(state_dir, jobs, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("reviewer")),
         "reviewer" => bots::set_reviewer(state_dir, field("id"), field("reviewer")),
+        "memory_forget" => {
+            let bot = bots::find(state_dir, field("id"))?;
+            crate::room::require_opt_in(state_dir, &bot.dir)?;
+            crate::room::forget(&bot.dir, field("path"))
+        }
+        "routine_changed" => crate::routines::set_only_if_changed(state_dir, field("routine"), input.get("on").and_then(Value::as_bool).unwrap_or(false)),
         "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
         "remember" => bots::remember(state_dir, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0)),
@@ -212,7 +218,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_new" => {
             let days: Vec<u8> = input.get("days").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_u64).map(|d| d.min(255) as u8).collect();
             let number = |name: &str| input.get(name).and_then(Value::as_u64).unwrap_or(99).min(255) as u8;
-            crate::routines::create(state_dir, field("id"), field("text"), &days, number("hour"), number("minute"))
+            crate::routines::create(state_dir, field("id"), field("text"), &days, number("hour"), number("minute"), input.get("only_if_changed").and_then(Value::as_bool).unwrap_or(false))
         }
         "routine_toggle" => crate::routines::set_enabled(state_dir, field("routine"), input.get("enabled").and_then(Value::as_bool).unwrap_or(false)),
         "routine_delete" => crate::routines::delete(state_dir, field("routine")),

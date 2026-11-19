@@ -35,6 +35,15 @@ pub struct Routine {
     pub thread: Option<String>,
     #[serde(default)]
     pub last_ms: Option<i64>,
+    /// Runs only when the project's files changed since its last run.
+    #[serde(default)]
+    pub only_if_changed: bool,
+    /// The project's files at the last run (sizes and times, hashed).
+    #[serde(default)]
+    pub fingerprint: Option<u64>,
+    /// When it last skipped its run because nothing changed.
+    #[serde(default)]
+    pub skipped_ms: Option<i64>,
 }
 
 fn file(state_dir: &Path) -> PathBuf {
@@ -53,7 +62,7 @@ fn save(state_dir: &Path, routines: &[Routine]) -> Result<()> {
     Ok(())
 }
 
-pub fn create(state_dir: &Path, bot: &str, text: &str, days: &[u8], hour: u8, minute: u8) -> Result<()> {
+pub fn create(state_dir: &Path, bot: &str, text: &str, days: &[u8], hour: u8, minute: u8, only_if_changed: bool) -> Result<()> {
     let text = text.trim();
     if text.is_empty() || text.chars().count() > MAX_TEXT {
         bail!("a routine asks 1 to {MAX_TEXT} characters");
@@ -79,6 +88,9 @@ pub fn create(state_dir: &Path, bot: &str, text: &str, days: &[u8], hour: u8, mi
         enabled: true,
         thread: None,
         last_ms: None,
+        only_if_changed,
+        fingerprint: None,
+        skipped_ms: None,
     };
     save(state_dir, &routines.into_iter().chain([routine]).collect::<Vec<_>>())
 }
@@ -93,6 +105,10 @@ fn change(state_dir: &Path, id: &str, edit: impl Fn(Routine) -> Option<Routine>)
 
 pub fn set_enabled(state_dir: &Path, id: &str, enabled: bool) -> Result<()> {
     change(state_dir, id, |r| Some(Routine { enabled, ..r }))
+}
+
+pub fn set_only_if_changed(state_dir: &Path, id: &str, on: bool) -> Result<()> {
+    change(state_dir, id, |r| Some(Routine { only_if_changed: on, ..r }))
 }
 
 pub fn delete(state_dir: &Path, id: &str) -> Result<()> {
@@ -123,6 +139,13 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
         if jobs.is_busy(&routine.bot) {
             continue;
         }
+        // Nothing changed in the project since the last run: skip today, quietly.
+        let fingerprint = bots::find(state_dir, &routine.bot).ok().and_then(|bot| crate::drafts::fingerprint(&bot.dir));
+        if routine.only_if_changed && fingerprint.is_some() && fingerprint == routine.fingerprint {
+            let at = Some(now.timestamp_millis());
+            let _ = change(state_dir, &routine.id, |r| Some(Routine { last_ms: at, skipped_ms: at, ..r }));
+            continue;
+        }
         let thread = match routine.thread.clone().filter(|t| threads::list(state_dir, &routine.bot).iter().any(|x| &x.id == t)) {
             Some(thread) => thread,
             None => match threads::create(state_dir, &routine.bot, &format!("Rotina · {}", routine.text)) {
@@ -134,7 +157,7 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
         let last = Some(now.timestamp_millis());
         let thread_kept = Some(thread);
         // Marked as run even when the ask was refused, so a broken routine does not retry every 30 seconds.
-        let _ = change(state_dir, &routine.id, |r| Some(Routine { last_ms: last, thread: thread_kept.clone(), ..r }));
+        let _ = change(state_dir, &routine.id, |r| Some(Routine { last_ms: last, thread: thread_kept.clone(), fingerprint, ..r }));
     }
 }
 
@@ -151,7 +174,7 @@ mod tests {
     use super::*;
 
     fn routine(days: Vec<u8>, last_ms: Option<i64>) -> Routine {
-        Routine { id: "r".into(), bot: "b".into(), text: "t".into(), days, hour: 9, minute: 0, enabled: true, thread: None, last_ms }
+        Routine { id: "r".into(), bot: "b".into(), text: "t".into(), days, hour: 9, minute: 0, enabled: true, thread: None, last_ms, only_if_changed: false, fingerprint: None, skipped_ms: None }
     }
 
     #[test]

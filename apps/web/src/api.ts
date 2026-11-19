@@ -188,6 +188,17 @@ export interface Routine {
   enabled: boolean
   thread: string | null
   last_ms: number | null
+  /** Runs only when the project's files changed since its last run. */
+  only_if_changed?: boolean
+  /** When it last skipped its run because nothing changed. */
+  skipped_ms?: number | null
+}
+
+/** A project's week: tokens of the last 7 days and the 7 before, and what weighed most. */
+export interface Week {
+  this: number
+  last: number
+  top: { tool: string; tokens: number } | null
 }
 
 export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires'
@@ -291,6 +302,8 @@ export interface Bot {
   allowed?: string[]
   /** A lighter model for talk; changes run on `model`. */
   talk_model?: string | null
+  /** The project's week, for Raio's report and tips. */
+  week?: Week | null
   /** Another bot of the project that reviews this one's proposals. */
   reviewer?: string | null
   /** The project's daily token limit for its bots and what they used today. */
@@ -329,7 +342,7 @@ export interface BotsState {
   max_text: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed'
 
 export interface InboxMessage {
   id: string

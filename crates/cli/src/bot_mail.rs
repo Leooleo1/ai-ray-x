@@ -180,16 +180,22 @@ fn segment(text: &str) -> String {
         .collect()
 }
 
+/// Every page ai-memory keeps for a project folder (path, title, kind, tier, updated_at);
+/// none when ai-memory does not know the project.
+pub fn pages(dir: &Path) -> Result<Option<Vec<Value>>> {
+    let Ok((workspace, project)) = scope_of(dir) else { return Ok(None) };
+    let listed = api_get(&server_address(dir), &format!("/api/v1/workspaces/{}/projects/{}/pages", segment(&workspace), segment(&project)))?;
+    let pages = listed.get("pages").cloned().or_else(|| listed.as_array().map(|a| Value::Array(a.clone()))).unwrap_or(json!([]));
+    Ok(Some(pages.as_array().cloned().unwrap_or_default()))
+}
+
 /// The durable pages ai-memory keeps for a bot's project, newest first.
 pub fn memories(state_dir: &Path, id: &str) -> Result<Value> {
     let bot = bot(state_dir, id)?;
-    let Ok((workspace, project)) = scope_of(&bot.dir) else {
+    let Some(mut pages) = pages(&bot.dir)? else {
         return Ok(json!({ "known": false, "pages": [] }));
     };
     let address = server_address(&bot.dir);
-    let listed = api_get(&address, &format!("/api/v1/workspaces/{}/projects/{}/pages", segment(&workspace), segment(&project)))?;
-    let pages = listed.get("pages").cloned().or_else(|| listed.as_array().map(|a| Value::Array(a.clone()))).unwrap_or(json!([]));
-    let mut pages: Vec<Value> = pages.as_array().cloned().unwrap_or_default();
     pages.sort_by(|a, b| b["updated_at"].as_str().cmp(&a["updated_at"].as_str()));
     let shown: Vec<Value> = pages
         .iter()

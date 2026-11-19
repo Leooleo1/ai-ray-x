@@ -1,5 +1,6 @@
 import { AGENTS, type AgentId } from '../../agents'
 import { useEffect, useState } from 'react'
+import type { Bots } from '../../bots'
 import { type Bot, type BotMessage, type ProjectDiet, type Report, botDiet } from '../../api'
 import { suggestionTitle } from '../../diet'
 import { compact, percent, t } from '../../i18n'
@@ -38,10 +39,11 @@ interface HouseLineProps {
   messages: BotMessage[]
   report: Report
   onChanged: () => void
+  bots: Bots
 }
 
 /** An answer from a house agent: its face and voice, and what can be done with it right there. */
-export function HouseLine({ bot, message, messages, report, onChanged }: HouseLineProps) {
+export function HouseLine({ bot, message, messages, report, onChanged, bots }: HouseLineProps) {
   const agent = message.author as AgentId
   const face = AGENTS[agent]
   const data = message.data as unknown as Data
@@ -59,6 +61,7 @@ export function HouseLine({ bot, message, messages, report, onChanged }: HouseLi
         <p>{houseText(agent, data)}</p>
         {agent === 'raio' && <ConversationReads messages={messages} until={message.ms} />}
         {agent === 'dieta' && <HouseCuts bot={bot} data={data} report={report} onChanged={onChanged} />}
+        {agent === 'memo' && <MemoCare bot={bot} bots={bots} data={data} />}
       </div>
     </div>
   )
@@ -71,6 +74,49 @@ function ConversationReads({ messages, until }: { messages: BotMessage[]; until:
   const total = replies.reduce((sum, n) => sum + n, 0)
   const last = replies[replies.length - 1]
   return <small className="casa-meta">{t.conversationReads.replace('{n}', String(replies.length)).replace('{total}', compact(total)).replace('{last}', compact(last))}</small>
+}
+
+interface CareFinding {
+  kind: string
+  message: string | null
+  pages: string[]
+}
+
+/** Memo's look at ai-memory: repeated or stale durable pages, each deletable after a second click. */
+function MemoCare({ bot, bots, data }: { bot: Bot; bots: Bots; data: Data }) {
+  const findings = (data.care as CareFinding[] | undefined) ?? []
+  const [asking, setAsking] = useState<string | null>(null)
+  const [gone, setGone] = useState<Set<string>>(new Set())
+  if (findings.length === 0) return null
+  const forget = async (path: string) => {
+    if (asking !== path) return setAsking(path)
+    setAsking(null)
+    if (await bots.act('memory_forget', { id: bot.id, path })) setGone(new Set([...gone, path]))
+  }
+  return (
+    <div className="cuidado">
+      <small className="casa-meta">{t.careTitle}</small>
+      {findings.map((finding, index) => (
+        <div key={index} className="cuidado-item">
+          <span className="cuidado-tipo">{t.careKinds[finding.kind] ?? finding.kind}</span>
+          <ul>
+            {finding.pages.map((page) => (
+              <li key={page}>
+                <code>{page}</code>
+                {gone.has(page) ? (
+                  <small>{t.forgotten}</small>
+                ) : (
+                  <button type="button" className={asking === page ? 'confirmar' : ''} onClick={() => void forget(page)}>
+                    {asking === page ? t.forgetSure : t.forget}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 interface SuggestionData {
