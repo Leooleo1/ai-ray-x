@@ -94,6 +94,51 @@ fn cursor(event: &Value, dir: &Path) -> Option<Step> {
     })
 }
 
+/// The first text among a tool's parameters, by the names its CLI uses.
+fn first<'a>(args: &'a Value, keys: &[&str]) -> &'a str {
+    text(args, keys)
+}
+
+/// A step from a tool's name alone: what it does shows in its name (read_file, grep_search…).
+fn by_name(name: &str, args: &Value, dir: &Path) -> Step {
+    let lower = name.to_lowercase();
+    let path = first(args, &["Path", "AbsolutePath", "TargetFile", "DirectoryPath", "SearchPath", "filePath", "path"]);
+    if lower.contains("command") || lower == "bash" || lower == "shell" {
+        step("run", first(args, &["CommandLine", "Command", "command"]), dir)
+    } else if lower.contains("grep") || lower.contains("search") && !lower.contains("web") {
+        step("search", first(args, &["Query", "Pattern", "pattern", "query"]), dir)
+    } else if lower.contains("write") || lower.contains("replace") || lower.contains("edit") || lower.contains("create") || lower == "patch" {
+        step("edit", path, dir)
+    } else if lower.contains("read") || lower.contains("view") {
+        step("read", path, dir)
+    } else if lower.contains("list") || lower.contains("glob") || lower.contains("find") {
+        step("list", if path.is_empty() { first(args, &["Pattern", "pattern"]) } else { path }, dir)
+    } else if lower.contains("web") || lower.contains("url") || lower.contains("browser") || lower.contains("fetch") {
+        step("web", first(args, &["Url", "url", "Query", "query"]), dir)
+    } else {
+        step("tool", name, dir)
+    }
+}
+
+/// agy: a tool step as it starts.
+fn antigravity(event: &Value, dir: &Path) -> Option<Step> {
+    let update = event.get("step_update")?;
+    if update.get("step_type").and_then(Value::as_str) != Some("tool") || update.get("state").and_then(Value::as_str) != Some("ACTIVE") {
+        return None;
+    }
+    let name = update.get("tool_name").and_then(Value::as_str)?;
+    Some(by_name(name, update.pointer("/tool_info/parameters").unwrap_or(&Value::Null), dir))
+}
+
+/// opencode: a tool call, which it reports once, finished.
+fn opencode(event: &Value, dir: &Path) -> Option<Step> {
+    if event.get("type").and_then(Value::as_str) != Some("tool_use") {
+        return None;
+    }
+    let name = event.pointer("/part/tool").and_then(Value::as_str)?;
+    Some(by_name(name, event.pointer("/part/state/input").unwrap_or(&Value::Null), dir))
+}
+
 /// The step one event line announces, if any.
 pub fn from_line(agent: &str, line: &str, dir: &Path) -> Option<Step> {
     let event: Value = serde_json::from_str(line).ok()?;
@@ -101,6 +146,8 @@ pub fn from_line(agent: &str, line: &str, dir: &Path) -> Option<Step> {
         "claude" => claude(&event, dir),
         "codex" => codex(&event, dir),
         "cursor" => cursor(&event, dir),
+        "antigravity" => antigravity(&event, dir),
+        "opencode" => opencode(&event, dir),
         _ => None,
     }
 }
@@ -119,6 +166,20 @@ mod tests {
     fn codex_commands_lose_their_shell_wrapper() {
         let line = r#"{"type":"item.started","item":{"type":"command_execution","command":"/bin/zsh -lc \"npm test\""}}"#;
         assert_eq!(from_line("codex", line, Path::new("/p")), Some(Step { kind: "run", target: "npm test".into() }));
+    }
+
+    #[test]
+    fn antigravity_and_opencode_tools_become_steps() {
+        let agy = r#"{"event":"step_update","step_update":{"step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"read_file","tool_info":{"name":"read_file","parameters":{"Path":"/p/soma.js"}}}}"#;
+        assert_eq!(from_line("antigravity", agy, Path::new("/p")), Some(Step { kind: "read", target: "soma.js".into() }));
+        let agy_run = r#"{"event":"step_update","step_update":{"state":"ACTIVE","step_type":"tool","tool_name":"run_command","tool_info":{"parameters":{"CommandLine":"npm test"}}}}"#;
+        assert_eq!(from_line("antigravity", agy_run, Path::new("/p")), Some(Step { kind: "run", target: "npm test".into() }));
+        let done = agy.replace("ACTIVE", "DONE");
+        assert_eq!(from_line("antigravity", &done, Path::new("/p")), None, "a finished step is not a new one");
+        let oc = r#"{"type":"tool_use","part":{"tool":"glob","state":{"status":"completed","input":{"pattern":"**/soma.js"}}}}"#;
+        assert_eq!(from_line("opencode", oc, Path::new("/p")), Some(Step { kind: "list", target: "**/soma.js".into() }));
+        let oc_read = r#"{"type":"tool_use","part":{"tool":"read","state":{"input":{"path":"/p/src/a.ts"}}}}"#;
+        assert_eq!(from_line("opencode", oc_read, Path::new("/p")), Some(Step { kind: "read", target: "src/a.ts".into() }));
     }
 
     #[test]

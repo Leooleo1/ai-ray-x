@@ -4,6 +4,7 @@
 
 pub mod access;
 pub mod actions;
+pub mod bot_clis;
 pub mod bot_mail;
 pub mod bot_marks;
 pub mod bot_run;

@@ -22,7 +22,8 @@ to the project you pick,
 with a backup and an undo, and raiox measures the result afterwards.
 
 **Chats.** Turn on a project and talk to the CLI you already use there (Claude
-Code, Codex or Cursor), with the project's context:
+Code, Codex, Cursor, Google's Antigravity CLI `agy`, or opencode, which reaches
+any provider and has free models), with the project's context:
 
 - it only reads while talking. When you approve a proposal, it edits a copy
   of the project (following your `.gitignore`, without secrets files) and you
@@ -101,8 +102,9 @@ can message each other through ai-memory, always with your approval.
 ## Requirements
 
 - Rust 1.88 or newer, and Node.js with pnpm, to build from source.
-- Any of Claude Code, Codex or Cursor's `cursor-agent`, signed in, for the
-  chats. The x-ray reads Claude Code and Codex logs.
+- Any of Claude Code, Codex, Cursor's `cursor-agent`, Antigravity's `agy`
+  (signed in) or opencode (its free models need no account), for the chats.
+  The x-ray reads Claude Code and Codex logs.
 - Optional: [ai-memory](https://github.com/akitaonrails/ai-memory) for the team
   notes and the messages between projects, and the GitHub CLI (`gh`) to find
   and clone your repositories during setup.
@@ -224,8 +226,10 @@ describes the three house agents.
 - Secrets are counted, never stored.
 - Secrets files (`.env` and its variants, `.dev.vars`, keys, certificates)
   never enter the copies the AIs edit. Claude Code is also denied reading
-  them while talking; Codex and Cursor have no such switch, so they are only
-  told not to.
+  them while talking; Codex, Cursor, Antigravity and opencode have no such
+  switch, so they are only told not to. Antigravity talks in its plan mode and
+  opencode as its plan agent (no edits, no shell); their edits run in the
+  draft copy, still without a shell.
 - Commands that would open secrets files are refused before you are asked,
   variables that look like secrets stay out of their environment, and values
   that look like secrets are hidden in their output.

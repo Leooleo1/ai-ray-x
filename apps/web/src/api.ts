@@ -150,7 +150,7 @@ export interface Outcome {
 
 export type AgentAuthor = 'raio' | 'dieta' | 'memo'
 
-export type BotAgent = 'claude' | 'codex' | 'cursor'
+export type BotAgent = 'claude' | 'codex' | 'cursor' | 'antigravity' | 'opencode'
 
 export interface BotNote {
   project: string

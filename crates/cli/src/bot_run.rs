@@ -1,4 +1,4 @@
-//! Runs the person's own CLI (Claude Code or Codex) in a project folder and
+//! Runs the person's own CLI (Claude Code, Codex, Cursor, Antigravity or opencode) in a project folder and
 //! reads its answer. The prompt goes through stdin, never as an argument, so
 //! text that starts with "-" cannot turn into a flag.
 //!
@@ -274,6 +274,15 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
         // Cursor, too: the guide opens the read-only talk session; an approved edit runs in its own session.
         "cursor" if mode == Mode::Talk && target.session.is_none() => (cursor(target, mode), format!("{}\n\n---\n\n{}", target.guide, text)),
         "cursor" => (cursor(target, mode), prompt_for(mode, text)),
+        // Antigravity and opencode: the guide opens a new session, as with Codex.
+        "antigravity" | "opencode" => {
+            let prompt = if target.session.is_none() { format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text)) } else { prompt_for(mode, text) };
+            if agent == "antigravity" {
+                (crate::bot_clis::antigravity(target, mode), crate::bot_clis::antigravity_input(&prompt))
+            } else {
+                (crate::bot_clis::opencode(target, mode), prompt)
+            }
+        }
         other => bail!("unknown agent {other}"),
     };
     fs::create_dir_all(scratch)?;
@@ -313,6 +322,8 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
     let duration_ms = started.elapsed().as_millis() as u64;
     let parsed = match agent {
         "codex" => parse_codex(&out),
+        "antigravity" => crate::bot_clis::parse_antigravity(&out),
+        "opencode" => crate::bot_clis::parse_opencode(&out),
         _ => parse_result(agent, final_result(&out)),
     };
     match parsed {
@@ -397,6 +408,28 @@ fn separate_messages(text: &str) -> String {
     out
 }
 
+/// A reply from the AI's text, its markers read; the CLI's numbers come after.
+pub fn reply_from(text: &str) -> Reply {
+    let marked = bot_marks::split(text);
+    Reply {
+        text: marked.text,
+        proposal: marked.proposal,
+        to: marked.notes,
+        open: marked.open,
+        run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
+        verdict: marked.verdict,
+        ask: marked.asks,
+        shots: marked.shots,
+        trail: None,
+        session: None,
+        steps: None,
+        read_tokens: 0,
+        output_tokens: 0,
+        cost_usd: None,
+        duration_ms: 0,
+    }
+}
+
 /// Claude Code and Cursor print one JSON result; Cursor names the usage fields in camelCase.
 pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
     let value: Value = serde_json::from_str(out.trim()).with_context(|| format!("{agent} did not answer in JSON"))?;
@@ -407,17 +440,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
     let usage = value.get("usage").cloned().unwrap_or(Value::Null);
     let either = |a: &str, b: &str| number(&usage, a) + number(&usage, b);
     let text = if agent == "cursor" { separate_messages(&text) } else { text };
-    let marked = bot_marks::split(&text);
     Ok(Reply {
-        text: marked.text,
-        proposal: marked.proposal,
-        to: marked.notes,
-        open: marked.open,
-        run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
-        verdict: marked.verdict,
-        ask: marked.asks,
-        shots: marked.shots,
-        trail: None,
         steps: value.get("num_turns").and_then(Value::as_u64),
         session: value.get("session_id").and_then(Value::as_str).map(str::to_string),
         read_tokens: either("input_tokens", "inputTokens")
@@ -425,7 +448,7 @@ pub fn parse_result(agent: &str, out: &str) -> Result<Reply> {
             + either("cache_creation_input_tokens", "cacheWriteTokens"),
         output_tokens: either("output_tokens", "outputTokens"),
         cost_usd: value.get("total_cost_usd").and_then(Value::as_f64),
-        duration_ms: 0,
+        ..reply_from(&text)
     })
 }
 
@@ -452,17 +475,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         .filter(|e| e.get("type").and_then(Value::as_str) == Some("turn.completed"))
         .filter_map(|e| e.get("usage"))
         .fold((0, 0), |(read, wrote), u| (read + number(u, "input_tokens"), wrote + number(u, "output_tokens")));
-    let marked = bot_marks::split(text);
     Ok(Reply {
-        text: marked.text,
-        proposal: marked.proposal,
-        to: marked.notes,
-        open: marked.open,
-        run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),
-        verdict: marked.verdict,
-        ask: marked.asks,
-        shots: marked.shots,
-        trail: None,
         steps: Some(
             events
                 .iter()
@@ -473,8 +486,7 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
         session: events.iter().find_map(|e| e.get("thread_id").and_then(Value::as_str)).map(str::to_string),
         read_tokens: usage.0,
         output_tokens: usage.1,
-        cost_usd: None,
-        duration_ms: 0,
+        ..reply_from(text)
     })
 }
 

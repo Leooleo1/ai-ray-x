@@ -39,6 +39,9 @@ fn toml_value(text: &str, key: &str) -> Option<String> {
 }
 
 fn defaults(roots: &Roots, agent: &str) -> Value {
+    if matches!(agent, "antigravity" | "opencode") {
+        return json!({ "model": null, "effort": null });
+    }
     if agent == "cursor" {
         let config: Value = fs::read_to_string(roots.home.join(".cursor/cli-config.json"))
             .ok()
@@ -77,6 +80,25 @@ fn cursor_models() -> Vec<String> {
         .collect()
 }
 
+/// Antigravity's model ids, from `agy models` ("id<TAB>Name" per line; the id carries its level).
+fn antigravity_models() -> Vec<String> {
+    let Some(out) = crate::connections::probe("agy", &["models"]) else { return Vec::new() };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| line.split_once('\t').map(|(id, _)| id.trim().to_string()))
+        .filter(|id| bots::check_model(Some(id)).is_ok_and(|m| m.is_some()))
+        .collect()
+}
+
+/// opencode's models (provider/model), or its free ones when it lists none in time.
+fn opencode_models() -> Vec<String> {
+    let listed: Vec<String> = crate::connections::probe("opencode", &["models"])
+        .map(|out| String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| l.contains('/')).map(str::to_string).collect())
+        .unwrap_or_default();
+    let listed: Vec<String> = listed.into_iter().filter(|id| bots::check_model(Some(id)).is_ok_and(|m| m.is_some())).collect();
+    if listed.is_empty() { crate::bot_clis::OPENCODE_FREE.iter().map(|m| m.to_string()).collect() } else { listed }
+}
+
 pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result<Value> {
     let bot = bots::list(state_dir).into_iter().find(|b| b.id == id).ok_or_else(|| anyhow::anyhow!("no bot {id}"))?;
     let project = raiox_core::project_label(&bot.dir, &roots.home);
@@ -103,6 +125,8 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
     let offered: Vec<String> = match bot.agent.as_str() {
         "codex" => codex_models(store)?,
         "cursor" => cursor_models(),
+        "antigravity" => antigravity_models(),
+        "opencode" => opencode_models(),
         _ => CLAUDE_ALIASES.iter().map(|m| m.to_string()).collect(),
     };
     let efforts_allowed = bots::efforts_for(&bot.agent);

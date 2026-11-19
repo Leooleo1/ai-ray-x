@@ -34,9 +34,9 @@ pub const KNOWN: [Known; 6] = [
     Known { id: "claude", name: "Claude Code", binary: "claude", install: "curl -fsSL https://claude.ai/install.sh | bash", install_windows: "irm https://claude.ai/install.ps1 | iex", login: "claude auth login", bots: true, xray: true },
     Known { id: "codex", name: "Codex", binary: "codex", install: "npm install -g @openai/codex", install_windows: "npm install -g @openai/codex", login: "codex login", bots: true, xray: true },
     Known { id: "cursor", name: "Cursor", binary: "cursor-agent", install: "curl https://cursor.com/install -fsS | bash", install_windows: "irm 'https://cursor.com/install?win32=true' | iex", login: "agent login", bots: true, xray: false },
-    Known { id: "opencode", name: "opencode", binary: "opencode", install: "curl -fsSL https://opencode.ai/install | bash", install_windows: "npm install -g opencode-ai", login: "opencode auth login", bots: false, xray: false },
+    Known { id: "opencode", name: "opencode", binary: "opencode", install: "curl -fsSL https://opencode.ai/install | bash", install_windows: "npm install -g opencode-ai", login: "opencode auth login", bots: true, xray: false },
     // Google replaced Gemini CLI with Antigravity CLI (`agy`); its first run signs in with Google.
-    Known { id: "antigravity", name: "Antigravity CLI", binary: "agy", install: "curl -fsSL https://antigravity.google/cli/install.sh | bash", install_windows: "irm https://antigravity.google/cli/install.ps1 | iex", login: "agy", bots: false, xray: false },
+    Known { id: "antigravity", name: "Antigravity CLI", binary: "agy", install: "curl -fsSL https://antigravity.google/cli/install.sh | bash", install_windows: "irm https://antigravity.google/cli/install.ps1 | iex", login: "agy", bots: true, xray: false },
     Known { id: "copilot", name: "GitHub Copilot CLI", binary: "copilot", install: "npm install -g @github/copilot", install_windows: "npm install -g @github/copilot", login: "copilot login", bots: false, xray: false },
 ];
 
@@ -127,7 +127,8 @@ fn sign_in(id: &str, home: &Path) -> (Option<bool>, Option<String>, Option<Strin
             let providers: Value = std::fs::read_to_string(data.join("auth.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
             // opencode 2 keeps its sign-ins in its database; 1.x in auth.json.
             let ok = providers.as_object().is_some_and(|o| !o.is_empty()) || opencode_signed_in(&data.join("opencode.db"));
-            (Some(ok), None, None)
+            // Without an account it still runs its free models: usable, sign-in unknown.
+            if ok { (Some(true), None, None) } else { (None, None, None) }
         }
         // No status command: listing its models answers only when signed in.
         "antigravity" => {

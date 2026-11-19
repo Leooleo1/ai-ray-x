@@ -103,11 +103,12 @@ pub fn efforts_for(agent: &str) -> &'static [&'static str] {
     }
 }
 
-/// An empty model means the CLI's default; anything else is letters, digits, dots and dashes.
+/// An empty model means the CLI's default; anything else is letters, digits, dots, dashes and
+/// slashes (opencode names its models provider/model).
 pub fn check_model(model: Option<&str>) -> Result<Option<String>> {
     let model = model.map(str::trim).filter(|m| !m.is_empty());
     if let Some(m) = model
-        && (m.len() > MAX_MODEL || !m.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b)))
+        && (m.len() > MAX_MODEL || !m.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._/".contains(&b)))
     {
         bail!("invalid model name");
     }
@@ -762,7 +763,7 @@ mod tests {
         assert!(activate(&state, &home, "../", "claude", None).is_err());
         fs::create_dir_all(home.join(".claude/projects")).unwrap();
         assert!(activate(&state, &home, ".claude/projects", "claude", None).is_err());
-        assert!(activate(&state, &home, "Projects/app", "antigravity", None).is_err());
+        assert!(activate(&state, &home, "Projects/app", "copilot", None).is_err());
         let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
         assert_eq!(bot.name, "app");
         activate(&state, &home, "Projects/app", "claude", None).unwrap();

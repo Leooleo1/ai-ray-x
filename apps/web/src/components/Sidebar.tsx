@@ -94,7 +94,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, onTab, o
   )
 }
 
-const SHORT: Record<string, string> = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' }
+const SHORT: Record<string, string> = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor', antigravity: 'Antigravity', opencode: 'opencode' }
 
 /** The bots grouped by project, newest activity first. */
 function projectsOf(bots: Bot[]) {

@@ -11,7 +11,7 @@ import { MIN_QUERY, SearchHits } from './SearchHits'
 
 const MAIN = 'main'
 /** Order the IAs of a project the same way everywhere. */
-const AGENT_ORDER = ['claude', 'codex', 'cursor']
+const AGENT_ORDER = ['claude', 'codex', 'cursor', 'antigravity', 'opencode']
 
 interface ProjectListProps {
   bots: Bots

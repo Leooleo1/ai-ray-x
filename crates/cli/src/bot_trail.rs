@@ -142,13 +142,58 @@ impl Trail {
     pub fn feed(&mut self, agent: &str, line: &str, dir: &Path) {
         let Ok(event) = serde_json::from_str::<Value>(line) else { return };
         if self.session.is_none() {
-            let id = event.get("session_id").or_else(|| event.get("thread_id")).and_then(Value::as_str);
+            // Claude/Cursor: session_id; Codex: thread_id; Antigravity: conversation_id; opencode: sessionID.
+            let id = ["session_id", "thread_id", "conversation_id", "sessionID"].iter().find_map(|key| event.get(*key)).and_then(Value::as_str);
             self.session = id.map(str::to_string);
         }
         match agent {
             "claude" => self.claude(&event, line, dir),
             "codex" => self.codex(&event, line, dir),
             "cursor" => self.cursor(&event, line, dir),
+            "antigravity" => self.antigravity(&event, line, dir),
+            "opencode" => self.opencode(&event, line, dir),
+            _ => {}
+        }
+    }
+
+    /// agy: numbered steps; a tool step starts ACTIVE and ends DONE or ERROR, the answer comes in deltas.
+    fn antigravity(&mut self, event: &Value, line: &str, dir: &Path) {
+        let Some(update) = event.get("step_update") else { return };
+        let id = update.get("step_index").and_then(Value::as_u64).map(|n| n.to_string()).unwrap_or_default();
+        let state = update.get("state").and_then(Value::as_str).unwrap_or("");
+        match update.get("step_type").and_then(Value::as_str) {
+            Some("agent_response") => self.partial.push_str(update.get("text_delta").and_then(Value::as_str).unwrap_or("")),
+            Some("tool") if state == "ACTIVE" => {
+                if let Some(step) = bot_steps::from_line("antigravity", line, dir) {
+                    self.step(&id, step);
+                }
+            }
+            Some("tool") => {
+                let output = update.pointer("/tool_info/output").and_then(Value::as_str).unwrap_or("");
+                self.result(&id, output, state == "DONE");
+                // agy sums a read up as "12 lines, 300 bytes": the count is that number, not the summary's one line.
+                let summed = output.split_once(" lines").and_then(|(n, _)| n.trim().parse::<usize>().ok());
+                if let (Some(lines), Some(item)) = (summed, self.items.iter_mut().rev().find(|item| item.id == id && item.kind == "read")) {
+                    item.count = Some(lines);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// opencode: each tool call comes once, finished, with its output; text comes whole.
+    fn opencode(&mut self, event: &Value, line: &str, dir: &Path) {
+        match event.get("type").and_then(Value::as_str) {
+            Some("text") => self.partial.push_str(event.pointer("/part/text").and_then(Value::as_str).unwrap_or("")),
+            Some("tool_use") => {
+                let id = event.pointer("/part/id").and_then(Value::as_str).unwrap_or("").to_string();
+                if let Some(step) = bot_steps::from_line("opencode", line, dir) {
+                    self.step(&id, step);
+                }
+                let state = event.pointer("/part/state");
+                let ok = state.and_then(|s| s.get("status")).and_then(Value::as_str) == Some("completed");
+                self.result(&id, state.and_then(|s| s.get("output")).and_then(Value::as_str).unwrap_or(""), ok);
+            }
             _ => {}
         }
     }
