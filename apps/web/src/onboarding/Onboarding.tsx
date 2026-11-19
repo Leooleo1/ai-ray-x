@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup } from '../api'
+import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup, saveSettings } from '../api'
 import type { Bots } from '../bots'
 import { AGENT_LABEL, faceOf, stageLight } from '../avatars'
 import { Avatar, type AvatarState } from '../components/Avatar'
 import { Mark } from '../components/Sidebar'
 import './onboarding.css'
-import { PRESETS, type BotDesign, designFrom, personaOf } from './presets'
+import { PRESETS, type BotDesign, canRunBots, designFrom, personaOf } from './presets'
 import { StepAis } from './StepAis'
 import { StepBot } from './StepBot'
 import { StepDone } from './StepDone'
@@ -50,7 +50,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
       setSetup(next)
       // First load: start with the most recently used project and an AI that is signed in.
       setSelected((current) => (current.length > 0 || !next.projects[0] ? current : [next.projects[0].project]))
-      const usable = next.ais.filter((ai) => ai.bots && ai.enabled && ai.logged_in === true)
+      const usable = next.ais.filter(canRunBots)
       const ready = usable[0]
       if (ready) setDesign((current) => (usable.some((ai) => ai.id === current.agent) ? current : { ...current, agent: ready.id as BotAgent }))
     } catch (failure: unknown) {
@@ -99,13 +99,15 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     setError(null)
     setStep(next)
   }
-  const anyAi = setup?.ais.some((ai) => ai.bots && ai.enabled && ai.logged_in === true) ?? false
+  const anyAi = setup?.ais.some(canRunBots) ?? false
 
   const createBots = async () => {
     setLoading(true)
     setError(null)
     try {
       const persona = personaOf(design, o.defaultName)
+      // The CLI picked here is turned on, as Settings › Connections would.
+      if (setup?.ais.some((ai) => ai.id === design.agent && !ai.enabled)) await saveSettings({ enabled: { [design.agent]: true } })
       let state: BotsState | null = null
       for (const project of selected) {
         state = await botAction('activate', { project, agent: design.agent, persona })

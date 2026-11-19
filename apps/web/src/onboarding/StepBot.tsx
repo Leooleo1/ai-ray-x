@@ -2,7 +2,7 @@ import type { BotAgent, SetupState } from '../api'
 import { faceOf } from '../avatars'
 import { Avatar } from '../components/Avatar'
 import { AvatarEditor } from '../components/AvatarEditor'
-import { CUSTOM, PRESETS, type BotDesign, designFrom } from './presets'
+import { CUSTOM, PRESETS, type BotDesign, canRunBots, designFrom } from './presets'
 import { Frame } from './parts'
 import { o } from './texts'
 
@@ -41,13 +41,13 @@ export function StepBot({ setup, design, projects, busy, onDesign, onBack, onCre
       <div className="bv-campo">
         <span className="bv-rotulo">{o.runsOn}</span>
         <div className="bv-segmentos" role="radiogroup" aria-label={o.runsOn}>
-          {setup.ais.filter((ai) => ai.bots && ai.enabled).map((ai) => (
+          {setup.ais.filter((ai) => ai.bots && ai.installed).map((ai) => (
             <button
               key={ai.id}
               role="radio"
               aria-checked={design.agent === ai.id}
               className={design.agent === ai.id ? 'ativo' : ''}
-              disabled={ai.logged_in !== true}
+              disabled={!canRunBots(ai)}
               onClick={() => set({ agent: ai.id as BotAgent })}
             >
               {ai.name}

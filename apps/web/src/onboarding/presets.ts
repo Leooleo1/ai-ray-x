@@ -71,6 +71,13 @@ export interface BotDesign {
 
 export const CUSTOM = 'custom'
 
+/** A CLI the first run can make bots on: installed, able to run bots, and not signed out.
+ * opencode runs free models without an account, so "sign-in unknown" counts. Choosing one
+ * that is still off turns it on. */
+export function canRunBots(ai: { bots: boolean; installed: boolean; logged_in: boolean | null }): boolean {
+  return ai.bots && ai.installed && ai.logged_in !== false
+}
+
 export function designFrom(preset: Preset, agent: BotAgent): BotDesign {
   return { preset: preset.id, agent, name: preset.name, shape: preset.shape, color: preset.color, finish: 'solid', instructions: preset.instructions }
 }
