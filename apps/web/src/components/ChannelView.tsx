@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { Bot, Channel, ChannelItem } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
-import { t } from '../i18n'
+import { compact, t } from '../i18n'
 import { Avatar } from './Avatar'
 import { CarriedBlock } from './chat/Carry'
 import { Composer } from './chat/Composer'
@@ -114,13 +114,16 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
     return <p className="linha-sistema">{t.channelPassed.replace('{from}', `@${handleOf(message.data.from ?? '')}`).replace('{to}', `@${handleOf(to)}`)}</p>
   }
   if (item.bot === null) {
-    const to = (Array.isArray(message.data.to) ? message.data.to : []).map((id) => `@${handleOf(id)}`).join(', ')
+    const ids = Array.isArray(message.data.to) ? message.data.to : []
+    const to = ids.map((id) => `@${handleOf(id)}`).join(', ')
+    const routed = message.data.routed
     return (
-      <div className="linha minha">
+      <div className="linha minha canal-pedido-pessoa">
         <span className="balao na-cor canal-balao">
           {message.data.text}
-          {to && <small>{t.channelTo.replace('{to}', to)}</small>}
+          {to && !routed && <small>{t.channelTo.replace('{to}', to)}</small>}
         </span>
+        {routed && <small className="canal-rota">{routeLine(routed, ids, handleOf)}</small>}
       </div>
     )
   }
@@ -178,6 +181,15 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
       </div>
     </div>
   )
+}
+
+/** Where the router sent a message, and why: "→ @iris · tela, botao · poupou ~25 mil tokens de 2 membros". */
+function routeLine(routed: NonNullable<ChannelItem['message']['data']['routed']>, ids: string[], handleOf: (id: string) => string): string {
+  const who = ids.map((id) => `@${handleOf(id)}`).join(', ')
+  const words = [...new Set(ids.flatMap((id) => routed.why[id] ?? []))].slice(0, 4).join(', ')
+  const head = routed.by_lead ? t.channelRoutedLead.replace('{who}', who) : t.channelRouted.replace('{who}', who).replace('{words}', words)
+  const saving = routed.skipped === 0 ? '' : routed.spared > 0 ? (routed.skipped === 1 ? t.channelSparedOne : t.channelSpared).replace('{n}', compact(routed.spared)).replace('{m}', String(routed.skipped)) : t.channelSkipped.replace('{m}', String(routed.skipped))
+  return [head, saving].filter(Boolean).join(' · ')
 }
 
 /** A new channel: a name and its members, the first one answering when nobody is mentioned. */

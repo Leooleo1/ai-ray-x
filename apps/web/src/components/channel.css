@@ -214,3 +214,16 @@
   color: var(--nevoa);
   font: 15px/1 var(--mono);
 }
+
+/* Where the router sent a message, under it, quiet. */
+.canal-pedido-pessoa {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.canal-rota {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-align: right;
+}

@@ -1,6 +1,7 @@
 //! Channels: rooms where the person works with several bots at once, from any
 //! projects. A message goes to the members it @mentions, or to the channel's
-//! lead (its first member) when it mentions none. Each member answers in a
+//! member the router finds it is about when it mentions none (the lead when
+//! nobody stands out; @todos calls them all). Each member answers in a
 //! conversation of its own ("Canal · #name"), so live sessions, the live path,
 //! corrections and limits all hold; the channel shows the person's messages
 //! and the members' answers together. A member is told what was said in the
@@ -218,7 +219,43 @@ fn ask_member(state_dir: &Path, jobs: &Jobs, channel: &mut Channel, member: &str
     Ok(())
 }
 
-/// The person writes in the channel: the members it mentions answer, or the lead when it mentions none.
+/// Calls every member at once.
+const EVERYONE: [&str; 3] = ["@todos", "@all", "@everyone"];
+/// A member's last answers that tell how much it usually reads.
+const TYPICAL_ANSWERS: usize = 5;
+
+/// How much a member usually reads to answer here (its channel conversation, else its main one).
+fn typical_read(state_dir: &Path, channel: &Channel, bot: &str) -> u64 {
+    let thread = channel.threads.get(bot).cloned().unwrap_or_else(|| threads::MAIN.to_string());
+    let read: Vec<u64> = room::read_messages(&threads::chat_file(state_dir, bot, &thread))
+        .iter()
+        .rev()
+        .filter(|m| m.kind == "answer")
+        .filter_map(|m| m.data.pointer("/reply/read_tokens").and_then(Value::as_u64))
+        .take(TYPICAL_ANSWERS)
+        .collect();
+    if read.is_empty() { 0 } else { read.iter().sum::<u64>() / read.len() as u64 }
+}
+
+/// Who answers a message that mentions nobody (the router), and what calling only them spared.
+fn route(state_dir: &Path, channel: &Channel, roster: &[Bot], text: &str, lead: &str) -> (Vec<String>, Value) {
+    let candidates: Vec<crate::router::Candidate> = roster
+        .iter()
+        .map(|bot| {
+            let role = bot.persona.as_ref().map_or("", |p| p.role.as_str());
+            crate::router::candidate(&bot.id, &persona_name(bot).unwrap_or_default(), &bot.name, role, &crate::router::file_words(&bot.dir))
+        })
+        .collect();
+    let routed = crate::router::route(text, &candidates, lead);
+    let skipped: Vec<&Bot> = roster.iter().filter(|b| !routed.ids.contains(&b.id)).collect();
+    let spared: u64 = skipped.iter().map(|b| typical_read(state_dir, channel, &b.id)).sum();
+    let why: serde_json::Map<String, Value> = routed.why.iter().map(|(id, words)| (id.clone(), json!(words))).collect();
+    let note = json!({ "by_lead": routed.by_lead, "why": why, "skipped": skipped.len(), "spared": spared });
+    (routed.ids, note)
+}
+
+/// The person writes in the channel: the members it mentions answer; with none, the router picks
+/// who the message is about (the lead when nobody stands out); @todos calls everyone.
 pub fn post(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
     let text = text.trim();
     if text.is_empty() || text.chars().count() > bots::MAX_TEXT {
@@ -227,11 +264,15 @@ pub fn post(state_dir: &Path, jobs: &Jobs, id: &str, text: &str) -> Result<()> {
     let mut channel = find(state_dir, id)?;
     let roster = members(state_dir, &channel);
     let lead = roster.first().context("this channel has no member left")?.id.clone();
-    let mut called = mentioned(text, &handles(&roster));
-    if called.is_empty() {
-        called.push(lead);
-    }
-    room::append_messages(&chat_file(state_dir, id), vec![room::Message { ms: room::now_ms(), author: "you".into(), kind: "ask".into(), data: json!({ "text": text, "to": called }) }])?;
+    let called = mentioned(text, &handles(&roster));
+    let (called, routed) = if !called.is_empty() {
+        (called, Value::Null)
+    } else if EVERYONE.iter().any(|tag| text.to_lowercase().contains(tag)) {
+        (roster.iter().map(|b| b.id.clone()).collect(), Value::Null)
+    } else {
+        route(state_dir, &channel, &roster, text, &lead)
+    };
+    room::append_messages(&chat_file(state_dir, id), vec![room::Message { ms: room::now_ms(), author: "you".into(), kind: "ask".into(), data: json!({ "text": text, "to": called, "routed": routed }) }])?;
     let mut refused = Vec::new();
     for member in &called {
         if let Err(error) = ask_member(state_dir, jobs, &mut channel, member, &format!("The person says: {text}"), text) {

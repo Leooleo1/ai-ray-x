@@ -300,6 +300,8 @@ export interface BotMessage {
     path?: string
     /** In a channel: who a message went to, and a pass from one member to another. */
     to?: string[] | string
+    /** A channel message the router sent on: who it chose, by which words, and what skipping the others spared. */
+    routed?: { by_lead: boolean; why: Record<string, string[]>; skipped: number; spared: number } | null
     from?: string
     index?: number
     channel?: string
