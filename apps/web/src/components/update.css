@@ -1,0 +1,55 @@
+/* A new version of the app: a pill at the right of the page title, before the period. */
+.atualizacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 4px 4px 4px 14px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  white-space: nowrap;
+}
+
+.atualizacao span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.atualizacao b {
+  font: 500 13px/16px var(--sans);
+}
+
+.atualizacao small {
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.atualizacao .cheio {
+  flex: none;
+  height: 28px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/14px var(--sans);
+  cursor: pointer;
+}
+
+/* With the notice there, the period follows it instead of pushing to the edge. */
+.atualizacao + .periodo {
+  margin-left: 16px;
+}
+
+@media (max-width: 960px) {
+  .atualizacao {
+    margin-left: 0;
+  }
+
+  .atualizacao + .periodo {
+    margin-left: 0;
+  }
+}

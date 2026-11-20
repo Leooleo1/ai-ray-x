@@ -25,6 +25,7 @@ import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
+import { UpdateNote } from './components/UpdateNote'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
@@ -249,6 +250,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         <div className="titulo">
           <h1>{heading.title}</h1>
           <p>{heading.subtitle}</p>
+          <UpdateNote />
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
         {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onSettings={(tab) => {

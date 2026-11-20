@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { type AppVersion, IS_REMOTE, fetchAppVersion, updateApp } from '../api'
 import { t } from '../i18n'
+import './update.css'
 
 /** How often the panel asks whether the app found a new version (the app itself checks every few hours). */
 const POLL_MS = 5 * 60 * 1000
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
-/** "raiox 0.1.1 is available · Update", above the profile, in the desktop app only. */
+/** "raiox 0.1.3 is available · Update", at the right of the page title, in the desktop app only. */
 export function UpdateNote() {
   const [app, setApp] = useState<AppVersion | null>(null)
   const [error, setError] = useState<string | null>(null)
