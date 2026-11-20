@@ -27,6 +27,8 @@ import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 import { UpdateNote } from './components/UpdateNote'
 import { UsageView } from './components/UsageView'
+import { CommandPalette } from './components/CommandPalette'
+import { flushSync } from 'react-dom'
 import { Flows } from './components/Flows'
 
 const REFRESH_MS = 30_000
@@ -196,11 +198,18 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
       }
       return next
     })
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  // Which workflow the palette asked the Workflows page to open (n changes on every pick).
+  const [flowPick, setFlowPick] = useState<{ id: string; n: number } | null>(null)
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
         event.preventDefault()
         toggleSidebar()
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
       }
     }
     window.addEventListener('keydown', onShortcut)
@@ -217,16 +226,26 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
   }, [])
+  // A page change cross-fades the content (the sidebar stays put), where the browser can.
+  const swap = (change: () => void) => {
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return change()
+    document.startViewTransition(() => flushSync(change))
+  }
   const go = (next: Tab) => {
     if (next !== tab) history.pushState(null, '', PATHS[next][0])
     keepConsumption(next)
-    setTab(next)
+    if (next === tab) return setTab(next)
+    swap(() => setTab(next))
   }
   const openChat = (view: ChatView) => {
     const path = chatPath(view)
     if (path !== window.location.pathname) history.pushState(null, '', path)
-    setChat(view)
-    setTab('agents')
+    const change = () => {
+      setChat(view)
+      setTab('agents')
+    }
+    if (tab === 'agents') change()
+    else swap(change)
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
@@ -282,6 +301,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           go('settings')
         }}
         onSetup={onSetup}
+        onSearch={() => setPaletteOpen(true)}
       />
       <div className="principal">
         <div className="titulo">
@@ -316,7 +336,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && chat === 'canal:novo' && <ChannelNew bots={bots} onCreated={(id) => openChat(`canal:${id}`)} />}
         {tab === 'agents' && !openBot && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
         {tab === 'usage' && <UsageView />}
-        {tab === 'flows' && <Flows bots={bots} />}
+        {tab === 'flows' && <Flows bots={bots} pick={flowPick} />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
         {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
@@ -343,6 +363,20 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         </div>
       </div>
       <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
+      {paletteOpen && (
+        <CommandPalette
+          bots={bots.state.bots}
+          channels={channels}
+          onClose={() => setPaletteOpen(false)}
+          onGo={go}
+          onChat={openChat}
+          onThread={(bot, thread) => nav.openMessage(bot, thread, 0)}
+          onFlow={(id) => {
+            setFlowPick((was) => ({ id, n: (was?.n ?? 0) + 1 }))
+            go('flows')
+          }}
+        />
+      )}
     </div>
   )
 }

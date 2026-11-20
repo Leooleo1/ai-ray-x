@@ -8,6 +8,7 @@ export type IconName =
   | 'usage'
   | 'flows'
   | 'more'
+  | 'search'
   | 'agents'
   | 'desk'
   | 'deliveries'
@@ -33,6 +34,7 @@ const STROKES: Record<IconName, string[]> = {
   ],
   efficiency: ['M5 17a8 8 0 1 1 14 0', 'M12 13l3.5-3.5', 'M12 13h.01'],
   usage: ['M4 4v16h16', 'M7.5 15l3.5-4 3 2.5 4.5-6'],
+  search: ['M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z', 'M16 16l4 4'],
   more: ['M5.5 12h.01', 'M12 12h.01', 'M18.5 12h.01'],
   flows: ['M5 5h5v5H5z', 'M14 14h5v5h-5z', 'M7.5 10v2.5a2 2 0 0 0 2 2H14'],
   agents: [

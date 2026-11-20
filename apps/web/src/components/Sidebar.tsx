@@ -14,6 +14,8 @@ export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | 
 /** The three pages about what the AIs consume, behind one item: the X-ray, Usage and Efficiency. */
 export const CONSUMPTION: Tab[] = ['xray', 'usage', 'efficiency']
 const LAST_CONSUMPTION = 'raiox.consumo'
+/** The palette's keys as this computer writes them. */
+const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
 
 /** The consumption page the person last looked at, so the item opens where they left it. */
 export function lastConsumption(): Tab {
@@ -49,10 +51,12 @@ interface SidebarProps {
   /** Opens Settings on one of its tabs (from the profile menu). */
   onSettings: (tab: 'conexoes' | 'celular') => void
   onSetup: () => void
+  /** Opens the ⌘K palette. */
+  onSearch: () => void
 }
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
-export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup }: SidebarProps) {
+export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup, onSearch }: SidebarProps) {
   const [tip, setTip] = useState<{ text: string; top: number; left: number } | null>(null)
   useEffect(() => {
     if (!collapsed) setTip(null)
@@ -130,6 +134,11 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
           <Icon name={collapsed ? 'sidebar-expand' : 'sidebar-collapse'} />
         </button>
       </div>
+      <button type="button" className="lado-busca" aria-label={collapsed ? t.paletteLabel : undefined} onClick={onSearch} {...tipProps(`${t.paletteSearch} ${SHORTCUT}`)}>
+        <Icon name="search" />
+        <span className="nome">{t.paletteSearch}</span>
+        <kbd>{SHORTCUT}</kbd>
+      </button>
       <div className="lado-scroll" onScroll={hideTip}>
         <nav className="lado-grupo lado-menu" aria-label="raiox">
           {nav.map((item) => (

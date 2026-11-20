@@ -19,12 +19,21 @@ const draftOf = (flow: Flow): Draft => ({ id: flow.id, name: flow.name, enabled:
 const complete = (draft: Draft) => draft.name.trim() !== '' && !(draft.trigger && triggerMissing(draft.trigger)) && draft.steps.every((step) => !stepMissing(step))
 
 /** Workflows: a trigger and steps in a line, drawn on a board, saved as the person edits. */
-export function Flows({ bots }: { bots: Bots }) {
+interface FlowsProps {
+  bots: Bots
+  /** A workflow to open, picked elsewhere (the ⌘K palette). */
+  pick?: { id: string; n: number } | null
+}
+
+export function Flows({ bots, pick }: FlowsProps) {
   const [flows, setFlows] = useState<Flow[] | null>(null)
   const [chosen, setChosen] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const editing = useRef(false)
+  useEffect(() => {
+    if (pick) setChosen(pick.id)
+  }, [pick])
   const load = useCallback(() => fetchFlows().then(({ flows: next }) => setFlows(next)).catch((failure: unknown) => setError(messageOf(failure))), [])
   const live = flows?.some(isLive) ?? false
   useEffect(() => {
