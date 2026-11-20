@@ -66,6 +66,8 @@ interface BotLineProps {
   /** Already kept in ai-memory as a decision of the project. */
   remembered: boolean
   onRemember: () => void
+  /** A new conversation from this answer. */
+  onBranch?: () => void
   /** Keeps the answer as a page of the team's wiki. */
   onWiki?: () => Promise<boolean>
   /** The other AIs of the project, which can review a proposal. */
@@ -75,7 +77,7 @@ interface BotLineProps {
   onReview: (reviewer: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -174,7 +176,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
     return (
       <>
         {head}
-        <div className={`linha minha ${images.length > 0 ? 'com-imagens' : ''}`} id={`msg-${message.ms}`}>
+        <div className={`linha minha ${images.length > 0 ? 'com-imagens' : ''} ${message.data.aside ? 'pergunta-lateral' : ''}`} id={`msg-${message.ms}`}>
           {images.length > 0 ? (
             <div className="minha-conteudo">
               <UploadedImages bot={bot} names={images} />
@@ -191,6 +193,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
+  if (message.kind === 'forked') {
+    return <p className="linha-sistema">{t.forkedLine}</p>
+  }
   if (message.kind === 'turn_undone') {
     return <p className="linha-sistema">{t.turnUndoneLine}</p>
   }
@@ -203,7 +208,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   return (
     <>
       {head}
-      <div className="linha de-agente bolha-linha" id={`msg-${message.ms}`}>
+      <div className={`linha de-agente bolha-linha ${message.data.aside ? 'pergunta-lateral' : ''}`} id={`msg-${message.ms}`}>
         <div className="corpo">
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
           {reply && (
@@ -214,6 +219,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
           {meta && (
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
+              {message.data.aside && <span className="editou">{t.asideBadge}</span>}
               {message.data.audit && message.data.auditor_agent && (
                 <span className="auditor-selo">{t.auditorBadge.replace('{agent}', AGENT_LABEL[message.data.auditor_agent] ?? message.data.auditor_agent)}</span>
               )}
@@ -230,6 +236,11 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                   </button>
                 )}
                 {message.kind === 'answer' && onWiki && <WikiKeep onWiki={onWiki} />}
+                {message.kind === 'answer' && onBranch && !message.data.aside && (
+                  <button type="button" className="copiar" title={t.branchHint} onClick={onBranch}>
+                    {t.branchHere}
+                  </button>
+                )}
               </span>
             </span>
           )}

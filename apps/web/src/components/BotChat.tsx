@@ -17,7 +17,8 @@ import { ReviewLine } from './chat/ReviewLine'
 import { BotLine } from './chat/BotLine'
 import { ProjectList } from './chat/ProjectList'
 import { ModelPicker } from './chat/ModelPicker'
-import { Composer } from './chat/Composer'
+import { Composer, type SlashCommand } from './chat/Composer'
+import { notify } from '../notify'
 import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
@@ -111,6 +112,29 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
     const created = next?.bots.find((b) => b.id === bot.id)?.threads.at(-1)
     if (created) setThread(created.id)
   }
+  /** A new conversation that starts from this answer, named after the question it answered. */
+  const branchFrom = async (ms: number) => {
+    const before = new Set(bot.threads.map((th) => th.id))
+    const asked = messages.findLast((m) => m.author === 'you' && m.kind === 'ask' && m.ms < ms)?.data.text ?? ''
+    const next = await bots.act('branch', { id: bot.id, thread: current, ms, title: `${t.branchTitle} · ${asked}`.slice(0, 60) })
+    const made = next?.bots.find((b) => b.id === bot.id)?.threads.find((th) => !before.has(th.id))
+    if (made) {
+      setThread(made.id)
+      notify(t.branchMade)
+    }
+  }
+  const asideCommand: SlashCommand = {
+    id: 'btw',
+    label: t.asideCommand,
+    hint: t.asideHint,
+    icon: (
+      <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" aria-hidden="true">
+        <path d="M6 4v8a4 4 0 0 0 4 4h8M15 13l3 3-3 3" />
+      </svg>
+    ),
+    run: () => undefined,
+    insert: '/btw ',
+  }
   const closeThread = async (id: string) => {
     if ((await bots.act('thread_delete', { id: bot.id, thread: id })) && id === current) setThread(MAIN)
   }
@@ -144,6 +168,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
 
   const send = async (text: string, images?: string[]) => {
     askToNotify()
+    // "/btw question": a side question, answered outside the conversation's session.
+    const aside = /^\/btw\s+(.+)$/s.exec(text.trim())
+    if (aside) return (await bots.act('ask', { id: bot.id, thread: current, text: aside[1], aside: true })) !== null
     const payload: Record<string, unknown> = { id: bot.id, thread: current, text }
     if (images && images.length > 0) payload.images = images
     return (await bots.act('ask', payload)) !== null
@@ -254,6 +281,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
               onDraft={(action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
               thread={current}
+              onBranch={() => void branchFrom(message.ms)}
               turnUndone={undoneTurns.has(message.ms)}
               onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
@@ -311,7 +339,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
         <Composer
           draftKey={`${bot.id}:${current}`}
           placeholder={`${t.composeBot} ${speaker} · ${t.slashHint}`}
-          commands={houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent }))}
+          commands={[...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
           maxLength={bots.state.max_text}
           busy={bot.busy}
           allowImages

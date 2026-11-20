@@ -186,6 +186,9 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         if let Some(changes) = before.as_ref().and_then(|before| crate::turn_diff::compare(dir, before, &crate::turn_diff::snapshot(dir)?)) {
             answer_data["changes"] = changes;
         }
+        if !turn.keep_session && !turn.is_audit {
+            answer_data["aside"] = json!(true);
+        }
         if turn.is_audit {
             answer_data["audit"] = json!(true);
             if let Some(agent) = &turn.auditor_agent {

@@ -36,7 +36,9 @@ export interface SlashCommand {
   label: string
   hint: string
   icon: ReactNode
+  /** Runs at once; or, with `insert`, puts that text in the field to be completed. */
   run: () => void
+  insert?: string
 }
 
 /** The commands whose name starts with what follows "/" (the whole draft, while it is one word). */
@@ -178,8 +180,8 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
   useEffect(() => setSlashActive(0), [draft])
   const runSlash = (command: SlashCommand | undefined) => {
     if (!command) return
-    setDraft('')
-    command.run()
+    setDraft(command.insert ?? '')
+    if (command.insert === undefined) command.run()
   }
 
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {

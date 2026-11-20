@@ -2922,3 +2922,13 @@ form.compositor {
 .turno footer .perigo {
   color: var(--brasa);
 }
+
+/* A side question and its answer: set in from the conversation's line, quieter. */
+.linha.de-agente.pergunta-lateral {
+  padding-left: 28px;
+  opacity: 0.86;
+}
+
+.linha.minha.pergunta-lateral {
+  opacity: 0.86;
+}

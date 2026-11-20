@@ -590,7 +590,9 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let brought: String = crate::carry::unread(&messages).into_iter().map(crate::carry::for_cli).collect();
     // The first question after the person switched this conversation to another AI carries what was said.
     let recap = crate::agent_switch::recap(&messages).unwrap_or_default();
-    let for_cli = format!("{recap}{brought}{for_cli}");
+    // The first question of a branch carries what was said up to where it branched.
+    let branched = crate::fork::branch_recap(&messages).unwrap_or_default();
+    let for_cli = format!("{recap}{branched}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
@@ -599,6 +601,22 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
         return Err(error);
     }
     Ok(())
+}
+
+/// A side question: answered with the recent messages as context, in a session of its own, so the
+/// conversation's session never sees it.
+pub fn ask_aside(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > MAX_TEXT {
+        bail!("a message has 1 to {MAX_TEXT} characters");
+    }
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let for_cli = crate::fork::side_question(&messages, text);
+    let asked = Some(said("ask", json!({ "text": text, "aside": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked, home: None, command: None, images: Vec::new(), keep_session: false, is_audit: false, auditor_agent: None })
 }
 
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
@@ -802,7 +820,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
     let bot = find(state_dir, id)?;
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
-    let session = thread_session(state_dir, &bot, thread)?;
+    // A turn that does not keep its session (a side question) does not continue the conversation's either.
+    let session = if turn.keep_session { thread_session(state_dir, &bot, thread)? } else { None };
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
     }

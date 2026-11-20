@@ -366,8 +366,13 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
                     .collect::<Result<Vec<_>>>()?,
                 Some(_) => return Err(anyhow!("images must be an array")),
             };
-            bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+            if input.get("aside").and_then(Value::as_bool) == Some(true) {
+                bots::ask_aside(state_dir, jobs, field("id"), thread, field("text"))
+            } else {
+                bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+            }
         }
+        "branch" => crate::fork::branch(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0), field("title")).map(|_| ()),
         "turn_undo" => bots::undo_turn(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0)),
         "approve" => {
             let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;

@@ -1459,6 +1459,11 @@ textarea:focus-visible {
   scrollbar-width: none;
 }
 
+/* The column scrolls; its lines keep their height (one with overflow hidden would shrink to nothing). */
+.chat-mensagens > * {
+  flex-shrink: 0;
+}
+
 .chat-mensagens::-webkit-scrollbar {
   display: none;
 }
