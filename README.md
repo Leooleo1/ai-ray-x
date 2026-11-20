@@ -12,7 +12,7 @@ Codex, Cursor, Google's Antigravity CLI and opencode** (which reaches any
 provider, free models included). And it shows where their tokens go, with cuts
 that make every request cheaper.
 
-![A chat with a project's AI that has full access: it fixed a bug test-first, committed and pushed, started the app and checked its screenshot](docs/screenshots/chat.webp)
+![raiox in 20 seconds: a project's AI fixed a bug and checked the app; / calls the helpers; ⌘K goes to Usage, the X-ray and Workflows](docs/screenshots/demo.webp)
 
 <sub>Screenshots show a demo with made-up projects and usage.</sub>
 
@@ -35,6 +35,8 @@ that make every request cheaper.
 Intel Macs and Linux: [build from source](docs/building.md).
 
 ## An AI in every project
+
+![A chat with a project's AI that has full access: it fixed a bug test-first, committed and pushed, started the app and checked its screenshot](docs/screenshots/chat.webp)
 
 - **Four modes, as in a coding CLI.** Beside Send, each AI's mode: *allow*
   (it runs what only reads, tests or installs; changes come as proposals),
