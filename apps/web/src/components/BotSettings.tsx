@@ -502,49 +502,52 @@ function AuditorBlock({ bot, bots, onOpenThread }: { bot: Bot; bots: Bots; onOpe
       {auditor.enabled && (
         <div className="auditor-opcoes">
           {!IS_REMOTE && otherAgents.length > 0 && (
-            <Choice
-              label={t.auditorAiLabel}
-              current={auditor.agent}
-              fallback={bot.agent}
-              options={otherAgents}
-              show={(id) => AGENT_LABEL[id as keyof typeof AGENT_LABEL] ?? id}
-              nullLabel={t.auditorSameAi}
-              onPick={(agent) => set({ agent: agent ?? '' })}
-            />
+            <div className="auditor-linha">
+              <span>{t.auditorAiLabel}</span>
+              <Choice
+                label={t.auditorAiLabel}
+                bare
+                current={auditor.agent}
+                fallback={bot.agent}
+                options={otherAgents}
+                show={(id) => AGENT_LABEL[id as keyof typeof AGENT_LABEL] ?? id}
+                nullLabel={t.auditorSameAi}
+                onPick={(agent) => set({ agent: agent ?? '' })}
+              />
+            </div>
           )}
           {!IS_REMOTE && (
-            <>
-              <div className="ajustes-campo">
-                <span>{t.auditorCadenceLabel}</span>
-                <div className="ajustes-grade" role="radiogroup" aria-label={t.auditorCadenceLabel} style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-                  {(['manual', 'on_change', 'weekly'] as const).map((cadence) => (
-                    <button
-                      key={cadence}
-                      type="button"
-                      role="radio"
-                      aria-checked={auditor.cadence === cadence}
-                      className={auditor.cadence === cadence ? 'ativo' : ''}
-                      onClick={() => set({ cadence })}
-                    >
-                      <b>{t.auditorCadences[cadence]}</b>
-                    </button>
-                  ))}
-                </div>
+            <div className="auditor-linha">
+              <span>{t.auditorCadenceLabel}</span>
+              <div className="ajustes-grade" role="radiogroup" aria-label={t.auditorCadenceLabel} style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                {(['manual', 'on_change', 'weekly'] as const).map((cadence) => (
+                  <button
+                    key={cadence}
+                    type="button"
+                    role="radio"
+                    aria-checked={auditor.cadence === cadence}
+                    className={auditor.cadence === cadence ? 'ativo' : ''}
+                    title={cadence === 'on_change' ? t.auditorCadenceNote : undefined}
+                    onClick={() => set({ cadence })}
+                  >
+                    <b>{t.auditorCadences[cadence]}</b>
+                  </button>
+                ))}
               </div>
-              {auditor.cadence === 'on_change' && <p className="ajustes-nota">{t.auditorCadenceNote}</p>}
-            </>
+            </div>
           )}
-          <div className="acao auditor-acoes">
-            <button type="button" className="cheio" disabled={bot.busy || starting} onClick={() => void runAudit()}>
-              {auditingNow || starting ? t.auditorRunning : t.auditorRunNow}
-            </button>
+          {/* One status line: the last audit (open it) and the one action. */}
+          <div className="auditor-estado">
+            <span className={`auditor-meta ${auditingNow || starting ? 'rodando' : ''}`}>{auditingNow || starting ? t.auditorRunning : skipped ? t.auditorSkipped : lastLabel}</span>
             {hasThread && auditor.thread && onOpenThread && (
-              <button type="button" className="link" onClick={() => onOpenThread(auditor.thread!)}>
+              <button type="button" className="auditor-ver" onClick={() => onOpenThread(auditor.thread!)}>
                 {t.auditorOpenThread}
               </button>
             )}
+            <button type="button" className="auditor-rodar" disabled={bot.busy || starting} onClick={() => void runAudit()}>
+              {t.auditorRunNow}
+            </button>
           </div>
-          <p className="ajustes-nota auditor-meta">{skipped ? t.auditorSkipped : lastLabel}</p>
         </div>
       )}
     </>

@@ -568,22 +568,95 @@
   color: var(--alerta);
 }
 
-/* Built-in Dev/Infra auditor options inside the bot drawer. */
+/* The Dev/Infra auditor, once on: labeled rows (who audits, when) with flat
+   pickers, then one status line with the last audit and the one action. No box. */
 .auditor-opcoes {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgb(255 255 255 / 3%);
-  box-shadow: inset 0 0 0 1px var(--fio);
+  gap: 4px;
 }
 
-.auditor-acoes {
-  margin-top: 2px;
+.auditor-linha {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.auditor-linha > span {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.auditor-linha .ajustes-campo {
+  gap: 0;
+}
+
+.auditor-estado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 6px;
+  padding-top: 10px;
+  box-shadow: inset 0 1px 0 var(--fio);
 }
 
 .auditor-meta {
-  margin: -4px 0 0;
-  font: 11px/14px var(--mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auditor-meta::before {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 30%);
+  content: '';
+}
+
+.auditor-meta.rodando::before {
+  background: var(--cobalto);
+}
+
+.auditor-ver {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--giz);
+  font: 12px/16px var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgb(255 255 255 / 30%);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auditor-rodar {
+  flex: none;
+  height: 30px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auditor-rodar:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
