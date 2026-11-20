@@ -57,12 +57,11 @@
   flex: none;
 }
 
+/* A section's label: normal case, small and grey (capitals are for short metadata only). */
 .ajustes-grupo {
   margin-top: 6px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 500 12px/16px var(--sans);
 }
 
 .ajustes-campo {

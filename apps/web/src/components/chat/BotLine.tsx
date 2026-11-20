@@ -79,7 +79,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   )
   if (message.kind === 'reset') {
     return (
-      <div className="dia">
+      <div className="dia aviso">
         <span>{t.conversationReset}</span>
       </div>
     )
@@ -89,7 +89,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
     const to = (AGENT_LABEL as Record<string, string>)[target] ?? target
     const model = message.data.model ? ` · ${message.data.model}` : ''
     return (
-      <div className="dia">
+      <div className="dia aviso">
         <span>{t.switchedTo.replace('{agent}', `${to}${model}`)}</span>
       </div>
     )
