@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in raiox does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Leave out tokens, keys, `.env` contents and anything private from your logs.
+        A security problem goes through the Security tab instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: raiox version
+      description: In the profile menu, at its foot.
+      placeholder: 0.1.4
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel, built from source)
+        - Windows
+        - Linux (built from source)
+    validations:
+      required: true
+  - type: dropdown
+    id: cli
+    attributes:
+      label: AI CLI involved
+      multiple: true
+      options:
+        - Claude Code
+        - Codex
+        - Cursor
+        - Antigravity CLI
+        - opencode
+        - None (X-ray, Efficiency or setup)
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: A screenshot, the CLI's version, an error message.
