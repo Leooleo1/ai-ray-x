@@ -55,6 +55,7 @@ interface ComposerProps {
   placeholder: string
   maxLength: number
   busy: boolean
+  blocked?: boolean
   /** Lets the person attach up to 4 images by button, paste or drag-and-drop. */
   allowImages?: boolean
   /** Resolves true when the message went out, so the draft clears. */
@@ -69,7 +70,7 @@ interface ComposerProps {
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
+export function Composer({ draftKey, placeholder, maxLength, busy, blocked = false, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
   const [attachError, setAttachError] = useState<string | null>(null)
@@ -160,7 +161,7 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
       }
       return
     }
-    if (busy) return
+    if (busy || blocked) return
     const attached = allowImages ? images.map((item) => item.dataUrl) : []
     if (!text && attached.length === 0) return
     setSending(true)
@@ -367,7 +368,7 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
             </svg>
           </button>
         ) : (
-          <button className="enviar" type="submit" disabled={!hasContent || sending} aria-label={t.send}>
+          <button className="enviar" type="submit" disabled={!hasContent || sending || blocked} aria-label={t.send}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 19V5M5 12l7-7 7 7" />
             </svg>

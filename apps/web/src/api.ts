@@ -235,6 +235,7 @@ export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' 
 export interface BotReply {
   text: string
   proposal: string | null
+  question?: string
   to?: BotNote[]
   open?: Place[]
   /** Commands the AI asks raiox to run, each with why raiox refuses it, if it does. */
@@ -284,7 +285,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked' | 'access_changed'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked' | 'access_changed' | 'waiting_cancelled'
   data: {
     text?: string
     proposal?: string
@@ -296,6 +297,7 @@ export interface BotMessage {
     body?: string
     /** A suggestion sent on: which answer and which project. */
     answer_ms?: number
+    waiting?: 'proposal' | 'command' | 'question'
     project?: string
     /** A draft: its id, the changed files and the secrets files kept out. */
     draft?: string
@@ -428,6 +430,15 @@ export interface BotCandidate {
   last_ms: number
 }
 
+export type FirstUseMission = 'chat' | 'approval' | 'task' | 'link' | 'usage'
+export type FirstUseMilestone = FirstUseMission | 'desk' | 'flow' | 'delivery' | 'wiki' | 'turn'
+
+export interface FirstUseProgress {
+  legacy: boolean
+  dismissed: boolean
+  completed: FirstUseMilestone[]
+}
+
 export interface BotsState {
   bots: Bot[]
   candidates: BotCandidate[]
@@ -443,6 +454,8 @@ export interface BotsState {
   rsi_python?: string | null
   /** Whether this machine can install Python 3 automatically from the panel. */
   rsi_python_can_install?: boolean
+  progress?: FirstUseProgress
+  show_all_navigation?: boolean
   max_text: number
 }
 
@@ -484,11 +497,12 @@ export interface Channel {
   members: { bot: string; handle: string }[]
   /** Each member's conversation for this channel. */
   threads: Record<string, string>
+  working?: boolean
   messages: ChannelItem[]
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
+export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -524,6 +538,7 @@ export interface SettingsState {
   defaults: Record<string, { model: string | null; effort: string | null }>
   /** True when the CLI probe came from the disk cache and is refreshing in the background. */
   cached?: boolean
+  show_all_navigation?: boolean
 }
 
 export interface UsageRow {

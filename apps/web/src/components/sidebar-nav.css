@@ -269,3 +269,76 @@
     padding-top: 6px;
   }
 }
+
+.lado-missoes {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--fio);
+  border-radius: var(--raio-item);
+  font-size: 12px;
+}
+
+.lado-missoes header,
+.lado-missoes :is(li button, .lado-missao-feita) {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lado-missoes header {
+  justify-content: space-between;
+}
+
+.lado-missoes ul {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lado-missoes button {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lado-missoes button:hover:not(:disabled) {
+  color: var(--giz);
+  text-decoration: underline;
+}
+
+.lado-missoes :is(.lado-missao-feita, button:disabled) {
+  color: var(--nevoa);
+}
+
+.lado-missoes button:disabled {
+  cursor: default;
+}
+
+.lado-missoes :is(.icone, li i) {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.lado-missoes li i {
+  width: 10px;
+  height: 10px;
+  margin-inline: 2px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.lado-missao-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

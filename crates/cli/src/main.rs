@@ -113,7 +113,6 @@ fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Open { port: 0, no_open: false, web_dir: None }) {
         Command::Open { port, no_open, web_dir } => {
             let web_dir = web_dir.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist"));
-            raiox_core::refresh(&mut store, &roots)?;
             let state_dir = state_dir(&db);
             let project_dir = std::env::current_dir()?;
             serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir, jobs: bots::Jobs::default(), clones: setup::Clones::default() }, port, !no_open)

@@ -12,6 +12,7 @@ use anyhow::{anyhow, Context, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
+use crate::progress::{self, Milestone};
 use crate::{actions, bots, data, setup};
 use raiox_core::apply;
 use serde_json::{json, Value};
@@ -74,9 +75,11 @@ pub fn run(panel: Panel, port: u16, open_browser: bool) -> Result<()> {
 
 /// Starts the panel server on its own thread; gives its address (with the session token) and port.
 /// One panel per state folder: another raiox already serving the same data refuses this one.
-pub fn start(panel: Panel, port: u16) -> Result<(String, u16)> {
+pub fn start(mut panel: Panel, port: u16) -> Result<(String, u16)> {
     crate::procs::claim_panel(&panel.state_dir)?;
     let server = Server::http(("127.0.0.1", port)).map_err(|e| anyhow!("cannot listen on 127.0.0.1:{port}: {e}"))?;
+    progress::initialize(&panel.state_dir, &panel.store)?;
+    raiox_core::refresh(&mut panel.store, &panel.roots)?;
     let port = server.server_addr().to_ip().map(|addr| addr.port()).ok_or_else(|| anyhow!("no TCP address"))?;
     let token = session_token();
     let url = format!("http://127.0.0.1:{port}/#t={token}");
@@ -403,10 +406,18 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;
             bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread, answer_ms)
         }
+        "dismiss_missions" => progress::dismiss(state_dir),
+        "view_usage" => progress::viewed_usage(state_dir),
+        "cancel_waiting" => {
+            let ms = input["answer_ms"].as_i64().context("invalid answer timestamp")?;
+            let card = serde_json::from_value(input.clone())?;
+            bots::cancel_waiting(state_dir, jobs, field("id"), thread, ms, card)
+        }
         "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
-            bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
+            let ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid answer timestamp")).transpose()?;
+            bots::run_command(state_dir, jobs, field("id"), thread, ms, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
         }
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
         "review" => bots::request_review(state_dir, jobs, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("reviewer")),
@@ -443,7 +454,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
         "link_toggle" => {
-            crate::links::toggle(state_dir, field("a"), field("b"))?;
+            let (a, b) = (field("a"), field("b"));
+            crate::links::toggle(state_dir, a, b)?;
+            if crate::links::are_linked(state_dir, a, b) {
+                progress::record(state_dir, &[Milestone::Link]);
+            }
             let dirs = [field("a"), field("b")].iter().flat_map(|name| crate::team::around(state_dir, name)).collect();
             crate::team::refresh(state_dir, dirs);
             Ok(())
@@ -512,6 +527,12 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "handle" => crate::bot_mail::handle(state_dir, jobs, field("id"), field("message")),
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
+    match action {
+        "ask" | "channel_post" | "ask_many" => progress::record(state_dir, &[Milestone::Chat]),
+        "approve" => progress::record(state_dir, &[Milestone::Approval, Milestone::Desk]),
+        "draft" if field("action") == "apply" => progress::record(state_dir, &[Milestone::Approval, Milestone::Desk]),
+        _ => (),
+    }
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
 }
 
@@ -575,6 +596,7 @@ fn settings_answer(panel: &Panel, fresh: bool) -> Answer {
         return Answer::Now(respond(Ok(json!({
             "connections": crate::connections::statuses(cached, &usage, &settings),
             "defaults": settings.defaults,
+            "show_all_navigation": settings.show_all_navigation,
             "cached": true,
         }))));
     }
@@ -583,6 +605,7 @@ fn settings_answer(panel: &Panel, fresh: bool) -> Answer {
         respond(Ok(json!({
             "connections": crate::connections::statuses(probes, &usage, &settings),
             "defaults": settings.defaults,
+            "show_all_navigation": settings.show_all_navigation,
             "cached": false,
         })))
     }))

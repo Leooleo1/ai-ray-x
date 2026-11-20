@@ -1,11 +1,12 @@
 import { type CSSProperties, type FocusEvent, type MouseEvent, useEffect, useState } from 'react'
-import type { Bot } from '../api'
+import type { Bot, FirstUseMission, FirstUseProgress } from '../api'
 import { faceForBot } from '../avatars'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon, type IconName } from './Icons'
 import { PlanRings } from './PlanRings'
 import { ProfileMenu } from './ProfileMenu'
+import { MissionCard } from './sidebar/MissionCard'
 import './sidebar-nav.css'
 
 export type Tab = 'xray' | 'usage' | 'efficiency' | 'flows' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
@@ -45,6 +46,10 @@ interface SidebarProps {
   channels: { id: string; name: string; working: boolean }[]
   updatedAt: Date
   collapsed: boolean
+  progress?: FirstUseProgress
+  showAllNavigation: boolean
+  missions: Record<FirstUseMission, () => void>
+  onDismissMissions: () => Promise<unknown>
   onToggle: () => void
   onTab: (tab: Tab) => void
   onChat: (view: ChatView) => void
@@ -56,7 +61,7 @@ interface SidebarProps {
 }
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
-export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup, onSearch }: SidebarProps) {
+export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, progress, showAllNavigation, missions, onDismissMissions, onToggle, onTab, onChat, onSettings, onSetup, onSearch }: SidebarProps) {
   const [tip, setTip] = useState<{ text: string; top: number; left: number } | null>(null)
   useEffect(() => {
     if (!collapsed) setTip(null)
@@ -106,6 +111,17 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
     { id: lastConsumption(), label: t.consumptionTab, icon: 'xray' },
     { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders', underMore: true, phoneOnly: true },
   ]
+  const completed = progress?.completed ?? []
+  const showAll = showAllNavigation || progress?.legacy !== false
+  const showConsumption = showAll || completed.includes('turn')
+  const visible = showAll ? nav : nav.filter(({ id }) => {
+    if (CONSUMPTION.includes(id)) return showConsumption
+    if (id === 'desk') return completed.includes('desk')
+    if (id === 'flows') return completed.includes('flow')
+    if (id === 'deliveries') return completed.includes('delivery')
+    if (id === 'wiki') return completed.includes('wiki')
+    return true
+  })
   const isOn = (id: Tab) => tab === id || (CONSUMPTION.includes(id) && CONSUMPTION.includes(tab))
   const go = (id: Tab) => {
     setMore(false)
@@ -141,7 +157,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
       </button>
       <div className="lado-scroll" onScroll={hideTip}>
         <nav className="lado-grupo lado-menu" aria-label="raiox">
-          {nav.map((item) => (
+          {visible.map((item) => (
             <button
               key={item.label}
               type="button"
@@ -158,7 +174,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
           ))}
           <button
             type="button"
-            className={`lado-item so-celular lado-mais ${nav.some((item) => item.underMore && isOn(item.id)) ? 'ativo' : ''}`}
+            className={`lado-item so-celular lado-mais ${visible.some((item) => item.underMore && isOn(item.id)) ? 'ativo' : ''}`}
             aria-expanded={more}
             onClick={() => setMore(!more)}
           >
@@ -167,7 +183,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
           </button>
           {more && (
             <div className="lado-mais-folha" role="menu">
-              {nav
+              {visible
                 .filter((item) => item.underMore)
                 .map((item) => (
                   <button key={item.label} type="button" role="menuitem" className={isOn(item.id) ? 'ativo' : ''} onClick={() => go(item.id)}>
@@ -257,7 +273,10 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
         </div>
       </div>
       <footer className="lado-rodape">
-        <PlanRings collapsed={collapsed} />
+        {!collapsed && progress?.legacy === false && !progress.dismissed && (
+          <MissionCard completed={progress.completed} actions={missions} onDismiss={onDismissMissions} />
+        )}
+        {showConsumption && <PlanRings collapsed={collapsed} />}
         <ProfileMenu bots={bots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
       </footer>
       {collapsed && tip && (

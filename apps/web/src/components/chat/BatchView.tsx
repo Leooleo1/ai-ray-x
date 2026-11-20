@@ -74,7 +74,7 @@ function Column({ bot, thread, nav }: ColumnProps) {
             {bot.step?.target && <code className="passo-alvo">{bot.step.target}</code>}
           </p>
         )}
-        {!working && reply && <Markdown text={reply.text} />}
+        {!working && reply && <Markdown text={[reply.text, reply.question].filter(Boolean).join('\n\n')} />}
         {!working && last?.kind === 'failed' && <p className="nota failed">{last.data.error}</p>}
         {!working && last?.kind === 'stopped' && <p className="nota">{t.stoppedNote}</p>}
       </div>

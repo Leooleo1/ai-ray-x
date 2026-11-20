@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 11] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed"];
+const ASIDE: [&str; 12] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed", "waiting_cancelled"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -37,6 +37,8 @@ const CANDIDATES: usize = 200;
 
 /// Serializes writes to the registry: answers finish on their own threads.
 static REGISTRY: Mutex<()> = Mutex::new(());
+/// Serializes a person's decision about a waiting card with approval and command execution.
+static WAITING: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bot {
@@ -712,8 +714,70 @@ pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread:
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(tag = "waiting", rename_all = "snake_case")]
+pub enum WaitingCard {
+    Proposal,
+    Command { index: usize },
+    Question,
+}
+
+impl WaitingCard {
+    fn key(self) -> (&'static str, Option<usize>) {
+        match self {
+            Self::Proposal => ("proposal", None),
+            Self::Command { index } => ("command", Some(index)),
+            Self::Question => ("question", None),
+        }
+    }
+
+    fn cancelled(self, messages: &[Message], answer_ms: i64) -> bool {
+        let (kind, index) = self.key();
+        messages.iter().any(|message| {
+            message.kind == "waiting_cancelled" && message.data["answer_ms"].as_i64() == Some(answer_ms)
+                && message.data["waiting"].as_str() == Some(kind) && message.data["index"].as_u64() == index.map(|number| number as u64)
+        })
+    }
+
+    fn exists(self, answer: &Message) -> bool {
+        let reply = &answer.data["reply"];
+        match self {
+            Self::Proposal => reply["proposal"].as_str().is_some_and(|text| !text.is_empty()),
+            Self::Question => reply["question"].as_str().is_some_and(|text| !text.is_empty()),
+            Self::Command { index } => reply["run"][index]["command"].is_string() && reply["run"][index]["refused"].is_null(),
+        }
+    }
+}
+
+/// Closes a single waiting card in the conversation without starting a turn.
+pub fn cancel_waiting(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: i64, card: WaitingCard) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    find(state_dir, id)?;
+    let file = threads::chat_file(state_dir, id, thread);
+    let messages = room::read_messages(&file);
+    if card.cancelled(&messages, answer_ms) {
+        return Ok(());
+    }
+    if jobs.thread_of(id).as_deref() == Some(thread) {
+        bail!("the bot is still answering");
+    }
+    let current = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
+    if !current.is_some_and(|answer| answer.ms == answer_ms && answer.author == "bot" && answer.kind == "answer" && card.exists(answer)) {
+        bail!("this waiting card is no longer current");
+    }
+    let (kind, index) = card.key();
+    room::append_messages(&file, vec![said("waiting_cancelled", json!({ "answer_ms": answer_ms, "waiting": kind, "index": index }))])
+}
+
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
 pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
@@ -721,6 +785,9 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
         && !last.is_some_and(|m| m.ms == ms)
     {
         bail!("this proposal is no longer current");
+    }
+    if last.is_some_and(|m| WaitingCard::Proposal.cancelled(&messages, m.ms)) {
+        bail!("this proposal was cancelled");
     }
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
@@ -740,7 +807,8 @@ const MAX_ALLOWED: usize = 40;
 
 /// Runs a command the bot asked for in its latest answer, then lets it go on with the output.
 /// With `always`, that exact command runs without asking from now on in this project.
-pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index: usize, always: bool) -> Result<()> {
+pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>, index: usize, always: bool) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
@@ -749,6 +817,9 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     let last = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
+    if !last.is_some_and(|m| answer_ms.is_none_or(|ms| m.ms == ms) && !(WaitingCard::Command { index }).cancelled(&messages, m.ms)) {
+        bail!("this command request is no longer current");
+    }
     let command = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer(&format!("/reply/run/{index}/command")).and_then(Value::as_str))
@@ -772,9 +843,9 @@ pub fn set_talk_model(state_dir: &Path, id: &str, model: Option<&str>) -> Result
 
 /// A turn whose message for the CLI differs from what the conversation shows: a channel's
 /// context goes to the CLI, the person's words to the screen.
-pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<()> {
+pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<std::thread::JoinHandle<Option<Message>>> {
     let asked = Some(said("ask", json!({ "text": shown, "channel": channel })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+    start_turn(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
 /// Runs a Dev/Infra audit in `thread` using `audit_agent` (which may differ from the bot's own CLI).
@@ -928,6 +999,10 @@ pub fn remember(state_dir: &Path, id: &str, thread: &str, answer_ms: i64) -> Res
 }
 
 fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<()> {
+    start_turn(state_dir, jobs, id, thread, turn).map(|_| ())
+}
+
+fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<std::thread::JoinHandle<Option<Message>>> {
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
@@ -946,14 +1021,14 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
         return Err(error);
     }
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
-    std::thread::spawn(move || {
-        turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
+    Ok(std::thread::spawn(move || {
+        let answer = turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
         jobs.finish(&bot.id);
         crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
         crate::push::after_turn(&state_dir, &bot, &thread);
         crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
-    });
-    Ok(())
+        answer
+    }))
 }
 
 /// Everything the panel shows about bots.
@@ -1001,6 +1076,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .filter(|k| k.bots && settings.is_enabled(k.id))
         .map(|k| json!({ "id": k.id, "name": k.name }))
         .collect();
+    let requests = crate::requests::list(state_dir);
     Ok(json!({
         "bots": bots,
         "candidates": candidates(store, home)?,
@@ -1008,9 +1084,11 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         "links": crate::links::list(state_dir),
         "batches": crate::batches::list(state_dir),
         "channels": crate::channels::state(state_dir),
-        "requests": crate::requests::list(state_dir),
+        "requests": requests,
         "rsi_python": crate::rsi::python(),
         "rsi_python_can_install": crate::install::can_install_python(),
+        "progress": crate::progress::state(state_dir, !requests.is_empty()),
+        "show_all_navigation": settings.show_all_navigation,
         "max_text": MAX_TEXT,
     }))
 }
@@ -1036,6 +1114,31 @@ mod tests {
         room::append_messages(&threads::chat_file(&dir, "b1", MAIN), messages).unwrap();
         let error = approve(&dir, &dir, &Jobs::default(), "b1", MAIN, Some(100)).unwrap_err();
         assert!(error.to_string().contains("no longer current"), "{error:#}");
+    }
+
+    #[test]
+    fn cancelling_a_card_only_writes_one_local_note_and_blocks_the_cancelled_action() {
+        let home = temp_dir("cancel-waiting");
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        let jobs = Jobs::default();
+        let file = threads::chat_file(&state, &bot.id, MAIN);
+        let reply = json!({ "proposal": "Rename the helper", "question": "Which name?", "run": [{ "command": "git status" }] });
+        room::append_messages(&file, vec![Message { ms: 100, author: "bot".into(), kind: "answer".into(), data: json!({ "reply": reply }) }]).unwrap();
+        for _ in 0..2 {
+            cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Proposal).unwrap();
+        }
+        assert!(approve(&state, &home, &jobs, &bot.id, MAIN, Some(100)).unwrap_err().to_string().contains("cancelled"));
+        assert!(cancel_waiting(&state, &jobs, &bot.id, MAIN, 99, WaitingCard::Question).is_err());
+        cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Question).unwrap();
+        cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Command { index: 0 }).unwrap();
+        assert!(run_command(&state, &jobs, &bot.id, MAIN, Some(100), 0, false).is_err());
+        assert!(!jobs.is_busy(&bot.id));
+        let messages = room::read_messages(&file);
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[1..].iter().map(|m| m.kind.as_str()).collect::<Vec<_>>(), vec!["waiting_cancelled"; 3]);
+        let _ = fs::remove_dir_all(home);
     }
 
     #[test]

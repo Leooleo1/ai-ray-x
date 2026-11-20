@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const QUESTION_MARK: &str = "RAIOX-QUESTION:";
 pub const PROPOSAL_MARK: &str = "RAIOX-PROPOSAL:";
 pub const TO_MARK: &str = "RAIOX-TO";
 pub const OPEN_MARK: &str = "RAIOX-OPEN:";
@@ -37,6 +38,7 @@ pub struct Note {
 pub struct Marked {
     pub text: String,
     pub proposal: Option<String>,
+    pub question: Option<String>,
     pub notes: Vec<Note>,
     /// Panel places to open, from RAIOX-OPEN lines (known places only, once each).
     pub open: Vec<String>,
@@ -75,6 +77,11 @@ pub fn split(answer: &str) -> Marked {
         let trimmed = line.trim();
         if let Some(p) = trimmed.strip_prefix(PROPOSAL_MARK) {
             marked.proposal = Some(unquote(p)).filter(|p| !p.is_empty());
+        } else if let Some(question) = trimmed.strip_prefix(QUESTION_MARK) {
+            let question: String = unquote(question).chars().take(MAX_NOTE).collect();
+            if !question.is_empty() && marked.question.is_none() {
+                marked.question = Some(question);
+            }
         } else if let Some(place) = trimmed.strip_prefix(OPEN_MARK) {
             let place = unquote(place).to_lowercase();
             if PLACES.contains(&place.as_str()) && !marked.open.contains(&place) {
@@ -125,6 +132,13 @@ mod tests {
         assert_eq!(m.text, "I would rename it.");
         assert_eq!(m.proposal.as_deref(), Some("rename soma to add"));
         assert_eq!(m.notes, vec![Note { project: "shop".into(), text: "the API now returns `total`".into() }]);
+    }
+
+    #[test]
+    fn a_question_waits_for_the_person() {
+        let marked = split("I found two options.\nRAIOX-QUESTION: `Which option should I use?`\nRAIOX-QUESTION: When?");
+        assert_eq!(marked.text, "I found two options.");
+        assert_eq!(marked.question.as_deref(), Some("Which option should I use?"));
     }
 
     #[test]

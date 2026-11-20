@@ -82,6 +82,7 @@ export function Flows({ bots, pick }: FlowsProps) {
       .then(({ id }) => {
         editing.current = false
         setChosen(id)
+        bots.refresh()
         return load()
       })
       .catch((failure: unknown) => setError(messageOf(failure)))

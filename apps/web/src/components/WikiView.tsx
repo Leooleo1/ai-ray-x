@@ -16,7 +16,7 @@ const BACK = '__back__'
 const SIDE_BY_SIDE = '(min-width: 961px)'
 
 /** The team's wiki: pages every AI reads, by what they cost, and one page open to write. */
-export function WikiView({ bots }: { bots: Bot[] }) {
+export function WikiView({ bots, onSaved }: { bots: Bot[]; onSaved: () => void }) {
   const [pages, setPages] = useState<WikiEntry[] | null>(null)
   const [draft, setDraft] = useState<WikiDraft | null>(null)
   const [baseline, setBaseline] = useState<WikiDraft | null>(null)
@@ -71,6 +71,7 @@ export function WikiView({ bots }: { bots: Bot[] }) {
       setDraft(next)
       setBaseline(next)
       setSaved(true)
+      onSaved()
       notify(t.noticeSaved)
     } catch (failure: unknown) {
       setError(messageOf(failure))

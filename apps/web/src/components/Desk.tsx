@@ -48,7 +48,12 @@ interface DeskProps {
 /** The desk as one board: what waits to start, what the AIs do now, what waits for the person, and what is done. */
 export function Desk({ bots, nav }: DeskProps) {
   const now = useNow()
-  const { board, error, act } = useBoard()
+  const { board, error, act: actOnBoard } = useBoard()
+  const act: typeof actOnBoard = async (action, body) => {
+    const saved = await actOnBoard(action, body)
+    if (saved && (action === 'add' || action === 'done')) bots.refresh()
+    return saved
+  }
   const [allDone, setAllDone] = useState(false)
   const all = bots.state.bots
   const botOf = (id: string) => all.find((b) => b.id === id)
@@ -94,7 +99,7 @@ export function Desk({ bots, nav }: DeskProps) {
             <RequestCard key={request.id} request={request} bots={bots} />
           ))}
           {approvals.map((item) => (
-            <ApprovalCard key={`${item.bot.id}:${item.thread}:${item.kind}:${item.ms}:${item.text}`} item={item} bots={bots} nav={nav} />
+            <ApprovalCard key={`${item.bot.id}:${item.thread}:${item.kind}:${item.ms}:${item.index ?? 0}`} item={item} bots={bots} nav={nav} />
           ))}
           {waiting.map(card)}
         </Lane>
