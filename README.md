@@ -25,8 +25,9 @@ that make every request cheaper.
    Run anyway.
 2. Have at least one of the CLIs above installed and signed in.
 3. Open raiox. The first run asks your name (and, if you like, a photo),
-   connects your AIs, finds your projects and makes an AI for the ones you
-   pick. raiox uploads nothing.
+   connects your AIs (it can install and sign in to them for you), finds your
+   projects, or makes a new folder, and makes an AI for the ones you pick.
+   raiox uploads nothing.
 
 ![The first run: an AI at work in every project, in seven short steps](docs/screenshots/onboarding.webp)
 
@@ -35,6 +36,10 @@ that make every request cheaper.
 Intel Macs and Linux: [build from source](docs/building.md).
 
 ## An AI in every project
+
+**Conversations** shows each project's AI as a card: its character, whether it
+is working (and on what), waiting for you or resting, and its last words. A bot
+that waits can be approved or answered from its card.
 
 ![A chat with a project's AI that has full access: it fixed a bug test-first, committed and pushed, started the app and checked its screenshot](docs/screenshots/chat.webp)
 
@@ -60,7 +65,8 @@ Intel Macs and Linux: [build from source](docs/building.md).
   every request re-reads and where it compacts. A turn of an AI with full
   access lists the files it changed, with the diff and *Undo this turn*.
   *Branch* starts a new conversation from any answer, and `/btw` asks a side
-  question that stays out of the conversation's session.
+  question that stays out of the conversation's session. A turn cut short when
+  the app closed can be continued where it stopped.
 
 ![An AI that asks first: it says what it needs and offers full access in one click](docs/screenshots/access.webp)
 
@@ -174,7 +180,7 @@ before you flip them.
 
 ## Status
 
-Early (0.1.8). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
+Early (0.1.9). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
 x64); Linux should work.
 
 ## License
