@@ -171,6 +171,8 @@ pub fn spawn(state_dir: PathBuf, jobs: Jobs) {
         crate::tasks::tick(&state_dir, &jobs);
         // Scheduled Dev/Infra audits run on the same clock (only where enabled, respecting free hours).
         crate::auditor::tick(&state_dir, &jobs);
+        // Workflows fire and move on with the same clock.
+        crate::workflow_run::tick(&state_dir, &jobs);
         std::thread::sleep(TICK);
     });
 }

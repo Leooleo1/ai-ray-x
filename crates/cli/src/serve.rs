@@ -195,6 +195,19 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Ok(input) => respond(task_action(panel, &p["/api/tasks/".len()..], &input)),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/flows") => respond(Ok(crate::workflows::state(&panel.state_dir))),
+        (Method::Post, p) if p.starts_with("/api/flows/") && !remote => match body(request) {
+            Ok(input) => {
+                let action = p["/api/flows/".len()..].to_string();
+                let result = crate::workflows::act(&panel.state_dir, &action, &input);
+                // Run, approve: the step that follows goes out now, not on the next beat of the clock.
+                if result.is_ok() && matches!(action.as_str(), "run" | "approve") {
+                    crate::workflow_run::tick(&panel.state_dir, &panel.jobs);
+                }
+                respond(result.map(|value| if action == "save" { value } else { crate::workflows::state(&panel.state_dir) }))
+            }
+            Err(reply) => reply,
+        },
         (Method::Post, p) if p.starts_with("/api/wiki/") => match body(request) {
             Ok(input) => respond(wiki_action(&panel.state_dir, &p["/api/wiki/".len()..], &input)),
             Err(reply) => reply,

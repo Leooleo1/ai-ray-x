@@ -7,7 +7,7 @@ import { Icon, type IconName } from './Icons'
 import { PlanRings } from './PlanRings'
 import { ProfileMenu } from './ProfileMenu'
 
-export type Tab = 'xray' | 'usage' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
+export type Tab = 'xray' | 'usage' | 'efficiency' | 'flows' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
 
 interface SidebarProps {
@@ -52,6 +52,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
     { id: 'efficiency', label: t.tabEfficiency, short: t.efficiencyShort, icon: 'efficiency' },
     { id: 'agents', label: t.tabAgents, short: t.agentsShort, icon: 'agents' },
     { id: 'desk', label: t.deskTab, icon: 'desk' },
+    { id: 'flows', label: t.flowsTab, icon: 'flows' },
     { id: 'deliveries', label: t.deliveriesTab, icon: 'deliveries' },
     { id: 'wiki', label: t.wikiTab, icon: 'wiki' },
     { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders' },

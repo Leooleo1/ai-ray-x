@@ -60,6 +60,8 @@ pub mod threads;
 pub mod tunnel;
 pub mod uploads;
 pub mod wiki;
+pub mod workflow_run;
+pub mod workflows;
 
 use std::path::PathBuf;
 

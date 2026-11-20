@@ -844,6 +844,52 @@ export function fetchUsage(days: number, source?: 'claude' | 'codex'): Promise<U
   return request<Usage>(`/api/usage?days=${days}${source ? `&source=${source}` : ''}`)
 }
 
+/** What sets a workflow off: the person, a time on some days, or a Desk task that finished. */
+export type FlowTrigger =
+  | { kind: 'manual' }
+  | { kind: 'schedule'; days: number[]; hour: number; minute: number }
+  | { kind: 'task_done'; bot?: string | null }
+
+/** One step: ask an AI, wait for the person, or post in a channel. */
+export type FlowStep = { kind: 'ask'; bot: string; text: string } | { kind: 'approve'; text: string } | { kind: 'post'; channel: string; text: string }
+
+export type FlowRunStatus = 'running' | 'waiting' | 'done' | 'failed' | 'stopped'
+
+export interface FlowRun {
+  started_ms: number
+  cause: string
+  step: number
+  status: FlowRunStatus
+  asked_ms: number | null
+  results: { ok: boolean; text: string; ms: number }[]
+  ended_ms: number | null
+}
+
+export interface Flow {
+  id: string
+  name: string
+  enabled: boolean
+  trigger: FlowTrigger | null
+  steps: FlowStep[]
+  threads: Record<string, string>
+  run: FlowRun | null
+  runs: FlowRun[]
+}
+
+export function fetchFlows(): Promise<{ flows: Flow[] }> {
+  return request<{ flows: Flow[] }>('/api/flows')
+}
+
+export type FlowAction = 'run' | 'approve' | 'decline' | 'stop' | 'delete'
+
+export function flowAct(action: FlowAction, id: string): Promise<{ flows: Flow[] }> {
+  return request<{ flows: Flow[] }>(`/api/flows/${action}`, { id })
+}
+
+export function saveFlow(flow: Pick<Flow, 'name' | 'enabled' | 'trigger' | 'steps'> & { id?: string }): Promise<{ id: string }> {
+  return request<{ id: string }>('/api/flows/save', { ...flow })
+}
+
 export function fetchLimits(): Promise<PlanLimits> {
   return request<PlanLimits>('/api/limits')
 }
