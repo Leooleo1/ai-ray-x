@@ -111,6 +111,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;
     let mut shots_taken = 0;
+    let mut app_started = false;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
         let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
@@ -174,6 +175,16 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             runs += 1;
             let Some(output) = command_output(jobs, bot, &command, true, &say) else { return };
             text = output;
+            continue;
+        }
+        // Running without asking, the app it offers (or needs for a screenshot) starts by itself, once a turn.
+        let wants_app = reply.open.iter().any(|p| p == "app") || (wanted.iter().any(|w| w.starts_with('/')) && !crate::preview::is_running(&bot.id));
+        if wants_app && !app_started && shots_taken < MAX_SHOTS && runs_alone(state_dir, bot) {
+            app_started = true;
+            shots_taken += 1;
+            let Some((prompt, files)) = start_app(state_dir, jobs, bot, &say) else { return };
+            text = prompt;
+            images = files;
             continue;
         }
         if wanted.is_empty() {
@@ -289,11 +300,38 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
     }
 }
 
-/// The first command in the answer that the person allowed for this project.
+/// The first command in the answer that runs without a click: one the person allowed for this
+/// project, or any raiox allows at all when the bot runs without asking.
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
-    // Read again: the person may have changed the list while the bot was answering.
-    let allowed = find(state_dir, &bot.id).ok()?.allowed;
-    reply.run.iter().find(|r| r.refused.is_none() && allowed.contains(&r.command)).map(|r| r.command.clone())
+    // Read again: the person may have changed the list or the grant while the bot was answering.
+    let now = find(state_dir, &bot.id).ok()?;
+    reply.run.iter().find(|r| r.refused.is_none() && (now.grants.auto_run || now.allowed.contains(&r.command))).map(|r| r.command.clone())
+}
+
+/// Whether the bot runs without asking now (the grant may change while it answers).
+fn runs_alone(state_dir: &Path, bot: &Bot) -> bool {
+    find(state_dir, &bot.id).is_ok_and(|now| now.grants.auto_run)
+}
+
+/// Starts the project's app for a bot that runs without asking, and gives the CLI's next prompt:
+/// a screenshot of the page that came up, or what went wrong.
+fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) -> Option<(String, Vec<PathBuf>)> {
+    jobs.set_step(&bot.id, crate::bot_steps::Step { kind: "run", target: "See the app".to_string() });
+    let stop = || jobs.should_stop(&bot.id);
+    match crate::app_start::start_and_wait(state_dir, &bot.id, &bot.dir, &stop) {
+        Ok(url) => {
+            let Some((prompt, files)) = screenshots(state_dir, jobs, bot, std::slice::from_ref(&url), say) else {
+                return Some((format!("raiox started the project's app and it answers at {url}, but could not take a screenshot. Tell the person briefly."), Vec::new()));
+            };
+            Some((format!("(raiox started the project's app for the person: it answers at {url}.)\n\n{prompt}"), files))
+        }
+        Err(_) if stop() => None,
+        Err(error) => {
+            say(note("failed", json!({ "error": format!("raiox could not start the app: {error:#}") })));
+            let log = crate::preview::status(state_dir, &bot.id, &bot.dir).ok().and_then(|s| s["log"].as_str().map(str::to_string)).unwrap_or_default();
+            Some((format!("raiox tried to start the project's app and it failed ({error:#}). Its last output:\n{log}\n\nTell the person briefly what went wrong and how to fix it."), Vec::new()))
+        }
+    }
 }
 
 /// Hands the person's attached images over to the CLI through `ai_dir`, and tells the CLI where they are.

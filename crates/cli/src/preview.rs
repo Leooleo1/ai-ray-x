@@ -78,7 +78,7 @@ fn alive(child: &mut Child) -> bool {
 }
 
 /// The last command the person ran for a project, offered again after Stop.
-fn last_file(state_dir: &Path, bot: &str) -> PathBuf {
+pub(crate) fn last_file(state_dir: &Path, bot: &str) -> PathBuf {
     state_dir.join("previews").join(format!("{bot}.cmd"))
 }
 
@@ -143,6 +143,11 @@ fn address(log: &str) -> Option<String> {
         .map(|word| word.trim_start_matches(|c: char| !c.is_ascii_alphanumeric()).trim_end_matches(|c: char| !(c.is_ascii_alphanumeric() || c == '/')))
         .find(|word| is_local(word) && word.split("://").nth(1).is_some_and(|rest| rest.contains(':')))
         .map(|url| url.replacen("0.0.0.0", "localhost", 1))
+}
+
+/// Whether raiox runs a project's app now (its first command is alive).
+pub fn is_running(bot: &str) -> bool {
+    running().iter_mut().find(|(b, _)| b == bot).is_some_and(|(_, run)| alive(&mut run.children[0]))
 }
 
 /// The address of a project's app while raiox runs it.
@@ -280,6 +285,10 @@ pub fn shot(state_dir: &Path, bot: &str, url: &str, width: u32, height: u32) -> 
         bail!("raiox takes no screenshot of a secrets file");
     }
     let (width, height) = (width.clamp(320, MAX_WIDTH), height.clamp(320, MAX_HEIGHT));
+    // A page that does not answer gives no screenshot at all: say why instead.
+    if !crate::app_start::answers(url) {
+        bail!("nothing answers at {url}: the app is not running (start it in See the app)");
+    }
     let browser = chrome().context("no Chrome, Brave, Chromium or Edge found for screenshots")?;
     let file = shots_dir(state_dir, bot).join(format!("{:x}.png", room::now_ms()));
     fs::create_dir_all(file.parent().context("no screenshot folder")?)?;

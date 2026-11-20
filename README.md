@@ -56,6 +56,7 @@ you ask it to or turn it on. These switches do, so read them before you flip the
 
 | Switch | What it does | The risk |
 |---|---|---|
+| **Runs without asking** (per AI) | Runs the commands it asks for and starts the project's app (See the app), then shows you a screenshot | Its commands run without your click; raiox still refuses ones that change files, open secrets or chain a shell |
 | **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |

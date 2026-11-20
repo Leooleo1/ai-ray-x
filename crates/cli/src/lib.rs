@@ -9,6 +9,7 @@ pub mod bot_mail;
 pub mod bot_marks;
 pub mod bot_run;
 pub mod app_update;
+pub mod app_start;
 pub mod auto_edit;
 pub mod batches;
 pub mod bot_steps;

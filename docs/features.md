@@ -109,7 +109,10 @@ whether it uses your own MCP servers (Claude Code; it then acts in them
 without asking, so only for an AI you trust with them), and a weekly token
 ceiling of its own, next to the project's daily one. "Edits without asking"
 approves the AI's own proposals and applies the draft to the project by
-itself; each change can still be undone from the conversation.
+itself; each change can still be undone from the conversation. "Runs without
+asking" runs the commands the AI asks for (only those raiox allows at all) and,
+when it offers See the app, starts the project's app, waits for its page and
+shows you a screenshot.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
 of things. A page goes with every question, or only when the question shares
