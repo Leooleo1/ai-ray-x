@@ -407,7 +407,7 @@ textarea:focus-visible {
   display: inline-flex;
   flex: none;
   margin-left: auto;
-  padding: 3px;
+  padding: 2px;
   border-radius: 999px;
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
@@ -415,8 +415,8 @@ textarea:focus-visible {
 
 .trilho-ativo {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 2px;
+  bottom: 2px;
   left: 0;
   border-radius: 999px;
   background: rgb(255 255 255 / 11%);
@@ -756,7 +756,7 @@ textarea:focus-visible {
   width: 12px;
   height: 12px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
+  border-radius: 999px;
 }
 
 .marcador.mediana {
@@ -2106,7 +2106,7 @@ textarea:focus-visible {
 .seletor-botao {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   height: 32px;
@@ -2130,6 +2130,7 @@ textarea:focus-visible {
 .seletor-prefixo {
   flex: none;
   color: var(--nevoa);
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -2195,7 +2196,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 9px;
+  padding: 8px 10px;
   border: 0;
   border-radius: var(--raio-item);
   background: transparent;

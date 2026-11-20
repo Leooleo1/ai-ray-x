@@ -300,7 +300,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
         {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
-        {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
+        {tab === 'efficiency' && <EfficiencyView report={report} bots={bots} nav={nav} onGo={go} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />
         )}

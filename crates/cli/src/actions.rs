@@ -26,10 +26,19 @@ fn current(store: &Store, home: &Path, project_dir: &Path, suggestion: &str, sou
         .map_or_else(|| (String::new(), None), |s| (s.evidence, s.value))
 }
 
-pub fn apply_suggestion(store: &Store, home: &Path, state_dir: &Path, project_dir: &Path, suggestion: &str, source: &str) -> Result<Value> {
+pub fn apply_suggestion(
+    store: &Store,
+    home: &Path,
+    state_dir: &Path,
+    project_dir: &Path,
+    suggestion: &str,
+    source: &str,
+    override_value: Option<&str>,
+) -> Result<Value> {
     room::require_opt_in(state_dir, project_dir)?;
     let (evidence, value) = current(store, home, project_dir, suggestion, source);
-    let plan = apply::plan(suggestion, source, project_dir, value.as_deref())
+    let chosen = override_value.filter(|v| !v.trim().is_empty()).or(value.as_deref());
+    let plan = apply::plan(suggestion, source, project_dir, chosen)
         .ok_or_else(|| anyhow!("{suggestion} for {source} has no setting to apply; it is a habit"))?;
     let change = apply::apply(&plan, state_dir, now_ms())?;
     let memo = match memo::keep_lesson(project_dir, &change, &evidence, None) {

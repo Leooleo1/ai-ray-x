@@ -103,9 +103,16 @@ export interface CompactionModel {
   best: CompactionPlan | null
 }
 
+export interface Rewrite {
+  reason: string
+  count: number
+  tokens: number
+}
+
 export interface Efficiency {
   compaction: CompactionModel
   fixed: { kind: string; median_first_request: number; share_of_context: number }[]
+  rewrites?: Rewrite[]
   skills_used: [string, number][]
   snapshots: Record<string, unknown>
   cost_shares: [string, number][]
@@ -113,6 +120,7 @@ export interface Efficiency {
   buckets: { up_to: number | null; share_of_calls: number; share_of_tokens: number }[]
   compaction_pre_median: number
   carried: Carried[]
+  output_trim?: [string, number, number][]
 }
 
 export interface SourceReport {
@@ -1011,8 +1019,11 @@ async function post(path: string, body: Record<string, string>): Promise<{ error
 }
 
 /** A change goes to the bot's project when `bot` is given, else to the project `raiox open` started in. */
-export function applySuggestion(id: string, source: Source, bot?: string): ReturnType<typeof post> {
-  return post('/api/apply', bot ? { id, source, bot } : { id, source })
+export function applySuggestion(id: string, source: Source, bot?: string, value?: string | null): ReturnType<typeof post> {
+  const body: Record<string, string> = { id, source }
+  if (bot) body.bot = bot
+  if (value) body.value = value
+  return post('/api/apply', body)
 }
 
 /** The session working in a project now: the bot's project, else the one `raiox open` started in; null when it has none. */

@@ -40,31 +40,51 @@ pub struct Change {
     pub result_kept: Option<String>,
 }
 
+struct Spec {
+    id: &'static str,
+    source: &'static str,
+    key: &'static str,
+    default: &'static str,
+    min: u64,
+    max: u64,
+    effect: &'static str,
+}
+
 /// Documented settings behind each applicable suggestion (code.claude.com/docs/en/env-vars).
-const PLANS: [(&str, &str, &str, &str, &str); 1] = [(
-    "compact-earlier",
-    "claude",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
-    "400000",
-    "Claude Code compacts when the context reaches {value} tokens instead of near the model limit",
-)];
+const PLANS: [Spec; 2] = [
+    Spec {
+        id: "compact-earlier",
+        source: "claude",
+        key: "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
+        default: "400000",
+        min: 100_000,
+        max: 1_000_000,
+        effect: "Claude Code compacts when the context reaches {value} tokens instead of near the model limit",
+    },
+    Spec {
+        id: "trim-tool-output",
+        source: "claude",
+        key: "BASH_MAX_OUTPUT_LENGTH",
+        default: "15000",
+        min: 5_000,
+        max: 100_000,
+        effect: "Claude Code trims Bash output after {value} characters instead of 30000",
+    },
+];
 
-/// The documented range of CLAUDE_CODE_AUTO_COMPACT_WINDOW, in tokens.
-const COMPACT_WINDOW_RANGE: std::ops::RangeInclusive<u64> = 100_000..=1_000_000;
-
-/// The plan for a suggestion; `value` (the one Dieta computed) replaces the
-/// default when it is inside the setting's documented range.
+/// The plan for a suggestion; `value` (computed by Dieta or chosen in the panel)
+/// replaces the default when it is inside the setting's documented range.
 pub fn plan(suggestion: &str, source: &str, project_dir: &Path, value: Option<&str>) -> Option<Plan> {
-    PLANS.iter().find(|(id, src, ..)| *id == suggestion && *src == source).map(|(id, _, key, default, effect)| {
+    PLANS.iter().find(|s| s.id == suggestion && s.source == source).map(|s| {
         let chosen = value
-            .filter(|v| v.parse::<u64>().is_ok_and(|n| COMPACT_WINDOW_RANGE.contains(&n)))
-            .unwrap_or(default)
+            .filter(|v| v.parse::<u64>().is_ok_and(|n| (s.min..=s.max).contains(&n)))
+            .unwrap_or(s.default)
             .to_string();
         Plan {
-            suggestion: id.to_string(),
+            suggestion: s.id.to_string(),
             file: project_dir.join(".claude").join("settings.local.json"),
-            key: key.to_string(),
-            effect: effect.replace("{value}", &chosen),
+            key: s.key.to_string(),
+            effect: s.effect.replace("{value}", &chosen),
             value: chosen,
         }
     })
@@ -72,12 +92,12 @@ pub fn plan(suggestion: &str, source: &str, project_dir: &Path, value: Option<&s
 
 /// The agent a suggestion's setting belongs to.
 pub fn source_of(suggestion: &str) -> Option<&'static str> {
-    PLANS.iter().find(|(id, ..)| *id == suggestion).map(|(_, source, ..)| *source)
+    PLANS.iter().find(|s| s.id == suggestion).map(|s| s.source)
 }
 
 /// Ids of suggestions that can be applied for a source.
 pub fn applicable(source: &str) -> Vec<&'static str> {
-    PLANS.iter().filter(|(_, src, ..)| *src == source).map(|(id, ..)| *id).collect()
+    PLANS.iter().filter(|s| s.source == source).map(|s| s.id).collect()
 }
 
 pub fn ledger(path: &Path) -> Result<Vec<Change>> {
@@ -270,5 +290,32 @@ mod tests {
         assert!(apply(&plan, &dir.join("state"), 1).is_err());
         assert_eq!(fs::read_to_string(&file).unwrap(), "{ not json");
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn trim_tool_output_applies_and_undoes_cleanly() {
+        let dir = temp_dir("trim");
+        let file = dir.join("project/.claude/settings.local.json");
+        let plan = plan("trim-tool-output", "claude", &dir.join("project"), Some("10000")).unwrap();
+        assert_eq!(plan.key, "BASH_MAX_OUTPUT_LENGTH");
+        assert_eq!(plan.value, "10000");
+        let change = apply(&plan, &dir.join("state"), 10).unwrap();
+        let applied: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(applied["env"]["BASH_MAX_OUTPUT_LENGTH"], "10000");
+        undo(&change.id, &dir.join("state"), 20).unwrap();
+        let restored: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(restored.get("env").is_none());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn custom_values_are_clamped_by_each_settings_documented_range() {
+        let project = Path::new("/tmp/fake-project");
+        assert_eq!(plan("compact-earlier", "claude", project, Some("300000")).unwrap().value, "300000");
+        assert_eq!(plan("compact-earlier", "claude", project, Some("50")).unwrap().value, "400000");
+        assert_eq!(plan("trim-tool-output", "claude", project, Some("15000")).unwrap().value, "15000");
+        assert_eq!(plan("trim-tool-output", "claude", project, Some("500")).unwrap().value, "15000");
+        assert_eq!(plan("trim-tool-output", "claude", project, Some("999999")).unwrap().value, "15000");
+        assert!(plan("trim-tool-output", "codex", project, Some("15000")).is_none());
     }
 }
