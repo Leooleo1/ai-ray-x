@@ -3331,3 +3331,56 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+/* The team's pulse, the page's head: dot-matrix counts with the faces in each state, one line. */
+.equipe-pulso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  margin: 2px 0 6px;
+  font: 400 14px/20px var(--sans);
+}
+
+.pulso {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nevoa);
+  font: inherit;
+  white-space: nowrap;
+}
+
+.pulso-numero {
+  color: var(--giz);
+  font: 400 30px/1 var(--pontos);
+}
+
+.pulso.working .pulso-numero {
+  color: var(--ok);
+}
+
+.pulso.waiting {
+  color: var(--giz);
+  cursor: pointer;
+}
+
+.pulso.waiting .pulso-numero {
+  color: var(--alerta);
+}
+
+.pulso.waiting:hover span:last-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.pulso-rostos {
+  display: inline-flex;
+}
+
+.pulso-rostos > * + * {
+  margin-left: -6px;
+}

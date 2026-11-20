@@ -67,6 +67,9 @@ interface BotPickerProps {
 }
 
 /** Active projects as live cards, with a final card that opens the add-project modal. */
+/** Faces a state shows at most beside its count. */
+const MAX_PULSE_FACES = 4
+
 export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const closeModal = useCallback(() => setModalOpen(false), [])
@@ -82,7 +85,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
             <button type="button" className="projetos-varios so-celular" onClick={onAskMany}>
               {t.askMany}
             </button>
-            <h2 className="projetos-secao">{t.yourProjects}</h2>
+            <TeamPulse cards={cards} onOpen={onOpen} />
           </>
         )}
         <div className={`projetos-grade ${empty ? 'vazia' : ''}`}>
@@ -192,5 +195,46 @@ function BotRoom({ bot, waiting, busy, lastMs, preview, onOpen }: BotRoomProps) 
         )}
       </span>
     </button>
+  )
+}
+
+/** How many of the team are in each state. */
+type Pulse = 'waiting' | 'working' | 'idle'
+
+/** The page's head: the team at a glance, a count per state with the faces in it; the bots waiting
+ *  for the person are a click away (the first one opens). */
+function TeamPulse({ cards, onOpen }: { cards: ActiveCard[]; onOpen: (id: string) => void }) {
+  const groups: Record<Pulse, ActiveCard[]> = {
+    waiting: cards.filter((c) => c.waiting),
+    working: cards.filter((c) => !c.waiting && c.busy),
+    idle: cards.filter((c) => !c.waiting && !c.busy),
+  }
+  const words: Record<Pulse, string> = { waiting: t.pulseWaiting, working: t.pulseWorking, idle: t.pulseIdle }
+  const shown = (['waiting', 'working', 'idle'] as Pulse[]).filter((key) => groups[key].length > 0)
+  return (
+    <h2 className="equipe-pulso">
+      {shown.map((key) => {
+        const content = (
+          <>
+            <b className="pulso-numero">{groups[key].length}</b>
+            <span className="pulso-rostos" aria-hidden="true">
+              {groups[key].slice(0, MAX_PULSE_FACES).map((c) => (
+                <Avatar key={c.bot.id} agent={faceForBot(c.bot)} size={20} state="still" />
+              ))}
+            </span>
+            <span>{words[key]}</span>
+          </>
+        )
+        return key === 'waiting' ? (
+          <button key={key} type="button" className={`pulso ${key}`} onClick={() => onOpen(groups.waiting[0].bot.id)}>
+            {content}
+          </button>
+        ) : (
+          <span key={key} className={`pulso ${key}`}>
+            {content}
+          </span>
+        )
+      })}
+    </h2>
   )
 }
