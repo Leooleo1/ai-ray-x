@@ -30,6 +30,8 @@ export interface Overview {
   daily: DayPoint[]
   active_hours: number
   by_hour: number[]
+  /** Each hour's projects that used it most: [project, tokens]. */
+  by_hour_projects: [string, number][][]
   by_weekday: number[]
   projects: [string, number][]
   tools: [string, number][]
@@ -906,6 +908,13 @@ export interface TaskBoardState {
   threads: (string | null)[]
   /** The bots pick their next task up by themselves. */
   auto: boolean
+  /** Only in these local hours (end not included); none: at any hour. */
+  window: HourWindow | null
+}
+
+export interface HourWindow {
+  start: number
+  end: number
 }
 
 export function fetchTasks(): Promise<TaskBoardState> {

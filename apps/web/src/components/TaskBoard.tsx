@@ -74,7 +74,11 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
           </button>
           <span>
             <b>{t.boardAuto}</b>
-            <small>{t.boardAutoNote}</small>
+            <small>
+              {board.window
+                ? t.boardAutoWindow.replace('{a}', String(board.window.start).padStart(2, '0')).replace('{b}', String(board.window.end).padStart(2, '0'))
+                : t.boardAutoNote}
+            </small>
           </span>
         </label>
       </header>

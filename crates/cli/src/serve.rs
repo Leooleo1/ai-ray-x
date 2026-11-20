@@ -446,7 +446,15 @@ fn task_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Val
         }
         "start" => crate::tasks::start(state_dir, &panel.jobs, field("id"))?,
         "done" | "reopen" | "delete" => crate::tasks::mark(state_dir, field("id"), action)?,
-        "auto" => crate::tasks::set_auto(state_dir, input.get("on").and_then(Value::as_bool).unwrap_or(false))?,
+        "auto" => {
+            // "window": {start, end} sets the hours, null clears them, absent keeps them.
+            let window = match input.get("window") {
+                None => None,
+                Some(Value::Null) => Some(None),
+                Some(w) => Some(Some(crate::tasks::Window::new(w["start"].as_u64().unwrap_or(99), w["end"].as_u64().unwrap_or(99))?)),
+            };
+            crate::tasks::set_auto(state_dir, input.get("on").and_then(Value::as_bool).unwrap_or(false), window)?
+        }
         other => anyhow::bail!("unknown task action {other}"),
     }
     Ok(crate::tasks::state(state_dir))

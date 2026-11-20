@@ -1,0 +1,284 @@
+/* When your AIs work: one dial with two layers. Inside, the person's use (white
+   marks, the peak in ember); outside, the AIs' hours (a cobalt arc, routines as
+   pins, the hour now as a dot). Beside it, the free hours, the Desk and the
+   routines, with one filled action. A cobalt glow, baked once, sits in a corner. */
+
+.cartao.relogio {
+  background: var(--carvao) url('/luz/relogio.webp') left bottom / cover no-repeat;
+}
+
+.relogio-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.relogio-agora {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.relogio-agora::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--giz);
+  content: '';
+}
+
+.relogio-corpo {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 16px;
+  align-items: center;
+  min-height: 0;
+}
+
+/* The dial */
+
+.mostrador {
+  display: block;
+  width: 100%;
+  max-height: 210px;
+  aspect-ratio: 1;
+}
+
+.mostrador-trilho {
+  fill: none;
+  stroke: rgb(255 255 255 / 14%);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 0 4.8;
+}
+
+.mostrador-janela {
+  fill: none;
+  stroke: var(--cobalto);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0.006 0.018;
+  opacity: 0.75;
+  transition: opacity 200ms ease;
+}
+
+/* The AIs work in it: the arc turns solid. */
+.mostrador-janela.ligada {
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
+.mostrador-marca {
+  stroke: var(--giz);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: opacity 160ms ease;
+}
+
+.mostrador-marca.pico {
+  stroke: var(--brasa);
+}
+
+.mostrador-hora {
+  fill: var(--nevoa);
+  font: 9px var(--mono);
+}
+
+.mostrador-pino {
+  fill: var(--cobalto);
+  stroke: var(--carvao);
+  stroke-width: 2.5;
+}
+
+.mostrador-agora {
+  fill: var(--giz);
+}
+
+.mostrador-alvo {
+  stroke: transparent;
+  stroke-width: 22;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.mostrador-valor {
+  fill: var(--giz);
+  font: 26px var(--pontos);
+  font-variant-numeric: tabular-nums;
+}
+
+.mostrador-rotulo {
+  fill: var(--nevoa);
+  font: 8.5px var(--mono);
+}
+
+/* Beside the dial */
+
+.relogio-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  justify-content: center;
+  min-width: 0;
+}
+
+.relogio-rotulo {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  white-space: nowrap;
+}
+
+.relogio-janela {
+  color: var(--giz);
+  font: 400 14px/20px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.relogio-mesa {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  white-space: nowrap;
+}
+
+.relogio-mesa::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 25%);
+  content: '';
+}
+
+.relogio-mesa.ligada {
+  color: var(--giz);
+}
+
+.relogio-mesa.ligada::before {
+  background: var(--cobalto);
+}
+
+.relogio-rotinas-titulo {
+  margin-top: 8px;
+}
+
+.relogio-rotinas,
+.relogio-projetos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relogio-rotinas button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--giz);
+  font: 12px/16px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.relogio-rotinas time {
+  color: var(--cobalto);
+  font: 11px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.relogio-rotinas span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relogio-rotinas button:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.relogio-vazio {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  white-space: nowrap;
+}
+
+/* The one filled action: a white pill. */
+.relogio-usar {
+  align-self: flex-start;
+  height: 32px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.relogio-usar:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.relogio-parar {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* An hour opened: its projects, each with a thin cobalt share. */
+.relogio-projetos li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 4px 0;
+  font: 12px/16px var(--sans);
+}
+
+.relogio-projetos span {
+  overflow: hidden;
+  color: var(--giz);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relogio-projetos b {
+  color: var(--nevoa);
+  font: 400 11px/16px var(--mono);
+}
+
+.relogio-projetos i {
+  grid-column: 1 / -1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--cobalto);
+}

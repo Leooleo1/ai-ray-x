@@ -24,7 +24,7 @@ import { RowsCard, SecretsCard } from './components/Lists'
 import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
-import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
+import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 import { UpdateNote } from './components/UpdateNote'
 
 const REFRESH_MS = 30_000
@@ -311,7 +311,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
               streak={longestStreak(days)}
               bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
             />
-            <Clock hours={hours(report)} />
+            <Clock hours={hours(report)} hourProjects={hourProjects(report)} bots={bots.state.bots} onOpenBot={(id) => openChat(`bot:${id}`)} />
             <ContextRuler sources={sources} main={main} onCut={() => go('efficiency')} />
             <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
             <RowsCard className="projetos" title={t.projects} hint={t.projectsHint} rows={projects} />

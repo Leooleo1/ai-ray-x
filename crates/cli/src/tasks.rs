@@ -64,6 +64,30 @@ struct Board {
     /// The bots pick their next task up by themselves.
     #[serde(default)]
     auto: bool,
+    /// Only in these local hours (the person's free ones); none means at any hour.
+    #[serde(default)]
+    window: Option<Window>,
+}
+
+/// Local hours from `start` up to (not including) `end`; it may pass midnight (22 → 6).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Window {
+    pub start: u8,
+    pub end: u8,
+}
+
+impl Window {
+    pub fn new(start: u64, end: u64) -> Result<Window> {
+        if start > 23 || end > 23 || start == end {
+            bail!("a window is two different hours from 0 to 23");
+        }
+        Ok(Window { start: start as u8, end: end as u8 })
+    }
+
+    pub fn holds(self, hour: u32) -> bool {
+        let (start, end, hour) = (u32::from(self.start), u32::from(self.end), hour % 24);
+        if start < end { (start..end).contains(&hour) } else { hour >= start || hour < end }
+    }
 }
 
 fn load(state_dir: &Path) -> Board {
@@ -182,7 +206,7 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
             Ok(())
         });
     }
-    if !board.auto {
+    if !board.auto || board.window.is_some_and(|w| !w.holds(chrono::Timelike::hour(&chrono::Local::now()))) {
         return;
     }
     let board = load(state_dir);
@@ -216,9 +240,13 @@ pub fn mark(state_dir: &Path, id: &str, action: &str) -> Result<()> {
     })
 }
 
-pub fn set_auto(state_dir: &Path, on: bool) -> Result<()> {
+/// Turns the pickup on or off; with `window`, it also sets (or, with None, clears) the hours it keeps to.
+pub fn set_auto(state_dir: &Path, on: bool, window: Option<Option<Window>>) -> Result<()> {
     change(state_dir, |board| {
         board.auto = on;
+        if let Some(window) = window {
+            board.window = window;
+        }
         Ok(())
     })
 }
@@ -254,7 +282,7 @@ pub fn state(state_dir: &Path) -> Value {
         .iter()
         .map(|t| threads::list(state_dir, &t.bot).into_iter().find(|th| th.title == THREAD_TITLE || th.title == OLD_TITLE).map_or(Value::Null, |th| json!(th.id)))
         .collect();
-    json!({ "tasks": tasks, "threads": threads, "auto": board.auto })
+    json!({ "tasks": tasks, "threads": threads, "auto": board.auto, "window": board.window })
 }
 
 #[cfg(test)]
@@ -263,6 +291,16 @@ mod tests {
 
     fn message(kind: &str, reply: Value) -> room::Message {
         room::Message { ms: 10, author: "bot".into(), kind: kind.into(), data: json!({ "reply": reply }) }
+    }
+
+    #[test]
+    fn a_window_holds_its_hours_even_past_midnight() {
+        let night = Window::new(22, 6).unwrap();
+        assert!(night.holds(23) && night.holds(0) && night.holds(5));
+        assert!(!night.holds(6) && !night.holds(12) && !night.holds(21));
+        let morning = Window::new(3, 9).unwrap();
+        assert!(morning.holds(3) && morning.holds(8) && !morning.holds(9) && !morning.holds(2));
+        assert!(Window::new(5, 5).is_err() && Window::new(24, 2).is_err());
     }
 
     #[test]

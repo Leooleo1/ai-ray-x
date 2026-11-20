@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { Bot, Routine } from '../api'
+import { useEffect, useState } from 'react'
+import { type Bot, type Routine, fetchTasks } from '../api'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
 import './controls.css'
@@ -35,6 +35,12 @@ export function RoutinesEditor({ bot, bots }: RoutinesEditorProps) {
   const [text, setText] = useState('')
   const [days, setDays] = useState<number[]>(WORKDAYS)
   const [time, setTime] = useState('09:00')
+  // With free hours chosen on the Raio-X clock, a new routine starts at their first hour.
+  useEffect(() => {
+    fetchTasks()
+      .then((board) => board.window && setTime(`${String(board.window.start).padStart(2, '0')}:00`))
+      .catch(() => undefined)
+  }, [])
   // New routines skip days when nothing in the project changed.
   const [onlyIfChanged, setOnlyIfChanged] = useState(true)
   const toggleDay = (d: number) => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort())
