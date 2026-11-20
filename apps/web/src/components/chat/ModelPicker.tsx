@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type BotUsage, botUsage } from '../../api'
+import { type Bot, type BotUsage, type OtherAgent, botUsage, otherAgents } from '../../api'
 import { AGENT_LABEL } from '../../avatars'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
@@ -9,6 +9,13 @@ import { modelName } from '../BotSettings'
 const ALIAS_NAMES: Record<string, string> = { opus: 'Claude Opus', sonnet: 'Claude Sonnet', haiku: 'Claude Haiku', fable: 'Claude Fable' }
 
 const nameOf = (model: string) => ALIAS_NAMES[model] ?? modelName(model)
+
+/** Names for a list of models: the friendly one, or the id itself when two would read the same. */
+function namesFor(models: string[]): (model: string) => string {
+  const counts = new Map<string, number>()
+  for (const m of models) counts.set(nameOf(m), (counts.get(nameOf(m)) ?? 0) + 1)
+  return (m) => ((counts.get(nameOf(m)) ?? 0) > 1 ? m : nameOf(m))
+}
 
 interface ModelPickerProps {
   bot: Bot
@@ -25,12 +32,25 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
   }, [openSignal])
   const [usage, setUsage] = useState<BotUsage | null>(null)
   const [query, setQuery] = useState('')
+  // The other AIs: asked once the menu opens (each CLI lists its models, which takes a moment).
+  const [others, setOthers] = useState<OtherAgent[] | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  useEffect(() => setOthers(null), [bot.id, bot.agent])
+  useEffect(() => {
+    if (!open || others !== null) return
+    otherAgents(bot.id)
+      .then((found) => setOthers(found.agents))
+      .catch(() => setOthers([]))
+  }, [open, others, bot.id])
+  const switchTo = (agent: string, next: string | null) => {
+    setOpen(false)
+    void bots.act('switch_agent', { id: bot.id, agent, model: next ?? '' })
+  }
 
   useEffect(() => {
     setUsage(null)
     botUsage(bot.id).then(setUsage).catch(() => setUsage(null))
-  }, [bot.id])
+  }, [bot.id, bot.agent])
   useEffect(() => {
     if (!open) return undefined
     const away = (event: MouseEvent) => !box.current?.contains(event.target as Node) && setOpen(false)
@@ -56,6 +76,7 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
     })
   const needle = query.trim().toLowerCase()
   const options = (usage?.offered_models ?? []).filter((m) => !needle || `${m} ${nameOf(m)}`.toLowerCase().includes(needle))
+  const label = namesFor(usage?.offered_models ?? [])
 
   return (
     <div className="modelo-escolha" ref={box}>
@@ -90,11 +111,37 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
                 <li key={m}>
                   <button type="button" role="radio" aria-checked={chosen} onClick={() => pick({ model: isDefault ? null : m })}>
                     <i className={chosen ? 'marcado' : ''} />
-                    {nameOf(m)}
+                    {label(m)}
                     {isDefault && <span className="modelo-selo">{t.defaultOption.toLowerCase()}</span>}
                   </button>
                 </li>
               )
+            })}
+            {others === null && <li className="modelo-grupo">{t.otherAisLoading}</li>}
+            {others?.map((other) => {
+              const shown = other.models.filter((m) => !needle || `${m} ${nameOf(m)} ${other.name}`.toLowerCase().includes(needle))
+              const otherLabel = namesFor(other.models)
+              if (needle && shown.length === 0 && !other.name.toLowerCase().includes(needle)) return null
+              return [
+                <li key={`${other.agent}-titulo`} className="modelo-grupo">
+                  {other.name}
+                </li>,
+                <li key={`${other.agent}-padrao`}>
+                  <button type="button" onClick={() => switchTo(other.agent, null)}>
+                    <i />
+                    {other.name}
+                    <span className="modelo-selo">{t.defaultOption.toLowerCase()}</span>
+                  </button>
+                </li>,
+                ...shown.map((m) => (
+                  <li key={`${other.agent}-${m}`}>
+                    <button type="button" onClick={() => switchTo(other.agent, m)}>
+                      <i />
+                      {otherLabel(m)}
+                    </button>
+                  </li>
+                )),
+              ]
             })}
             {needle && !options.includes(query.trim()) && (
               <li>

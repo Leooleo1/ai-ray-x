@@ -295,7 +295,7 @@ fn save(state_dir: &Path, bots: &[Bot]) -> Result<()> {
 }
 
 /// Reads, changes and writes the registry under the lock.
-fn update(state_dir: &Path, change: impl FnOnce(Vec<Bot>) -> Result<Vec<Bot>>) -> Result<()> {
+pub(crate) fn update(state_dir: &Path, change: impl FnOnce(Vec<Bot>) -> Result<Vec<Bot>>) -> Result<()> {
     let _guard = REGISTRY.lock().map_err(|_| anyhow::anyhow!("registry lock poisoned"))?;
     save(state_dir, &change(list(state_dir))?)
 }
@@ -432,7 +432,7 @@ fn thread_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<St
     if thread == MAIN { Ok(bot.session.clone()) } else { threads::session(state_dir, &bot.id, thread) }
 }
 
-fn set_thread_session(state_dir: &Path, id: &str, thread: &str, session: Option<String>) -> Result<()> {
+pub(crate) fn set_thread_session(state_dir: &Path, id: &str, thread: &str, session: Option<String>) -> Result<()> {
     if thread == MAIN { set_session(state_dir, id, session) } else { threads::set_session(state_dir, id, thread, session) }
 }
 
@@ -546,7 +546,9 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     };
     // Context the person brought from another conversation goes with the first question after it.
     let brought: String = crate::carry::unread(&messages).into_iter().map(crate::carry::for_cli).collect();
-    let for_cli = format!("{brought}{for_cli}");
+    // The first question after the person switched this conversation to another AI carries what was said.
+    let recap = crate::agent_switch::recap(&messages).unwrap_or_default();
+    let for_cli = format!("{recap}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };

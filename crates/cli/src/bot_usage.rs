@@ -16,7 +16,7 @@ const DAYS: i64 = 30;
 const DAY_MS: i64 = 86_400_000;
 const MAX_ROWS: usize = 8;
 /// Claude Code's own model aliases; each points at the latest of its family.
-const CLAUDE_ALIASES: [&str; 4] = ["opus", "sonnet", "haiku", "fable"];
+pub(crate) const CLAUDE_ALIASES: [&str; 4] = ["opus", "sonnet", "haiku", "fable"];
 
 fn grouped(store: &Store, sql: &str, source: &str, project: &str, since: i64) -> Result<Vec<Value>> {
     let mut statement = store.conn().prepare(sql)?;
@@ -61,7 +61,7 @@ fn defaults(roots: &Roots, agent: &str) -> Value {
 }
 
 /// The Codex models this person has used, newest first.
-fn codex_models(store: &Store) -> Result<Vec<String>> {
+pub(crate) fn codex_models(store: &Store) -> Result<Vec<String>> {
     let mut statement = store.conn().prepare(
         "SELECT model FROM calls WHERE source = 'codex' AND is_sub = 0 AND model IS NOT NULL
          GROUP BY model ORDER BY MAX(ts_ms) DESC LIMIT 6",
@@ -71,7 +71,7 @@ fn codex_models(store: &Store) -> Result<Vec<String>> {
 }
 
 /// Cursor's model ids, from `cursor-agent models` ("id - Name" per line).
-fn cursor_models() -> Vec<String> {
+pub(crate) fn cursor_models() -> Vec<String> {
     let Some(out) = crate::connections::probe("cursor-agent", &["models"]) else { return Vec::new() };
     String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -81,7 +81,7 @@ fn cursor_models() -> Vec<String> {
 }
 
 /// Antigravity's model ids, from `agy models` ("id<TAB>Name" per line; the id carries its level).
-fn antigravity_models() -> Vec<String> {
+pub(crate) fn antigravity_models() -> Vec<String> {
     let Some(out) = crate::connections::probe("agy", &["models"]) else { return Vec::new() };
     String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -91,7 +91,7 @@ fn antigravity_models() -> Vec<String> {
 }
 
 /// opencode's models (provider/model), or its free ones when it lists none in time.
-fn opencode_models() -> Vec<String> {
+pub(crate) fn opencode_models() -> Vec<String> {
     let listed: Vec<String> = crate::connections::probe("opencode", &["models"])
         .map(|out| String::from_utf8_lossy(&out.stdout).lines().map(str::trim).filter(|l| l.contains('/')).map(str::to_string).collect())
         .unwrap_or_default();

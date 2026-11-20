@@ -136,6 +136,18 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => Answer::Now(reply),
         },
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
+        (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
+            Ok(input) => match crate::bots::find(&panel.state_dir, input.get("id").and_then(Value::as_str).unwrap_or("")) {
+                Ok(bot) => {
+                    let settings = crate::settings::Settings::load(&panel.state_dir);
+                    let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
+                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|id| settings.is_enabled(id), codex)))))
+                }
+                Err(error) => Answer::Now(respond(Err(error))),
+            },
+            Err(reply) => Answer::Now(reply),
+        },
         // Asks the update server: never on the main loop.
         (Method::Post, "/api/app/check") if !remote => Answer::Later(Box::new(|| respond(crate::app_update::check_now()))),
         // Opening a terminal can take a moment (or wait on the system): never on the main loop.
@@ -310,6 +322,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
         }
         "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
             bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))

@@ -622,6 +622,14 @@
   background: rgb(255 255 255 / 5%);
 }
 
+/* Another AI's models, under its name: picking one moves the conversation there. */
+.modelo-menu li.modelo-grupo {
+  padding: 14px 8px 6px;
+  color: rgb(255 255 255 / 45%);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
 /* The radio: an empty ring, or a white disc with a check. */
 .modelo-menu li i {
   flex: none;

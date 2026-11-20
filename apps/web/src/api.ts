@@ -274,7 +274,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched'
   data: {
     text?: string
     proposal?: string
@@ -319,6 +319,8 @@ export interface BotMessage {
     agent?: BotAgent
     /** A failed review: the answer it was about. */
     review?: number
+    /** A switch to another AI (its `from` and `to` are CLI ids): the model it went on with. */
+    model?: string | null
   }
 }
 
@@ -447,7 +449,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'request_approve' | 'request_discard'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'request_approve' | 'request_discard' | 'switch_agent'
 
 export interface InboxMessage {
   id: string
@@ -640,6 +642,17 @@ export function cloneRepo(repo: string): Promise<SetupState> {
 
 export function finishSetup(): Promise<{ done: boolean }> {
   return request<{ done: boolean }>('/api/setup/finish', {})
+}
+
+/** Another AI a bot can switch to, installed and turned on, with its models. */
+export interface OtherAgent {
+  agent: string
+  name: string
+  models: string[]
+}
+
+export function otherAgents(id: string): Promise<{ agents: OtherAgent[] }> {
+  return request<{ agents: OtherAgent[] }>('/api/bot/other_agents', { id })
 }
 
 export function botUsage(id: string): Promise<BotUsage> {

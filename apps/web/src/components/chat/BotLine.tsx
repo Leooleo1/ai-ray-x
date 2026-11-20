@@ -84,6 +84,16 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       </div>
     )
   }
+  if (message.kind === 'switched') {
+    const target = typeof message.data.to === 'string' ? message.data.to : ''
+    const to = (AGENT_LABEL as Record<string, string>)[target] ?? target
+    const model = message.data.model ? ` · ${message.data.model}` : ''
+    return (
+      <div className="dia">
+        <span>{t.switchedTo.replace('{agent}', `${to}${model}`)}</span>
+      </div>
+    )
+  }
   if (message.author === 'you' && message.kind === 'approve') {
     return (
       <>

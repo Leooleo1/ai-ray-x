@@ -43,7 +43,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     return () => {
       alive = false
     }
-  }, [bot.id])
+  }, [bot.id, bot.agent])
 
   const run = (model: string | null, effort: string | null, persona: Persona | null) =>
     void bots.act('configure', { id: bot.id, model: model ?? '', effort: effort ?? '', persona })
