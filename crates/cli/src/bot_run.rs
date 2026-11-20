@@ -104,6 +104,8 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
          (at most two such lines). raiox shows it to the person, runs it in the project folder if they approve and \
          sends you the output. One program with its arguments: no pipes, redirections, `;`, `&&`, `$` or shells, and \
          nothing that changes files or prints secrets. \
+         When you say you will run a command next, put its line in that same answer: an answer that only announces \
+         the next step leaves the person waiting. \
          Answer in the person's language, briefly. \
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
@@ -112,7 +114,7 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
          simulator, end with one line {SHOT_MARK} <a path such as /login, a local URL, or simulator> (at most two); \
          raiox takes a screenshot and hands it to you. \
          To leave work for later on the person's task board (for you, at most three), end with one line per task: \
-         {TASK_MARK} <a short title>. \
+         {TASK_MARK} <a short title>; leave each task once, not again in later answers. \
          When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
          holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
          \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."

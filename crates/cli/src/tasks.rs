@@ -223,11 +223,25 @@ pub fn set_auto(state_dir: &Path, on: bool) -> Result<()> {
     })
 }
 
-/// Tasks a bot's answer left on the board (its RAIOX-TASK lines), for itself.
+/// A title as two tasks are compared: no code quotes, case or extra spaces.
+fn same_title(title: &str) -> String {
+    title.replace('`', "").split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+/// Tasks a bot's answer left on the board (its RAIOX-TASK lines), for itself; one it already has
+/// waiting on the board is not added again (bots repeat a task in later answers).
 pub fn from_answer(state_dir: &Path, bot: &str, titles: &[String]) {
+    let open: Vec<String> = load(state_dir).tasks.iter().filter(|t| t.bot == bot && t.status != Status::Done).map(|t| same_title(&t.title)).collect();
+    let mut seen = open;
     for title in titles.iter().take(MAX_FROM_ANSWER) {
+        let key = same_title(title);
+        if seen.contains(&key) {
+            continue;
+        }
         // A card title is plain text: no code quotes.
-        let _ = add(state_dir, bot, &title.replace('`', ""), "", bot);
+        if add(state_dir, bot, &title.replace('`', ""), "", bot).is_ok() {
+            seen.push(key);
+        }
     }
 }
 
@@ -249,6 +263,26 @@ mod tests {
 
     fn message(kind: &str, reply: Value) -> room::Message {
         room::Message { ms: 10, author: "bot".into(), kind: kind.into(), data: json!({ "reply": reply }) }
+    }
+
+    #[test]
+    fn a_bot_repeating_a_task_does_not_fill_the_board_twice() {
+        let home = std::env::temp_dir().join(format!("raiox-tasks-dup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = bots::activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        let titles = |list: &[&str]| list.iter().map(|t| t.to_string()).collect::<Vec<_>>();
+
+        from_answer(&state, &bot.id, &titles(&["Testar v003: format=`micro_thread`", "Testar  v003: FORMAT=micro_thread"]));
+        from_answer(&state, &bot.id, &titles(&["testar v003: format=micro_thread"]));
+        assert_eq!(load(&state).tasks.len(), 1, "the same task, in the same answer or a later one, is added once");
+
+        let id = load(&state).tasks[0].id.clone();
+        mark(&state, &id, "done").unwrap();
+        from_answer(&state, &bot.id, &titles(&["Testar v003: format=micro_thread"]));
+        assert_eq!(load(&state).tasks.len(), 2, "once done, the same work can be asked for again");
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     #[test]
