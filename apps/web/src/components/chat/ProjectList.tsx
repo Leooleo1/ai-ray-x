@@ -58,6 +58,11 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
   return (
     <nav className={`conversas ${open ? 'aberta' : ''}`} aria-label={t.conversationsOf.replace('{p}', project)}>
       <header className="projeto-topo">
+        <button type="button" className="projeto-voltar" aria-label={t.backToConversations} title={t.backToConversations} onClick={nav.add}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+        </button>
         {lead && <Avatar agent={faceForBot(lead)} size={28} state="still" />}
         <span>
           <b>{project}</b>

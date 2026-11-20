@@ -2975,3 +2975,34 @@ form.compositor {
 .linha.minha.pergunta-lateral {
   opacity: 0.86;
 }
+
+/* Back to the overview of the bots, before the project's name. */
+.projeto-voltar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: -2px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+}
+
+.projeto-voltar:hover,
+.projeto-voltar:focus-visible {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.projeto-voltar svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

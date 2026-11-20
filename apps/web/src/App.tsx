@@ -316,7 +316,9 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         onToggle={toggleSidebar}
         onTab={(next) => {
           setSettingsTab('conexoes')
-          go(next)
+          // Conversations always lands on the overview of the bots, also from inside a conversation.
+          if (next === 'agents') openChat('bots')
+          else go(next)
         }}
         onChat={openChat}
         onSettings={openSettings}
