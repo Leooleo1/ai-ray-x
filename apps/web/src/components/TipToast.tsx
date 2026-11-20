@@ -76,7 +76,7 @@ export function TipToast({ bots, report, nav, raised, folded }: TipToastProps) {
         <img className="dica-retrato pelucia" src={face.art} alt="" />
         <span>
           <b style={{ color: face.color }}>{face.name}</b>
-          <small>{t.tipFree}</small>
+          <small>{face.about}</small>
         </span>
         <button type="button" className="icone-btn" aria-label={t.tipClose} title={t.tipClose} onClick={close}>
           <svg viewBox="0 0 24 24" aria-hidden="true">

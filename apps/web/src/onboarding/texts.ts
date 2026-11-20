@@ -3,7 +3,7 @@
 import { locale } from '../i18n'
 
 const en = {
-  steps: ['You', 'AIs', 'GitHub', 'Projects', 'Bot', 'Wires', 'Done'],
+  steps: ['You', 'AIs', 'GitHub', 'Projects', 'Bot', 'Links', 'Done'],
   welcomeTitle: 'An AI at work in every project.',
   welcomeText: 'raiox puts the Claude Code, Codex, Cursor, Antigravity or opencode you already use to work inside your projects: they edit, test, start the app and show you what they did. And it shows where the tokens go.',
   welcomeSteps: [
@@ -84,8 +84,8 @@ const en = {
   creating: 'creating',
   doneTitle: 'Ready.',
   doneText: '{name} is in your projects. See in half a minute how to work with it.',
-  wiresTitle: 'Wire your projects',
-  wiresText: 'Wired projects know of each other and message through ai-memory, always with your approval. Unwired, each bot stays in its project.',
+  wiresTitle: 'Link your projects',
+  wiresText: 'Linked projects know of each other and message through ai-memory, always with your approval. Unlinked, each bot stays in its project.',
   wiresLater: 'change it later in Settings',
   doneEmpty: 'No bots for now. See how they work; you can add them any time.',
   talk: 'Talk',
@@ -94,7 +94,7 @@ const en = {
 }
 
 const pt: typeof en = {
-  steps: ['Você', 'IAs', 'GitHub', 'Projetos', 'Bot', 'Fios', 'Pronto'],
+  steps: ['Você', 'IAs', 'GitHub', 'Projetos', 'Bot', 'Ligações', 'Pronto'],
   welcomeTitle: 'Uma IA trabalhando em cada projeto.',
   welcomeText: 'O raiox põe o Claude Code, o Codex, o Cursor, o Antigravity ou o opencode que você já usa para trabalhar dentro dos seus projetos: editam, testam, sobem o app e mostram o que fizeram. E mostra para onde vão os tokens.',
   welcomeSteps: [
@@ -176,7 +176,7 @@ const pt: typeof en = {
   doneTitle: 'Pronto.',
   doneText: '{name} já está nos seus projetos. Veja em meio minuto como trabalhar com ele.',
   wiresTitle: 'Ligue os projetos',
-  wiresText: 'Projetos ligados se conhecem e trocam mensagens pelo ai-memory, sempre com a sua aprovação. Sem fio, cada bot fica no seu projeto.',
+  wiresText: 'Projetos ligados se conhecem e trocam mensagens pelo ai-memory, sempre com a sua aprovação. Sem ligação, cada bot fica no seu projeto.',
   wiresLater: 'mude depois em Configurações',
   doneEmpty: 'Sem bots por enquanto. Veja como eles trabalham; dá para criar quando quiser.',
   talk: 'Conversar',

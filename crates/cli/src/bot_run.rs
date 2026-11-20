@@ -143,8 +143,8 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
         String::new()
     } else {
         format!(
-            "\n\nProjects with a raiox bot that are not wired to this one: {}. If the person asks you to talk to, ask or \
-             tell one of them, say that once the two projects are wired in raiox you can send it a message (with their \
+            "\n\nProjects with a raiox bot that are not linked to this one: {}. If the person asks you to talk to, ask or \
+             tell one of them, say that once the two projects are linked in raiox (Settings › Links) you can send it a message (with their \
              approval), and end with one line {OPEN_MARK} wires",
             unwired.join(", ")
         )
@@ -712,7 +712,7 @@ mod tests {
         assert!(guide("app", "", &["shop".into()], &[], false).contains("Other projects with a raiox bot: shop."));
         // A project with a bot but no wire comes with the way to wire it.
         let unwired = guide("app", "", &[], &["shop".into()], false);
-        assert!(unwired.contains("not wired to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
+        assert!(unwired.contains("not linked to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
     }
 
     #[test]

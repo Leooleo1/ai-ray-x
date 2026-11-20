@@ -12,6 +12,8 @@ export interface Agent {
   id: AgentId
   name: string
   role: string
+  /** What it is about, in two or three words, under its name. */
+  about: string
   color: string
   avatar: AvatarDefinition
   /** Its plush portrait, for the larger places (a tip's card). */
@@ -25,6 +27,7 @@ export const AGENTS: Record<AgentId, Agent> = {
     id: 'raio',
     name: pt ? 'Raio' : 'Ray',
     role: pt ? 'lê os registros e mostra o que pesa' : 'reads the logs and shows what weighs',
+    about: pt ? 'uso de tokens' : 'token use',
     color: '#b4a3f5',
     avatar: raio as AvatarDefinition,
     art: '/mascotes/ajudante-raio.webp',
@@ -33,6 +36,7 @@ export const AGENTS: Record<AgentId, Agent> = {
     id: 'dieta',
     name: pt ? 'Dieta' : 'Diet',
     role: pt ? 'sugere cortes, nunca aplica sozinha' : 'suggests cuts, never applies them',
+    about: pt ? 'cortes de custo' : 'cost cuts',
     color: '#5fd08a',
     avatar: dieta as AvatarDefinition,
     art: '/mascotes/ajudante-dieta.webp',
@@ -41,6 +45,7 @@ export const AGENTS: Record<AgentId, Agent> = {
     id: 'memo',
     name: 'Memo',
     role: pt ? 'guarda as lições no ai-memory' : 'keeps the lessons in ai-memory',
+    about: pt ? 'memória' : 'memory',
     color: '#d9c29a',
     avatar: memo as AvatarDefinition,
     art: '/mascotes/ajudante-memo.webp',

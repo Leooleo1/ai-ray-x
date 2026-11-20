@@ -85,7 +85,7 @@ pub fn send(state_dir: &Path, id: &str, answer_ms: i64, project: &str) -> Result
         .context("no such suggestion in that answer")?;
     let to = bots::list(state_dir).into_iter().find(|b| b.name == project && b.dir != from.dir).context("that project has no bot")?;
     if !crate::links::are_linked(state_dir, &from.name, project) {
-        bail!("{} and {project} are not wired; wire them in Settings first", from.name);
+        bail!("{} and {project} are not linked; link them in Settings › Links first", from.name);
     }
     let (workspace, target) = scope_of(&to.dir)?;
     let text = note["text"].as_str().unwrap_or_default();

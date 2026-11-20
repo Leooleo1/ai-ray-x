@@ -201,10 +201,10 @@ approval.
 **ai-memory.** With [ai-memory](https://github.com/akitaonrails/ai-memory)
 installed, raiox keeps a pinned page per project (`raiox/equipe.md`) with who
 works there and what each AI did last, and every bot reads its own project's
-page and those of the projects wired to it before answering, plus the
+page and those of the projects linked to it before answering, plus the
 project's pages that relate to the question. Any answer can be kept as a
 decision of the project (`raiox/decisions/…`) with one click, so later
-questions find it. Wired projects
+questions find it. Linked projects (Settings › Links)
 can message each other through ai-memory, always with your approval.
 
 ## From your phone
