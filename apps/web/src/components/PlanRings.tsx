@@ -113,12 +113,12 @@ export function PlanRings({ collapsed }: { collapsed: boolean }) {
               <section key={agent}>
                 <header>
                   <AgentLogo agent={agent} size={14} />
-                  <b>{AGENT_LABEL[agent]}</b>
+                  <b>{plan.plan ? `${AGENT_LABEL[agent]} · ${plan.plan}` : AGENT_LABEL[agent]}</b>
                   <small>{t.planRead.replace('{w}', ago(plan.read_at))}</small>
                 </header>
                 <WindowLine label={t.planFiveHours} part={plan.five_hour} />
                 <WindowLine label={t.planWeek} part={plan.week} />
-                <p>{agent === 'claude' ? t.planFromClaude : t.planFromCodex}</p>
+                <p>{agent === 'claude' ? t.planFromClaude : plan.live ? t.planFromCodexLive : t.planFromCodex}</p>
               </section>
             )
           })}

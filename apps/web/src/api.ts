@@ -819,7 +819,7 @@ export interface PlanWindow {
 }
 
 /** How much of each AI's plan is used, as far as raiox can tell (Claude Code and Codex). */
-export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean }>>
+export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean; plan?: string; live?: boolean }>>
 
 /** One day of use: what each AI's use would cost at API prices, and its tokens. */
 export interface UsageDay {
