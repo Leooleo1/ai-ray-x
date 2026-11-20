@@ -51,10 +51,15 @@ fn open_outside(url: &Url) {
     }
 }
 
-/// The built interface: inside the app bundle, or the checkout's build when run with cargo.
+/// The built interface: inside the app bundle, or the checkout's build when run with cargo (a
+/// debug build only, so a release keeps no path of the machine it was built on).
 fn web_dir(app: &AppHandle) -> PathBuf {
-    let bundled = app.path().resource_dir().map(|dir| dir.join("web")).ok().filter(|dir| dir.join("index.html").exists());
-    bundled.unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist"))
+    let bundled = app.path().resource_dir().map(|dir| dir.join("web")).unwrap_or_default();
+    #[cfg(debug_assertions)]
+    if !bundled.join("index.html").exists() {
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../apps/web/dist");
+    }
+    bundled
 }
 
 /// A notification when an AI finishes, unless the person is looking at the window.
