@@ -45,7 +45,7 @@ pub fn after_turn(state_dir: &Path, jobs: &Jobs, bot: &str, thread: &str) {
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, &bot.id, thread));
     let _ = match next(&messages) {
-        Next::Approve => HOME.get().map(|home| bots::approve(state_dir, home, jobs, &bot.id, thread)),
+        Next::Approve => HOME.get().map(|home| bots::approve(state_dir, home, jobs, &bot.id, thread, None)),
         Next::Apply(draft) => Some(bots::draft(state_dir, &bot.id, thread, &draft, "apply")),
         Next::Nothing => None,
     };

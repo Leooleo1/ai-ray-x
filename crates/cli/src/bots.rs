@@ -182,7 +182,13 @@ struct Job {
 impl Jobs {
     /// One turn at a time per bot, whichever conversation it is in.
     fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() }).is_none())
+        self.0.lock().is_ok_and(|mut map| {
+            let std::collections::hash_map::Entry::Vacant(entry) = map.entry(id.to_string()) else {
+                return false;
+            };
+            entry.insert(Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() });
+            true
+        })
     }
 
     fn thread_of(&self, id: &str) -> Option<String> {
@@ -564,10 +570,15 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
 }
 
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
-pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>) -> Result<()> {
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
+    if let Some(ms) = answer_ms
+        && !last.is_some_and(|m| m.ms == ms)
+    {
+        bail!("this proposal is no longer current");
+    }
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
@@ -850,6 +861,18 @@ mod tests {
     }
 
     #[test]
+    fn an_approval_from_the_desk_is_refused_once_the_proposal_is_not_the_latest() {
+        let dir = temp_dir("aprova-velha");
+        let messages = vec![
+            room::Message { ms: 100, author: "bot".into(), kind: "answer".into(), data: json!({ "reply": { "text": "Plan", "proposal": "Rename the helper" } }) },
+            room::Message { ms: 200, author: "you".into(), kind: "ask".into(), data: json!({ "text": "and the tests?" }) },
+        ];
+        room::append_messages(&threads::chat_file(&dir, "b1", MAIN), messages).unwrap();
+        let error = approve(&dir, &dir, &Jobs::default(), "b1", MAIN, Some(100)).unwrap_err();
+        assert!(error.to_string().contains("no longer current"), "{error:#}");
+    }
+
+    #[test]
     fn activation_needs_a_project_folder_under_the_home() {
         let home = temp_dir("home");
         fs::create_dir_all(home.join("Projects/app")).unwrap();
@@ -871,13 +894,13 @@ mod tests {
         let jobs = Jobs::default();
         let answer = |proposal: Value| note("answer", json!({ "mode": "talk", "reply": { "text": "t", "proposal": proposal } }));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(Value::Null)]).unwrap();
-        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN, None).unwrap_err().to_string().contains("no proposal"));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(json!("rename"))]).unwrap();
         // Keeping the answer and a review of it leave the proposal approvable.
         let aside = vec![said("remembered", json!({})), said("review_asked", json!({})), note("review", json!({ "reply": { "text": "ok" } }))];
         room::append_messages(&chat_file(&state, "b1"), aside).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
-        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN, None).unwrap_err().to_string().contains("no bot"));
     }
 
     #[test]

@@ -248,6 +248,14 @@
   font-variant-numeric: tabular-nums;
 }
 
+.mesa-proposta {
+  margin: 0;
+  color: #d2d2da;
+  font: 12px/18px var(--sans);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .mesa-apoio {
   color: var(--nevoa);
   font: 12px/16px var(--sans);
@@ -279,7 +287,7 @@
   white-space: nowrap;
 }
 
-/* The foot of a card that only opens somewhere: whose it is, and Open at the right. */
+/* Whose card it is, and Open at the right. */
 .mesa-pe {
   display: flex;
   align-items: center;

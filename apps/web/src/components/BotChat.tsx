@@ -243,7 +243,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
               onWiki={() => wikiFromAnswer(bot.id, current, message.ms).then(() => true, () => false)}
               onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
-              onApprove={() => void bots.act('approve', { id: bot.id, thread: current })}
+              onApprove={() => void bots.act('approve', { id: bot.id, thread: current, answer_ms: message.ms })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
               onOpenExchange={nav.openExchange}

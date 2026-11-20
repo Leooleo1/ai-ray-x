@@ -8,7 +8,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::io::Cursor;
 use std::path::{Component, Path, PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
@@ -353,7 +353,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             };
             bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
         }
-        "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "approve" => {
+            let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;
+            bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread, answer_ms)
+        }
         "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;

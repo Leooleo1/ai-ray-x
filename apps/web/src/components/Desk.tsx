@@ -94,7 +94,7 @@ export function Desk({ bots, nav }: DeskProps) {
             <RequestCard key={request.id} request={request} bots={bots} />
           ))}
           {approvals.map((item) => (
-            <ApprovalCard key={`${item.bot.id}:${item.thread}:${item.kind}:${item.ms}:${item.text}`} item={item} nav={nav} />
+            <ApprovalCard key={`${item.bot.id}:${item.thread}:${item.kind}:${item.ms}:${item.text}`} item={item} bots={bots} nav={nav} />
           ))}
           {waiting.map(card)}
         </Lane>
