@@ -1068,9 +1068,10 @@
   list-style: none;
 }
 
+/* The question and its schedule, then its mode, its switch and delete, on one line. */
 .rotinas-lista li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 8px 0;

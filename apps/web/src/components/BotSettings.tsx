@@ -155,6 +155,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
             <span className="ajustes-grupo">{t.reviewerLabel}</span>
             <Choice
               label={t.reviewerLabel}
+              bare
               current={bot.reviewer ?? null}
               fallback={null}
               options={partners.map((p) => p.id)}
@@ -260,10 +261,12 @@ interface ChoiceProps {
   onPick: (value: string | null) => void
   /** What the first option says; the CLI's default unless given. */
   nullLabel?: string
+  /** Under a section title that already names it: no label of its own (screen readers still get it). */
+  bare?: boolean
 }
 
 /** One grouped selector: the CLI's default first, then each option. */
-export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
+export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption, bare = false }: ChoiceProps) {
   if (free || options.length > GRID_LIMIT) {
     return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} nullLabel={nullLabel} />
   }
@@ -271,7 +274,7 @@ export function Choice({ label, current, fallback, options, free = false, show, 
   const gridStyle = { gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }
   return (
     <div className="ajustes-campo">
-      <span>{label}</span>
+      {!bare && <span>{label}</span>}
       <div className="ajustes-grade" role="radiogroup" aria-label={label} style={gridStyle}>
         <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} onClick={() => onPick(null)}>
           <b>{nullLabel}</b>
