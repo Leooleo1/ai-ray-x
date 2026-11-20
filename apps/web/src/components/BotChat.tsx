@@ -51,6 +51,18 @@ interface BotChatProps {
 export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onChanged }: BotChatProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const toggleSettings = () => {
+    setSettingsOpen((was) => {
+      if (!was) setPreviewOpen(false)
+      return !was
+    })
+  }
+  const togglePreview = () => {
+    setPreviewOpen((was) => {
+      if (!was) setSettingsOpen(false)
+      return !was
+    })
+  }
   // On a phone the project's conversations open as a sheet.
   const [listOpen, setListOpen] = useState(false)
   const [thread, setThread] = useState(focus?.thread ?? MAIN)
@@ -80,12 +92,14 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   const [runSignal, setRunSignal] = useState(0)
   const openPlace = (place: Place, run = false) => {
     if (place === 'model') setModelSignal((n) => n + 1)
-    else if (place === 'settings') setSettingsOpen(true)
-    else if (place === 'app') {
+    else if (place === 'settings') {
+      setPreviewOpen(false)
+      setSettingsOpen(true)
+    } else if (place === 'app') {
+      setSettingsOpen(false)
       setPreviewOpen(true)
       if (run) setRunSignal((n) => n + 1)
-    }
-    else if (place === 'memories') setMemorySignal((n) => n + 1)
+    } else if (place === 'memories') setMemorySignal((n) => n + 1)
     else onSettings(place === 'wires' ? 'fios' : 'conexoes')
   }
   const newThread = async () => {
@@ -166,7 +180,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
             </span>
           </span>
-          <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={() => setPreviewOpen(!previewOpen)}>
+          <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3.5" y="5" width="17" height="12" rx="2" />
               <path d="M9 20h6M12 17v3" />
@@ -174,7 +188,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           </button>
           {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
-          <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}>
+          <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={toggleSettings}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="4" y="5" width="16" height="14" rx="2.5" />
               <path d="M14 5v14" />

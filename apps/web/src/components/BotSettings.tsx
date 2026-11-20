@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { type Bot, type BotUsage, type Persona, botUsage } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
@@ -34,6 +34,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
   const [name, setName] = useState(bot.persona?.name ?? AGENT_LABEL[bot.agent])
   const [manner, setManner] = useState(bot.persona?.instructions ?? '')
   const [role, setRole] = useState(bot.persona?.role ?? '')
+  const [confirmClose, setConfirmClose] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -57,6 +58,35 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     role: role.trim(),
   }
   const changed = JSON.stringify(persona) !== JSON.stringify(bot.persona)
+  useEffect(() => {
+    if (!changed) setConfirmClose(false)
+  }, [changed])
+  const tryClose = () => {
+    if (changed && !confirmClose) {
+      setConfirmClose(true)
+      return
+    }
+    onClose()
+  }
+  const resetPersona = () => {
+    setLook({ shape: bot.persona?.shape ?? 'monitor', color: face.color, finish: bot.persona?.finish ?? 'solid' })
+    setName(bot.persona?.name ?? AGENT_LABEL[bot.agent])
+    setManner(bot.persona?.instructions ?? '')
+    setRole(bot.persona?.role ?? '')
+    setConfirmClose(false)
+  }
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const target = event.target as HTMLElement | null
+      // Let inner popovers (like LongChoice) consume Escape first.
+      if (target?.closest('.ajustes-combo.aberto')) return
+      if (changed && !confirmClose) setConfirmClose(true)
+      else onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [changed, confirmClose, onClose])
   const days = usage?.days ?? 30
   const models = usage?.models ?? []
   const partners = bots.state.bots.filter((b) => b.dir === bot.dir && b.id !== bot.id)
@@ -66,8 +96,8 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     <aside className="ajustes" aria-label={t.settings}>
       <header className="ajustes-topo">
         <b>{t.settings}</b>
-        <button type="button" className="voltar" onClick={onClose}>
-          {t.close}
+        <button type="button" className={`voltar ${confirmClose ? 'confirmar' : ''}`} onBlur={() => setConfirmClose(false)} onClick={tryClose}>
+          {confirmClose ? t.closeDiscard : t.close}
         </button>
       </header>
       <div className="ajustes-corpo">
@@ -193,11 +223,25 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
         </span>
         {bots.error && <p className="nota failed quebra">{bots.error}</p>}
       </div>
+      {changed && (
+        <footer className="ajustes-rodape">
+          <span className="ajustes-pendente">
+            <i className="ponto alerta" aria-hidden="true" />
+            {t.unsavedChanges}
+          </span>
+          <button type="button" className="link" onClick={resetPersona}>
+            {t.cancel}
+          </button>
+          <button type="button" className="cheio" onClick={() => run(bot.model, bot.effort, persona)}>
+            {t.save}
+          </button>
+        </footer>
+      )}
     </aside>
   )
 }
 
-/** Past this many options, a field with suggestions replaces the grid. */
+/** Past this many options, a searchable dropdown replaces the grid. */
 const GRID_LIMIT = 8
 
 interface ChoiceProps {
@@ -215,11 +259,15 @@ interface ChoiceProps {
 
 /** One grouped selector: the CLI's default first, then each option. */
 export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
-  if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} />
+  if (free || options.length > GRID_LIMIT) {
+    return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} nullLabel={nullLabel} />
+  }
+  const cols = options.length + 1
+  const gridStyle = cols <= 4 ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : { gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))' }
   return (
     <div className="ajustes-campo">
       <span>{label}</span>
-      <div className="ajustes-grade" role="radiogroup" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }}>
+      <div className="ajustes-grade" role="radiogroup" aria-label={label} style={gridStyle}>
         <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} onClick={() => onPick(null)}>
           <b>{nullLabel}</b>
           {fallback && <small>{show(fallback)}</small>}
@@ -234,33 +282,106 @@ export function Choice({ label, current, fallback, options, free = false, show, 
   )
 }
 
-/** Many models (Cursor lists hundreds): the default, or one typed with suggestions. */
-function LongChoice({ label, current, fallback, options, onPick }: ChoiceProps) {
+/** Many models (Cursor lists hundreds): searchable popover with custom value support. */
+function LongChoice({ label, current, fallback, options, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
+  const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(current ?? '')
-  const listId = `modelos-${label}`
-  // One field: empty means the CLI's default; Enter or leaving the field applies what was typed.
-  const apply = () => {
+  const box = useRef<HTMLDivElement>(null)
+  const inputId = useId()
+  useEffect(() => {
+    setDraft(current ?? '')
+  }, [current])
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const needle = draft.trim().toLowerCase()
+  const matched = options.filter((o) => !needle || `${o} ${show(o)}`.toLowerCase().includes(needle))
+  const choose = (next: string | null) => {
+    setDraft(next ?? '')
+    setOpen(false)
+    if (next !== current) onPick(next)
+  }
+  const applyTyped = () => {
     const next = draft.trim() || null
+    setOpen(false)
     if (next !== current) onPick(next)
   }
   return (
-    <label className="ajustes-campo">
-      <span>{label}</span>
-      <input
-        className="ajustes-modelo"
-        list={listId}
-        value={draft}
-        placeholder={fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={apply}
-        onKeyDown={(event) => event.key === 'Enter' && apply()}
-      />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option key={option} value={option} />
-        ))}
-      </datalist>
-    </label>
+    <div className={`ajustes-campo ajustes-combo ${open ? 'aberto' : ''}`} ref={box}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className="ajustes-combo-wrap">
+        <input
+          id={inputId}
+          className="ajustes-modelo"
+          value={draft}
+          placeholder={fallback ? `${nullLabel} · ${show(fallback)}` : nullLabel}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setOpen(true)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              applyTyped()
+            }
+          }}
+        />
+        {draft && (
+          <button
+            type="button"
+            className="campo-limpar"
+            aria-label={t.clearSearch}
+            title={t.clearSearch}
+            onClick={() => choose(null)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {open && (
+        <ul className="ajustes-combo-lista" role="listbox" aria-label={label}>
+          <li role="option" aria-selected={current === null}>
+            <button type="button" className={current === null ? 'ativo' : ''} onClick={() => choose(null)}>
+              <span>{nullLabel}</span>
+              {fallback && <small>{show(fallback)}</small>}
+            </button>
+          </li>
+          {matched.slice(0, 60).map((option) => (
+            <li key={option} role="option" aria-selected={current === option}>
+              <button type="button" className={current === option ? 'ativo' : ''} onClick={() => choose(option)}>
+                <span>{show(option)}</span>
+                {show(option) !== option && <small>{option}</small>}
+              </button>
+            </li>
+          ))}
+          {needle && !options.includes(draft.trim()) && (
+            <li role="option" aria-selected={false}>
+              <button type="button" onClick={applyTyped}>
+                <span>{`${t.use} “${draft.trim()}”`}</span>
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
   )
 }
 

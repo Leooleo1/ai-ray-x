@@ -212,23 +212,27 @@ export function ChannelNew({ bots, onCreated }: { bots: Bots; onCreated: (id: st
           <input value={name} maxLength={40} placeholder={t.channelNameHint} onChange={(event) => setName(event.target.value)} />
         </label>
         <span className="ajustes-grupo">{t.channelMembers}</span>
-        <ul className="canal-escolha">
-          {bots.state.bots.map((bot) => {
-            const order = chosen.indexOf(bot.id)
-            return (
-              <li key={bot.id}>
-                <button type="button" aria-pressed={order >= 0} className={order >= 0 ? 'ativo' : ''} onClick={() => toggle(bot.id)}>
-                  <Avatar agent={faceForBot(bot)} size={24} state="still" />
-                  <span>
-                    <b>{bot.name}</b>
-                    <small>{[AGENT_LABEL[bot.agent], bot.persona?.role].filter(Boolean).join(' · ')}</small>
-                  </span>
-                  {order === 0 && <small className="canal-lider">{t.channelLead}</small>}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        {bots.state.bots.length === 0 ? (
+          <p className="nota">{t.channelNoBots}</p>
+        ) : (
+          <ul className="canal-escolha">
+            {bots.state.bots.map((bot) => {
+              const order = chosen.indexOf(bot.id)
+              return (
+                <li key={bot.id}>
+                  <button type="button" aria-pressed={order >= 0} className={order >= 0 ? 'ativo' : ''} onClick={() => toggle(bot.id)}>
+                    <Avatar agent={faceForBot(bot)} size={24} state="still" />
+                    <span>
+                      <b>{bot.name}</b>
+                      <small>{[AGENT_LABEL[bot.agent], bot.persona?.role].filter(Boolean).join(' · ')}</small>
+                    </span>
+                    {order === 0 && <small className="canal-lider">{t.channelLead}</small>}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
         <span className="acao">
           <button type="button" className="cheio" disabled={!name.trim() || chosen.length === 0} onClick={() => void create()}>
             {t.channelCreate}

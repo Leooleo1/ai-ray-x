@@ -555,6 +555,12 @@
   box-shadow: inset 0 0 0 4px var(--giz);
 }
 
+.cfg-escolha-livre-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .cfg-escolha-livre {
   display: flex;
   gap: 6px;

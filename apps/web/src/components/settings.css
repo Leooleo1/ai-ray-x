@@ -71,9 +71,120 @@
   gap: 8px;
 }
 
-.ajustes-campo > span {
+.ajustes-campo > span,
+.ajustes-campo > label {
   color: var(--nevoa);
   font: 11px/14px var(--mono);
+}
+
+.ajustes-rodape {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #14141b;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.ajustes-pendente {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--alerta);
+  font: 12px/16px var(--sans);
+}
+
+.ajustes-rodape button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.ajustes-rodape .cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.ajustes-rodape .link {
+  padding: 0 4px;
+  background: transparent;
+  color: var(--nevoa);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Searchable model dropdown replacing native <datalist>. */
+.ajustes-combo {
+  position: relative;
+}
+
+.ajustes-combo-wrap {
+  position: relative;
+  display: flex;
+}
+
+.ajustes-combo-wrap .ajustes-modelo {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.ajustes-combo-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 12%),
+    0 18px 40px rgb(0 0 0 / 60%);
+  scrollbar-width: none;
+}
+
+.ajustes-combo-lista li button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--giz);
+  font: 13px/16px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ajustes-combo-lista li button:hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+.ajustes-combo-lista li button.ativo {
+  background: rgb(255 255 255 / 10%);
+}
+
+.ajustes-combo-lista li button small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ajustes-campo input,

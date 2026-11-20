@@ -42,6 +42,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 45%);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 32%);
+  outline-offset: -1px;
+}
+
+.compositor textarea:focus-visible,
+.compositor input:focus-visible {
+  outline: 0;
+}
+
 .tela-estado {
   display: grid;
   height: 100dvh;
@@ -323,8 +341,36 @@ body {
   padding: 0;
 }
 
+/* Floating label beside the collapsed rail: fixed so vertical scroll never clips it. */
+.lado-dica {
+  position: fixed;
+  z-index: 60;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #17171f;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 12%),
+    0 10px 24px rgb(0 0 0 / 55%);
+  color: var(--giz);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 960px) {
+  .lado-dica {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .app {
+  .app,
+  .chapa circle,
+  .marca,
+  .marca-pico,
+  .marca-ativa,
+  .seletor-seta {
     transition: none;
   }
 
@@ -626,6 +672,28 @@ body {
   fill: var(--brasa);
 }
 
+.chapa .chapa-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.chapa circle {
+  transition: opacity 140ms ease;
+}
+
+.chapa circle.suave {
+  opacity: 0.42;
+}
+
+.chapa circle.ativo.aceso,
+.chapa circle.ativo.pico {
+  fill-opacity: 1;
+}
+
+.chapa circle.ativo.apagado {
+  fill: rgb(255 255 255 / 14%);
+}
+
 .rodape {
   display: flex;
   gap: var(--vao);
@@ -637,6 +705,10 @@ body {
 .rodape b {
   color: var(--giz);
   font-weight: 400;
+}
+
+.rodape-dia {
+  color: var(--nevoa);
 }
 
 /* Clock: ring of marks */
@@ -656,9 +728,11 @@ body {
 }
 
 .marca,
-.marca-pico {
+.marca-pico,
+.marca-ativa {
   stroke-linecap: round;
   stroke-width: 4;
+  transition: opacity 140ms ease, stroke 140ms ease;
 }
 
 .anel .marca {
@@ -667,6 +741,17 @@ body {
 
 .anel .marca-pico {
   stroke: var(--brasa);
+}
+
+.anel .marca-ativa {
+  stroke: var(--giz);
+  stroke-width: 5;
+}
+
+.anel .marca-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
 }
 
 .rotulo-hora {
@@ -958,6 +1043,26 @@ body {
 
 .sessao {
   grid-column: span 5;
+}
+
+.dieta-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.dieta-controles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.dieta-controles .segmentado {
+  margin-left: 0;
 }
 
 .dieta-lista h2 {
@@ -2046,42 +2151,222 @@ body {
 
 /* Efficiency: which project the cuts go to, named before any Apply. */
 .alvo-projeto {
-  display: inline-flex;
   flex: none;
+}
+
+/* Shared custom select chip (replaces native <select> controls). */
+.seletor-chip {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.seletor-botao {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 12px;
-}
-
-.alvo-projeto small {
-  color: var(--nevoa);
-  font: 12px/16px var(--sans);
-  white-space: nowrap;
-}
-
-.alvo-projeto select {
-  height: 30px;
-  padding: 0 30px 0 12px;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px 0 12px;
   border: 0;
   border-radius: 999px;
-  outline: 0;
-  background: var(--vidro-7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5' fill='none' stroke='%239a9aa6' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right 10px center / 14px no-repeat;
+  background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
   font: 500 13px/16px var(--sans);
-  appearance: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.seletor-botao:hover,
+.seletor-botao.aberto {
+  background: rgb(255 255 255 / 11%);
+}
+
+.seletor-prefixo {
+  flex: none;
+  color: var(--nevoa);
+  font-weight: 400;
+}
+
+.seletor-atual {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.seletor-seta {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms ease;
+}
+
+.seletor-botao.aberto .seletor-seta {
+  transform: rotate(180deg);
+}
+
+.seletor-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 32px));
+  max-height: 280px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: 14px;
+  background: #15151b;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 0 0 1px rgb(255 255 255 / 10%),
+    0 20px 44px -12px rgb(0 0 0 / 80%);
+  scrollbar-width: none;
+}
+
+.seletor-menu.direita {
+  right: 0;
+  left: auto;
+}
+
+.seletor-menu.acima {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.seletor-menu li button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 13px/16px var(--sans);
+  text-align: left;
   cursor: pointer;
 }
 
-@media (max-width: 760px) {
-  .alvo-projeto {
-    margin-left: 0;
-  }
+.seletor-menu li button:hover {
+  background: rgb(255 255 255 / 5%);
+  color: var(--giz);
 }
 
-/* With the project picker in the header, the hint gives way so nothing cuts. */
-.dieta-lista h2:has(.alvo-projeto) > small {
-  display: none;
+.seletor-menu li button.ativo {
+  background: rgb(255 255 255 / 9%);
+  color: var(--giz);
+}
+
+.seletor-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.seletor-texto b,
+.seletor-texto small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-texto b {
+  font-weight: 500;
+}
+
+.seletor-texto small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.seletor-marca {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 22%);
+}
+
+.seletor-marca.marcado {
+  box-shadow: inset 0 0 0 3.5px var(--giz);
+}
+
+/* Search wrapper with a clear button inside the input. */
+.busca-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.busca-wrap > input {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.campo-limpar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+.campo-limpar:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.campo-limpar svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lado-link.confirmar,
+.voltar.confirmar {
+  color: var(--brasa);
+}
+
+.projetos-busca-wrap {
+  flex: none;
+}
+
+.rsi-caminho {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
 }
 
 /* Projects page: the ones with an AI to open, then every other one to turn on. */
@@ -2331,9 +2616,13 @@ body {
   }
 }
 
-/* Near the start of the ruler the label begins at its mark, so it never leaves the card. */
+/* Near either end of the ruler, standalone labels anchor inward so they never clip. */
 .rotulo-marca.acima.do-inicio {
   transform: translateX(-6px);
+}
+
+.rotulo-marca.acima.do-fim {
+  transform: translateX(calc(-100% + 6px));
 }
 
 /* The short name of a section shows only in the phone's tab bar. */

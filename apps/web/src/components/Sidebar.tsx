@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, type FocusEvent, type MouseEvent, useEffect, useState } from 'react'
 import type { Bot } from '../api'
 import { faceForBot } from '../avatars'
 import { t } from '../i18n'
@@ -29,6 +29,22 @@ interface SidebarProps {
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
 export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup }: SidebarProps) {
+  const [tip, setTip] = useState<{ text: string; top: number; left: number } | null>(null)
+  useEffect(() => {
+    if (!collapsed) setTip(null)
+  }, [collapsed])
+  const showTip = (text: string) => (event: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
+    if (!collapsed) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    setTip({ text, top: rect.top + rect.height / 2, left: rect.right + 10 })
+  }
+  const hideTip = () => setTip(null)
+  const tipProps = (text: string) => ({
+    onMouseEnter: showTip(text),
+    onMouseLeave: hideTip,
+    onFocus: showTip(text),
+    onBlur: hideTip,
+  })
   const nav: { id: Tab; label: string; short?: string; icon: IconName }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
     { id: 'efficiency', label: t.tabEfficiency, short: t.efficiencyShort, icon: 'efficiency' },
@@ -49,24 +65,29 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
         <button
           type="button"
           className="lado-recolher"
-          onClick={onToggle}
+          onClick={() => {
+            hideTip()
+            onToggle()
+          }}
           aria-label={toggleLabel}
           aria-expanded={!collapsed}
-          title={toggleLabel}
+          title={collapsed ? undefined : toggleLabel}
+          {...tipProps(toggleLabel)}
         >
           <Icon name={collapsed ? 'sidebar-expand' : 'sidebar-collapse'} />
         </button>
       </div>
-      <div className="lado-scroll">
+      <div className="lado-scroll" onScroll={hideTip}>
         <nav className="lado-grupo lado-menu" aria-label="raiox">
           {nav.map((item) => (
             <button
               key={item.id}
+              type="button"
               className={`lado-item ${item.id === 'settings' ? 'so-celular' : ''} ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`}
               aria-current={tab === item.id ? 'page' : undefined}
               aria-label={collapsed ? item.label : undefined}
-              title={collapsed ? item.label : undefined}
               onClick={() => onTab(item.id)}
+              {...tipProps(item.label)}
             >
               <Icon name={item.icon} />
               <span className="nome">{item.label}</span>
@@ -83,10 +104,11 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
             return (
               <button
                 key={name}
+                type="button"
                 className={`lado-item ${tab === 'agents' && bots.some((b) => b.name === name && chat === `bot:${b.id}`) ? 'ativo' : ''}`}
                 aria-label={collapsed ? hint : undefined}
-                title={collapsed ? hint : undefined}
                 onClick={() => onChat(`bot:${latest.id}`)}
+                {...tipProps(hint)}
               >
                 <span className="lado-rosto">
                   <Avatar agent={faceForBot(latest)} size={22} state={busy ? 'thinking' : 'idle'} />
@@ -107,10 +129,11 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
             return (
               <button
                 key={channel.id}
+                type="button"
                 className={`lado-item ${tab === 'agents' && chat === `canal:${channel.id}` ? 'ativo' : ''}`}
                 aria-label={collapsed ? hint : undefined}
-                title={collapsed ? hint : undefined}
                 onClick={() => onChat(`canal:${channel.id}`)}
+                {...tipProps(hint)}
               >
                 <span className="lado-rosto">
                   <Icon name="hash" />
@@ -122,28 +145,31 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
             )
           })}
           <button
+            type="button"
             className={`lado-item ${tab === 'agents' && chat === 'canal:novo' ? 'ativo' : ''}`}
             aria-label={collapsed ? t.channelNewNav : undefined}
-            title={collapsed ? t.channelNewNav : undefined}
             onClick={() => onChat('canal:novo')}
+            {...tipProps(t.channelNewNav)}
           >
             <Icon name="hash" />
             <span className="nome">{t.channelNewNav}</span>
           </button>
           <button
+            type="button"
             className={`lado-item ${tab === 'agents' && chat.startsWith('grupo') ? 'ativo' : ''}`}
             aria-label={collapsed ? t.askMany : undefined}
-            title={collapsed ? t.askMany : undefined}
             onClick={() => onChat('grupo')}
+            {...tipProps(t.askMany)}
           >
             <Icon name="ask-many" />
             <span className="nome">{t.askMany}</span>
           </button>
           <button
+            type="button"
             className={`lado-item ${tab === 'agents' && chat === 'bots' ? 'ativo' : ''}`}
             aria-label={collapsed ? t.addProject : undefined}
-            title={collapsed ? t.addProject : undefined}
             onClick={() => onChat('bots')}
+            {...tipProps(t.addProject)}
           >
             <Icon name="plus" />
             <span className="nome">{t.addProject}</span>
@@ -153,6 +179,11 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
       <footer className="lado-rodape">
         <ProfileMenu bots={bots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
       </footer>
+      {collapsed && tip && (
+        <span className="lado-dica" role="tooltip" style={{ top: tip.top, left: tip.left }}>
+          {tip.text}
+        </span>
+      )}
     </aside>
   )
 }

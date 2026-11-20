@@ -40,6 +40,17 @@ interface RulerRowProps {
   source: SourceReport
 }
 
+/** Below/above these shares of the ruler, standalone labels anchor to their edge so they never clip. */
+const NEAR_START = 0.12
+const NEAR_END = 0.88
+
+function edgeClass(value: number): string {
+  const share = value / SCALE
+  if (share < NEAR_START) return 'do-inicio'
+  if (share > NEAR_END) return 'do-fim'
+  return ''
+}
+
 function RulerRow({ source }: RulerRowProps) {
   const { median, p90 } = source.efficiency.context
   const compaction = source.efficiency.compaction_pre_median
@@ -62,10 +73,10 @@ function RulerRow({ source }: RulerRowProps) {
           </span>
         ) : (
           <>
-            <span className="rotulo-marca acima" style={at(median)}>
+            <span className={`rotulo-marca acima ${edgeClass(median)}`.trim()} style={at(median)}>
               {t.median} {compact(median)}
             </span>
-            <span className="rotulo-marca acima" style={at(p90)}>
+            <span className={`rotulo-marca acima ${edgeClass(p90)}`.trim()} style={at(p90)}>
               {t.p90} {compact(p90)}
             </span>
           </>

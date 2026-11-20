@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, t } from '../i18n'
 import { Avatar } from './Avatar'
+import { modelName } from './BotSettings'
 import { when } from './chat/listParts'
 import type { ChatNav } from './chat/nav'
 import { TrailView } from './chat/TrailView'
@@ -116,7 +117,7 @@ export function Desk({ bots, nav }: DeskProps) {
                 </span>
                 <span className="mesa-equipe-onde">
                   <b>{bot.name}</b>
-                  <small>{[AGENT_LABEL[bot.agent], bot.model].filter(Boolean).join(' · ')}</small>
+                  <small>{[AGENT_LABEL[bot.agent], bot.model ? modelName(bot.model) : ''].filter(Boolean).join(' · ')}</small>
                 </span>
                 <span className="mesa-equipe-numeros">
                   <span className={`mesa-estado ${bot.busy ? 'ativo' : ''}`}>
@@ -191,11 +192,36 @@ function WorkCard({ bot, bots, nav, now }: WorkCardProps) {
       {trail?.partial && <p className="mesa-formando">{trail.partial.length > CARD_TEXT ? `…${trail.partial.slice(-CARD_TEXT)}` : trail.partial}</p>}
       {fixing && (
         <form className="mesa-corrigir" onSubmit={(event) => void correct(event)}>
-          <input autoFocus value={text} maxLength={bots.state.max_text} placeholder={t.correctPlaceholder} onChange={(event) => setText(event.target.value)} />
+          <input
+            autoFocus
+            value={text}
+            maxLength={bots.state.max_text}
+            placeholder={t.correctPlaceholder}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setFixing(false)
+                setText('')
+              }
+            }}
+          />
+          <button type="submit" className="cheio" disabled={!text.trim()}>
+            {t.send}
+          </button>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setFixing(false)
+              setText('')
+            }}
+          >
+            {t.cancel}
+          </button>
         </form>
       )}
       <footer>
-        <button type="button" className="cheio" onClick={() => nav.openMessage(bot.id, thread, now)}>
+        <button type="button" className="cheio" onClick={() => nav.openMessage(bot.id, thread, 0)}>
           {t.deskOpen}
         </button>
         <button type="button" className="vidro-btn" onClick={() => setFixing(!fixing)}>

@@ -42,6 +42,9 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const [error, setError] = useState<string | null>(null)
   const [touring, setTouring] = useState(false)
   const [tab, setTab] = useState<Tab>(initialTab)
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab])
 
   const loadGithub = useCallback(() => {
     setGithub(null)
