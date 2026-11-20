@@ -255,6 +255,13 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         },
         (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
         (Method::Get, "/api/usage") => respond(usage(panel, request.url())),
+        (Method::Get, "/api/bot/turn_diff") => {
+            let url = request.url().to_string();
+            let query = url.split_once('?').map_or("", |(_, q)| q);
+            let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('=')).unwrap_or("").to_string();
+            let thread = Some(param("thread")).filter(|t| crate::threads::valid(t)).unwrap_or_else(|| crate::threads::MAIN.to_string());
+            respond(bots::turn_patch(&panel.state_dir, &param("id"), &thread, param("ms").parse().unwrap_or(0)))
+        }
         (Method::Get, "/api/bot/context") => {
             let url = request.url().to_string();
             let query = url.split_once('?').map_or("", |(_, q)| q);
@@ -360,6 +367,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             };
             bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
         }
+        "turn_undo" => bots::undo_turn(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0)),
         "approve" => {
             let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;
             bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread, answer_ms)

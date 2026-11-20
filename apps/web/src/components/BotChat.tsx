@@ -139,6 +139,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
       .filter((m) => m.kind === 'draft_applied' || m.kind === 'draft_undone' || m.kind === 'draft_discarded')
       .map((m) => [m.data.draft ?? '', m.kind === 'draft_applied' ? ('applied' as const) : m.kind === 'draft_undone' ? ('undone' as const) : ('discarded' as const)]),
   )
+  const undoneTurns = new Set(messages.filter((m) => m.kind === 'turn_undone').map((m) => m.data.ms ?? 0))
   const waiting = (pending >= 0 ? 1 : 0) + mail.length
 
   const send = async (text: string, images?: string[]) => {
@@ -252,6 +253,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onOpenPlace={openPlace}
               draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
               onDraft={(action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
+              thread={current}
+              turnUndone={undoneTurns.has(message.ms)}
+              onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
             />

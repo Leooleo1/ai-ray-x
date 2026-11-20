@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 9] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot"];
+const ASIDE: [&str; 10] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -508,6 +508,33 @@ pub const HOUSE: [&str; 3] = ["raio", "dieta", "memo"];
 /// The folder of a bot, for actions the house agents take in its project.
 pub fn dir_of(state_dir: &Path, id: &str) -> Result<PathBuf> {
     find(state_dir, id).map(|bot| bot.dir)
+}
+
+/// The change a full-access answer made, with the bot it is in.
+fn turn_changes(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<(Bot, Vec<Message>, Value)> {
+    let bot = find(state_dir, id)?;
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let changes = messages.iter().find(|m| m.ms == ms && m.author == "bot" && m.kind == "answer").map(|m| m.data["changes"].clone()).context("no such answer")?;
+    if changes.is_null() {
+        bail!("this answer changed no file");
+    }
+    Ok((bot, messages, changes))
+}
+
+/// The diff of what a full-access answer changed in its project.
+pub fn turn_patch(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<Value> {
+    let (bot, _, changes) = turn_changes(state_dir, id, thread, ms)?;
+    Ok(json!({ "patch": crate::turn_diff::patch(&bot.dir, &changes)?, "files": changes["files"], "head_moved": changes["head_moved"] }))
+}
+
+/// Puts back the files a full-access answer changed, once, when they were not changed since.
+pub fn undo_turn(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<()> {
+    let (bot, messages, changes) = turn_changes(state_dir, id, thread, ms)?;
+    if messages.iter().any(|m| m.kind == "turn_undone" && m.data["ms"].as_i64() == Some(ms)) {
+        bail!("this turn is already undone");
+    }
+    crate::turn_diff::undo(&bot.dir, &changes)?;
+    room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("turn_undone", json!({ "ms": ms }))])
 }
 
 fn note(kind: &str, data: Value) -> Message {

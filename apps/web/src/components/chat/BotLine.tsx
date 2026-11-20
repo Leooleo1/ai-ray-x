@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
+import { TurnChanges } from './TurnChanges'
 import { CarriedBlock } from './Carry'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { ShotBlock, UploadedImages } from './ShotBlock'
@@ -55,6 +56,10 @@ interface BotLineProps {
   /** For a draft: whether it was applied, undone or discarded, and the way to do it. */
   draftState?: DraftState
   onDraft?: (action: 'apply' | 'discard' | 'undo') => void
+  /** The conversation, for a full-access turn's diff; whether that turn was undone, and how to undo it. */
+  thread?: string
+  turnUndone?: boolean
+  onTurnUndo?: () => void
   /** The latest answer: the commands it asks for can still run. */
   runnable: boolean
   onRun: (index: number, always: boolean) => void
@@ -70,7 +75,7 @@ interface BotLineProps {
   onReview: (reviewer: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -186,6 +191,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
+  if (message.kind === 'turn_undone') {
+    return <p className="linha-sistema">{t.turnUndoneLine}</p>
+  }
   const reply = message.data.reply
   const meta = reply && [
     `${t.readWord} ${compact(reply.read_tokens)} tokens`,
@@ -226,6 +234,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
             </span>
           )}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}
+          {message.data.changes && thread && onTurnUndo && (
+            <TurnChanges bot={bot.id} thread={thread} ms={message.ms} changes={message.data.changes} undone={turnUndone} busy={bot.busy} onUndo={onTurnUndo} />
+          )}
           {reply?.trail && <AnswerPath trail={reply.trail} />}
           {reply?.open?.map((place) => (
             <div key={place} className="cartao-acao">

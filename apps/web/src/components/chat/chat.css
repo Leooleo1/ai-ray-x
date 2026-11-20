@@ -2885,3 +2885,40 @@ form.compositor {
   font: 500 13px/16px var(--sans);
   cursor: pointer;
 }
+
+/* A full-access turn's change: the draft card's shape, the files listed before the diff loads. */
+.turno.desfeito > header b {
+  color: var(--nevoa);
+}
+
+.turno-arquivos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turno-arquivos li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.turno-arquivos code {
+  overflow: hidden;
+  color: var(--giz);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turno-arquivos small {
+  color: var(--nevoa);
+  font-family: var(--mono);
+}
+
+.turno footer .perigo {
+  color: var(--brasa);
+}

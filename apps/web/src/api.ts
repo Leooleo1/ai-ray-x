@@ -284,7 +284,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone'
   data: {
     text?: string
     proposal?: string
@@ -301,6 +301,10 @@ export interface BotMessage {
     draft?: string
     files?: DraftFile[]
     blocked?: string[]
+    /** What a full-access turn changed in the project (before and after photos). */
+    changes?: TurnChanges
+    /** Which turn an undo put back. */
+    ms?: number
     /** What applying, undoing or discarding a draft touched. */
     paths?: string[]
     /** A command raiox ran, and whether the person had allowed it for the project. */
@@ -478,7 +482,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo'
 
 export interface InboxMessage {
   id: string
@@ -902,6 +906,18 @@ export function fetchConversationContext(bot: string, thread: string): Promise<C
   return request<ConversationContext | null>(`/api/bot/context?id=${encodeURIComponent(bot)}&thread=${encodeURIComponent(thread)}`)
 }
 
+/** What a full-access turn changed: its files, from the before and after photos. */
+export interface TurnChanges {
+  from: string
+  to: string
+  head_moved: boolean
+  files: { path: string; added: number | null; removed: number | null }[]
+}
+
+export function fetchTurnDiff(bot: string, thread: string, ms: number): Promise<{ patch: string }> {
+  return request<{ patch: string }>(`/api/bot/turn_diff?id=${encodeURIComponent(bot)}&thread=${encodeURIComponent(thread)}&ms=${ms}`)
+}
+
 export function fetchLimits(): Promise<PlanLimits> {
   return request<PlanLimits>('/api/limits')
 }
@@ -1019,6 +1035,9 @@ export interface Delivery {
   /** A screenshot's file name, or a routine's answer. */
   detail?: string
   tokens?: number
+  /** Lines a full-access turn added and removed. */
+  added?: number
+  removed?: number
 }
 
 export function fetchDeliveries(): Promise<Delivery[]> {
