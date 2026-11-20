@@ -125,9 +125,13 @@ shows you a screenshot; anything else still waits for your click. "Full access"
 CLI in auto mode, editing files (setting up its .env too, without repeating the
 values), running any command (tests, builds, installs, git commit, pull and
 push) and starting the app through See the app, with its CLI's own automatic
-review stopping what is risky. It switches from the mode under the message
-field (or Shift+Tab, as in a coding CLI), and when an AI that asks first needs
-it, its answer carries a card that gives it in one click and lets it go on. It asks you before something
+review stopping what is risky. It is one of four modes beside the
+message field, as in a coding CLI: allow (the default: what is safe runs
+alone, changes are proposals), approve for me (it applies its own proposals),
+auto (this one) and full (the same with no review by the CLI at all, for a
+project you can redo). Shift+Tab steps through them and a click lists them;
+when an AI that asks first needs more, its answer carries a card that turns on
+auto in one click and lets it go on. It asks you before something
 hard to undo beyond the project, such as a force push or a deploy.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names

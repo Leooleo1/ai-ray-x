@@ -376,6 +376,8 @@ export interface Bot {
     auto_run: boolean
     /** Works in the project like its CLI in auto mode: edits, runs any command, git, starts the app. */
     full_access: boolean
+    /** With full access: no review by the CLI at all (the "full" mode). */
+    bypass?: boolean
     week_used: number
     week_choices: number[]
     web_possible: boolean

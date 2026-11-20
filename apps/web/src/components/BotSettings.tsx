@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { MODES, grantsFor, modeOf } from '../modes'
 import { type Bot, type BotUsage, IS_REMOTE, type Persona, botUsage } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
@@ -414,11 +415,10 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
   const grants = bot.grants
   if (!grants) return null
   const set = (change: Record<string, unknown>) => void bots.act('grants', { id: bot.id, ...change })
-  // Full access covers running and editing without asking, so those two step aside while it is on.
-  const rows: { key: 'devices' | 'web' | 'mcp' | 'auto_edit' | 'auto_run' | 'full_access'; label: string; note: string; shown: boolean }[] = [
-    { key: 'full_access', label: t.grantFullAccess, note: t.grantFullAccessNote, shown: true },
+  const mode = modeOf(grants)
+  // In auto and full the AI runs its own commands, so running the safe ones alone only applies before.
+  const rows: { key: 'devices' | 'web' | 'mcp' | 'auto_run'; label: string; note: string; shown: boolean }[] = [
     { key: 'auto_run', label: t.grantAutoRun, note: t.grantAutoRunNote, shown: !grants.full_access },
-    { key: 'auto_edit', label: t.grantAutoEdit, note: t.grantAutoEditNote, shown: !grants.full_access },
     { key: 'devices', label: t.grantDevices, note: t.grantDevicesNote, shown: true },
     { key: 'web', label: t.grantWeb, note: t.grantWebNote, shown: grants.web_possible },
     { key: 'mcp', label: t.grantMcp, note: t.grantMcpNote, shown: grants.mcp_possible },
@@ -426,6 +426,17 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
   return (
     <>
       <span className="ajustes-grupo">{t.grantsTitle}</span>
+      <div className="modos-lista" role="radiogroup" aria-label={t.modeLabel}>
+        {MODES.map((each) => (
+          <button key={each} type="button" role="radio" aria-checked={each === mode} className={`${each} ${each === mode ? 'ativo' : ''}`} onClick={() => set(grantsFor(each))}>
+            <i aria-hidden="true" />
+            <span>
+              <b>{t.modeNames[each]}</b>
+              <small>{t.modeHints[each]}</small>
+            </span>
+          </button>
+        ))}
+      </div>
       {rows
         .filter((row) => row.shown)
         .map((row) => (
@@ -435,7 +446,7 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
             </button>
             <span>
               <b>{row.label}</b>
-              <small className={row.key !== 'devices' && row.key !== 'web' && grants[row.key] ? 'permissao-alerta' : ''}>{row.note}</small>
+              <small className={row.key === 'mcp' && grants[row.key] ? 'permissao-alerta' : ''}>{row.note}</small>
             </span>
           </label>
         ))}

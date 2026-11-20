@@ -3,6 +3,7 @@ import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer
 import { AGENT_LABEL, faceForBot, speakerOf, personaName } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
+import { type AccessMode, grantsFor, modeOf } from '../modes'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
@@ -146,9 +147,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   }
   /** Full access from the conversation: on, then the AI is told it may go on. */
   const giveAccess = async () => {
-    if ((await bots.act('grants', { id: bot.id, full_access: true })) !== null) await send(t.accessContinue)
+    if ((await bots.act('grants', { id: bot.id, ...grantsFor('auto') })) !== null) await send(t.accessContinue)
   }
-  const toggleAccess = () => void bots.act('grants', { id: bot.id, full_access: !bot.grants?.full_access })
+  const pickMode = (next: AccessMode) => void bots.act('grants', { id: bot.id, ...grantsFor(next) })
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   return (
@@ -311,7 +312,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           allowImages
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id })}
-          access={bot.grants ? { on: bot.grants.full_access, onToggle: toggleAccess } : undefined}
+          mode={bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
           onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}

@@ -218,9 +218,6 @@ form.compositor {
   color: var(--giz);
 }
 
-.compositor-modo.ligado {
-  color: #7d9ff5;
-}
 
 .compositor-modo:focus-visible {
   outline: 2px solid var(--cobalto);
@@ -2535,3 +2532,106 @@ form.compositor {
   max-height: none;
   object-fit: contain;
 }
+
+/* The mode chip's menu: the four modes, from the most careful to the freest, over the field. */
+.modo {
+  position: relative;
+  flex: none;
+}
+
+.modo.auto .compositor-modo {
+  color: #7d9ff5;
+}
+
+.modo.full .compositor-modo {
+  color: var(--brasa);
+}
+
+.modo-menu {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: grid;
+  gap: 2px;
+  width: 320px;
+  padding: 6px;
+  border-radius: var(--raio-painel);
+  background: #18181e;
+  box-shadow: var(--sombra-flutua);
+}
+
+.modo-menu button {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.modo-menu button:hover,
+.modo-menu button.ativo {
+  background: rgb(255 255 255 / 7%);
+}
+
+.modo-menu button svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 0;
+}
+
+.modo-menu button.approve svg {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.modo-menu button.auto {
+  color: #7d9ff5;
+}
+
+.modo-menu button.full {
+  color: var(--brasa);
+}
+
+.modo-menu span {
+  display: grid;
+  gap: 2px;
+}
+
+.modo-menu b {
+  font: 500 13px/18px var(--sans);
+}
+
+.modo-menu small {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.modo-atalho {
+  padding: 6px 10px 4px;
+  color: rgb(255 255 255 / 35%);
+  font: 12px/16px var(--sans);
+}
+
+.compositor-modo svg {
+  stroke: currentColor;
+}
+
+.modo.approve .compositor-modo svg {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+

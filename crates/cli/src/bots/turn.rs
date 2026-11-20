@@ -291,6 +291,7 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
         web: bot.grants.web,
         mcp: bot.grants.mcp,
         full: bot.grants.full_access,
+        bypass: bot.grants.full_access && bot.grants.bypass,
     };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
