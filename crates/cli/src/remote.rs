@@ -21,7 +21,7 @@ fn desk_only(method: &Method, path: &str) -> bool {
         || path == "/api/app/update"
         || path == "/api/app/check"
         || (*method != Method::Get && (path.starts_with("/api/setup") || path == "/api/settings"))
-        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/request_approve", "/api/bot/request_discard"].contains(&path)
+        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/request_approve", "/api/bot/request_discard", "/api/bot/rsi_create"].contains(&path)
 }
 
 fn bearer(request: &Request) -> Option<&str> {
@@ -124,7 +124,7 @@ mod tests {
     fn devices_cannot_manage_access_or_start_programs() {
         assert!(desk_only(&Method::Post, "/api/remote/pair") && desk_only(&Method::Get, "/api/remote"));
         assert!(desk_only(&Method::Post, "/api/settings") && desk_only(&Method::Post, "/api/setup/clone"));
-        assert!(desk_only(&Method::Post, "/api/bot/preview_start") && desk_only(&Method::Post, "/api/bot/allow"));
+        assert!(desk_only(&Method::Post, "/api/bot/preview_start") && desk_only(&Method::Post, "/api/bot/allow") && desk_only(&Method::Post, "/api/bot/rsi_create"));
         assert!(!desk_only(&Method::Get, "/api/settings") && !desk_only(&Method::Post, "/api/bot/approve") && !desk_only(&Method::Get, "/api/bots"));
     }
 }
