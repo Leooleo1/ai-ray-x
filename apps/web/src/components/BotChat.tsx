@@ -21,7 +21,7 @@ import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
 import { PinsLine } from './chat/PinsLine'
-import { HouseAsk, HouseLine, isHouse } from './chat/HouseLine'
+import { HouseLine, houseCommands, isHouse } from './chat/HouseLine'
 import type { ChatNav } from './chat/nav'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
@@ -188,6 +188,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
             onNew={() => void newThread()}
           />
+          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
+          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
           <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3.5" y="5" width="17" height="12" rx="2" />
@@ -204,10 +206,6 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           </button>
         </header>
 
-        <div className="linhas-topo">
-          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
-          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
-        </div>
         <div className="chat-mensagens" ref={list}>
           {messages.length === 0 && !busyHere && mail.length === 0 && (
             <div className="chat-vazio">
@@ -304,10 +302,10 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             </button>
           </div>
         )}
-        {!busyHere && <HouseAsk onAsk={(agent) => void bots.act('house', { id: bot.id, thread: current, agent })} />}
         <Composer
           draftKey={`${bot.id}:${current}`}
-          placeholder={`${t.composeBot} ${speaker}`}
+          placeholder={`${t.composeBot} ${speaker} · ${t.slashHint}`}
+          commands={houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent }))}
           maxLength={bots.state.max_text}
           busy={bot.busy}
           allowImages

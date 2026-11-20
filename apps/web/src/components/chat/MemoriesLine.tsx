@@ -24,13 +24,21 @@ export function MemoriesLine({ bot, openSignal = 0, version = 0 }: { bot: Bot; o
   if (!memories?.known || (count === 0 && openSignal === 0)) return null
   return (
     <div className="memorias">
-      <button type="button" className="memorias-linha" aria-expanded={open} disabled={count === 0} onClick={() => setOpen(!open)}>
-        {count === 1 ? t.memoriesSavedOne : count > 0 ? t.memoriesSaved.replace('{n}', String(count)) : t.memoriesNone}
-        {count > 0 && (
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d={open ? 'M6 15l6-6 6 6' : 'M9 6l6 6-6 6'} />
-          </svg>
-        )}
+      <button
+        type="button"
+        className={`icone-btn topo-contador ${open ? 'ativo' : ''}`}
+        aria-expanded={open}
+        disabled={count === 0}
+        aria-label={count === 1 ? t.memoriesSavedOne : count > 0 ? t.memoriesSaved.replace('{n}', String(count)) : t.memoriesNone}
+        title={count === 1 ? t.memoriesSavedOne : count > 0 ? t.memoriesSaved.replace('{n}', String(count)) : t.memoriesNone}
+        onClick={() => setOpen(!open)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5H8.5A2.5 2.5 0 0 1 6 17z" />
+          <path d="M6 17a2.5 2.5 0 0 1 2.5-2.5H18" />
+          <path d="M10 8.5h4" />
+        </svg>
+        {count > 0 && <small>{count}</small>}
       </button>
       {open && (
         <div className="memorias-lista">

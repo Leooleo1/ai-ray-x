@@ -1,4 +1,4 @@
-import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { t } from '../../i18n'
 import { type AccessMode, nextMode } from '../../modes'
 import { ModeChip } from './ModeChip'
@@ -30,6 +30,23 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
+/** Something "/" at the start of the field offers: a helper to ask, for instance. */
+export interface SlashCommand {
+  id: string
+  label: string
+  hint: string
+  icon: ReactNode
+  run: () => void
+}
+
+/** The commands whose name starts with what follows "/" (the whole draft, while it is one word). */
+function slashMatches(draft: string, commands: SlashCommand[]): SlashCommand[] | null {
+  const typed = /^\/(\S*)$/.exec(draft)
+  if (!typed) return null
+  const word = typed[1].toLowerCase()
+  return commands.filter((c) => c.id.startsWith(word) || c.label.toLowerCase().startsWith(word))
+}
+
 interface ComposerProps {
   /** Whose draft this is (one per chat). */
   draftKey: string
@@ -45,15 +62,18 @@ interface ComposerProps {
   onCorrect?: (text: string) => Promise<boolean>
   /** The bot's mode (allow, approve for me, auto, full), as a coding CLI shows it; Shift+Tab steps to the next. */
   mode?: { value: AccessMode; onPick: (mode: AccessMode) => void }
+  /** Offered by typing "/" at the start of the field. */
+  commands?: SlashCommand[]
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect, mode }: ComposerProps) {
+export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
   const [attachError, setAttachError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sending, setSending] = useState(false)
+  const [slashActive, setSlashActive] = useState(0)
   const field = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
@@ -154,7 +174,27 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
     }
   }
 
+  const slash = busy ? null : slashMatches(draft, commands)
+  useEffect(() => setSlashActive(0), [draft])
+  const runSlash = (command: SlashCommand | undefined) => {
+    if (!command) return
+    setDraft('')
+    command.run()
+  }
+
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slash && slash.length > 0 && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'].includes(event.key) && !event.shiftKey) {
+      event.preventDefault()
+      if (event.key === 'ArrowDown') setSlashActive((i) => Math.min(i + 1, slash.length - 1))
+      else if (event.key === 'ArrowUp') setSlashActive((i) => Math.max(i - 1, 0))
+      else runSlash(slash[slashActive])
+      return
+    }
+    if (slash && event.key === 'Escape') {
+      event.preventDefault()
+      setDraft('')
+      return
+    }
     if (event.key === 'Tab' && event.shiftKey && mode) {
       event.preventDefault()
       mode.onPick(nextMode(mode.value))
@@ -226,6 +266,25 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
         void send()
       }}
     >
+      {slash && slash.length > 0 && (
+        <div className="comando-menu" role="listbox" aria-label={t.slashLabel}>
+          {slash.map((command, i) => (
+            <button
+              key={command.id}
+              type="button"
+              role="option"
+              aria-selected={i === slashActive}
+              onPointerMove={() => setSlashActive(i)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runSlash(command)}
+            >
+              {command.icon}
+              <b>{`/${command.id}`}</b>
+              <span>{command.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {allowImages && images.length > 0 && (
         <div className="compositor-anexos">
           {images.map((item) => (

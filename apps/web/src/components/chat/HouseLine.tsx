@@ -8,28 +8,21 @@ import { type Data, houseAsk, houseText } from '../../voices'
 import { Action } from '../Action'
 import { Avatar } from '../Avatar'
 import { CompactionBreakdown } from '../Breakdown'
+import type { SlashCommand } from './Composer'
 
 export const HOUSE: AgentId[] = ['raio', 'dieta', 'memo']
 
 export const isHouse = (author: string): author is AgentId => (HOUSE as string[]).includes(author)
 
-interface HouseAskProps {
-  onAsk: (agent: AgentId) => void
-}
-
-/** Raio, Dieta and Memo, one tap away above the composer; they answer from the logs, without AI. */
-export function HouseAsk({ onAsk }: HouseAskProps) {
-  return (
-    <div className="casa-perguntas" role="group" aria-label={t.houseLabel}>
-      {HOUSE.map((id) => (
-        <button key={id} type="button" className="casa-chip" onClick={() => onAsk(id)}>
-          <Avatar agent={AGENTS[id]} size={16} state="still" />
-          <b>{AGENTS[id].name}</b>
-          <span>{houseAsk(id)}</span>
-        </button>
-      ))}
-    </div>
-  )
+/** Raio, Dieta and Memo behind "/" in the composer; they answer from the logs, without AI. */
+export function houseCommands(onAsk: (agent: AgentId) => void): SlashCommand[] {
+  return HOUSE.map((id) => ({
+    id,
+    label: AGENTS[id].name,
+    hint: `${AGENTS[id].name} · ${houseAsk(id)}`,
+    icon: <Avatar agent={AGENTS[id]} size={18} state="still" />,
+    run: () => onAsk(id),
+  }))
 }
 
 interface HouseLineProps {
