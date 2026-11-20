@@ -573,6 +573,9 @@ form.compositor {
 
 /* Header: the bot as a tab, new conversation, the model in the middle, the side panel. */
 .bot-topo {
+  /* Above the messages, so its menus (the model's) open over them. */
+  position: relative;
+  z-index: 6;
   gap: 6px;
   padding: 10px 14px;
 }

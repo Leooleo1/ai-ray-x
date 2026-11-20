@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { type PlanLimits, type PlanWindow, fetchLimits } from '../api'
-import { AGENT_LABEL, faceOf, DEFAULT_COLOR } from '../avatars'
+import { AGENT_LABEL } from '../avatars'
 import { locale, t } from '../i18n'
-import { Avatar } from './Avatar'
+import { AgentLogo } from './AgentLogo'
 import './plan-rings.css'
 
 /** The plans are read again this often (a turn may have used some). */
@@ -69,7 +69,7 @@ export function PlanRings({ collapsed }: { collapsed: boolean }) {
               <Arc radius={INNER} part={plan.week} />
             </svg>
             <span className="anel-rosto">
-              <Avatar agent={faceOf('monitor', DEFAULT_COLOR[agent], AGENT_LABEL[agent])} size={14} state="still" />
+              <AgentLogo agent={agent} size={15} />
             </span>
           </span>
         )

@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
 import { exchanges } from '../../exchanges'
 import { t } from '../../i18n'
+import { AgentLogo } from '../AgentLogo'
 import { Avatar } from '../Avatar'
 import { count, preview, when } from './listParts'
 import type { ChatNav } from './nav'
@@ -89,7 +90,12 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
         <div className="conversas-rolagem">
           {team.map((bot) => (
             <section key={bot.id} className="conversas-ia">
-              {team.length > 1 && <span className="conversas-grupo">{[AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</span>}
+              {team.length > 1 && (
+                <span className="conversas-grupo">
+                  <AgentLogo agent={bot.agent} size={12} />
+                  {[AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}
+                </span>
+              )}
               <ul>
                 {rowsOf(bot).map((row) => {
                   const key = `${bot.id}:${row.thread}`
@@ -99,8 +105,11 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                   return (
                     <li key={key} className="conversa-item">
                       <button type="button" className={`${current === key ? 'ativo' : ''} ${fresh ? 'nao-lido' : ''}`} onClick={() => onThread(bot.id, row.thread)}>
-                        <span className="conversa-rosto">
+                        <span className="conversa-rosto rosto-com-ia">
                           <Avatar agent={faceForBot(bot)} size={30} state={busy ? 'thinking' : 'still'} />
+                          <span className="ia-selo">
+                            <AgentLogo agent={bot.agent} size={11} />
+                          </span>
                         </span>
                         <span className="conversa-texto">
                           <span className="conversa-linha">

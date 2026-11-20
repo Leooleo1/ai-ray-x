@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { type Usage, type UsageSlice, fetchUsage } from '../api'
 import { AGENT_LABEL, DEFAULT_COLOR } from '../avatars'
 import { compact, locale, percent, t } from '../i18n'
+import { AgentLogo } from './AgentLogo'
 import { Segmented } from './Segmented'
 import { CostChart } from './usage/CostChart'
 import { money } from './usage/money'
@@ -100,7 +101,10 @@ export function UsageView() {
             {usage.by_source.map((row) => (
               <li key={row.key}>
                 <i style={{ background: colorOf(row.key) }} />
-                <span className="uso-ia-nome">{labelOf(row.key)}</span>
+                <span className="uso-ia-nome">
+                  <AgentLogo agent={row.key} />
+                  {labelOf(row.key)}
+                </span>
                 <b>{money(row.usd ?? 0)}</b>
                 <small>
                   {usage.usd > 0 ? percent((row.usd ?? 0) / usage.usd) : '—'} · {compact(row.tokens)} tokens
