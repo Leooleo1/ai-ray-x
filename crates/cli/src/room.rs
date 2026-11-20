@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 const OPT_IN: &str = ".claude/skills/token-diet";
 const TOP: usize = 3;
 const MAX_MESSAGES: usize = 200;
+static MESSAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// The person's own words are kept short; agents answer from data, not from the text.
 const MAX_TEXT: usize = 280;
 
@@ -74,6 +75,7 @@ pub fn read_messages(file: &Path) -> Vec<Message> {
 
 /// Appends and keeps the latest messages; written to a temporary file first, then renamed.
 pub fn append_messages(file: &Path, new: Vec<Message>) -> Result<()> {
+    let _guard = MESSAGES.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let all: Vec<Message> = read_messages(file).into_iter().chain(new).collect();
     let kept = &all[all.len().saturating_sub(MAX_MESSAGES)..];
     if let Some(parent) = file.parent() {

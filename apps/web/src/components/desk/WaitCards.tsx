@@ -15,14 +15,14 @@ interface ApprovalCardProps {
 
 /** Proposals can start a draft here. Open leads to the original message for every kind. */
 export function ApprovalCard({ item, bots, nav }: ApprovalCardProps) {
-  const [approving, setApproving] = useState(false)
+  const [saving, setSaving] = useState(false)
   const proposal = item.kind === 'proposal'
   const { bot, thread, ms } = item
   const note = proposal && bot.persona?.name && bot.persona.name !== bot.name ? `${bot.name} · ${item.title}` : item.title
-  const approve = async () => {
-    setApproving(true)
-    await bots.act('approve', { id: bot.id, thread, answer_ms: ms })
-    setApproving(false)
+  const decide = async (approve: boolean) => {
+    setSaving(true)
+    await bots.act(approve ? 'approve' : 'cancel_waiting', { id: bot.id, thread, answer_ms: ms, waiting: item.kind, index: item.index })
+    setSaving(false)
   }
 
   return (
@@ -30,19 +30,24 @@ export function ApprovalCard({ item, bots, nav }: ApprovalCardProps) {
       <span className="mesa-tipo">
         <span>{t.waitingKinds[item.kind]}</span>
       </span>
-      {item.text && (proposal ? <p className="mesa-proposta">{item.text}</p> : <code className="mesa-trecho">{item.text}</code>)}
+      {item.text && (item.kind !== 'command' ? <p className="mesa-proposta">{item.text}</p> : <code className="mesa-trecho">{item.text}</code>)}
       <footer className="mesa-pe">
         <Who bot={bot} note={note} />
         <button type="button" className="acao-texto" onClick={() => nav.openMessage(bot.id, thread, ms)}>
           {t.deskOpen}
         </button>
       </footer>
-      {proposal && (
+      {item.kind !== 'draft' && (
         <div className="mesa-acoes">
-          <button type="button" className="mesa-cheio" disabled={bot.busy || approving} onClick={() => void approve()}>
-            {t.approveEdit}
+          {proposal && (
+            <button type="button" className="mesa-cheio" disabled={bot.busy || saving} onClick={() => void decide(true)}>
+              {t.approveEdit}
+            </button>
+          )}
+          <button type="button" className="acao-texto" disabled={(bot.busy && bot.busy_thread === thread) || saving} onClick={() => void decide(false)}>
+            {t.cancel}
           </button>
-          <small className="mesa-apoio">{t.draftScope}</small>
+          {proposal && <small className="mesa-apoio">{t.draftScope}</small>}
         </div>
       )}
     </article>

@@ -4,7 +4,7 @@ import type { Bot, BotMessage } from '../../api'
 import { t } from '../../i18n'
 
 /** Messages that leave the answer before them current: its proposal and commands still stand. */
-export const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'interrupted', 'house', 'remembered', 'review', 'review_asked', 'carried', 'shot']
+export const ASIDE: BotMessage['kind'][] = ['failed', 'sent', 'stopped', 'interrupted', 'house', 'remembered', 'review', 'review_asked', 'carried', 'shot', 'turn_undone', 'access_changed', 'waiting_cancelled']
 
 /** The latest answer, when nothing came after it: the commands it asks for can still run. */
 export function latestAnswer(messages: BotMessage[]): number {
@@ -21,8 +21,7 @@ export function pendingProposal(messages: BotMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const m = messages[i]
     if (ASIDE.includes(m.kind)) continue
-    if (m.kind === 'approve') return -1
-    return m.kind === 'answer' && m.data.reply?.proposal ? i : -1
+    return m.kind === 'answer' && m.data.reply?.proposal && !cancelledWaiting(messages, m.ms, 'proposal') ? i : -1
   }
   return -1
 }
@@ -33,7 +32,12 @@ export function openDrafts(messages: BotMessage[]): BotMessage[] {
   return messages.filter((m) => m.kind === 'draft' && m.data.draft && (m.data.files?.length ?? 0) > 0 && !settled.has(m.data.draft))
 }
 
-export type WaitingKind = 'proposal' | 'draft' | 'command'
+export type CancellableKind = NonNullable<BotMessage['data']['waiting']>
+export type WaitingKind = CancellableKind | 'draft'
+
+export function cancelledWaiting(messages: BotMessage[], ms: number, kind: CancellableKind, index?: number): boolean {
+  return messages.some((m) => m.kind === 'waiting_cancelled' && m.data.answer_ms === ms && m.data.waiting === kind && (m.data.index ?? undefined) === index)
+}
 
 export interface Waiting {
   bot: Bot
@@ -42,6 +46,7 @@ export interface Waiting {
   kind: WaitingKind
   /** The message to open. */
   ms: number
+  index?: number
   text: string
 }
 
@@ -53,8 +58,12 @@ export function waitingOf(bot: Bot): Waiting[] {
     const proposal = pendingProposal(messages)
     if (proposal >= 0) found.push({ kind: 'proposal', ms: messages[proposal].ms, text: messages[proposal].data.reply?.proposal ?? '' })
     const latest = latestAnswer(messages)
-    for (const request of latest >= 0 ? (messages[latest].data.reply?.run ?? []) : []) {
-      if (!request.refused) found.push({ kind: 'command', ms: messages[latest].ms, text: request.command })
+    if (latest >= 0) {
+      const { ms, data: { reply } } = messages[latest]
+      reply?.run?.forEach((request, index) => {
+        if (!request.refused && !cancelledWaiting(messages, ms, 'command', index)) found.push({ kind: 'command', ms, index, text: request.command })
+      })
+      if (reply?.question && !cancelledWaiting(messages, ms, 'question')) found.push({ kind: 'question', ms, text: reply.question })
     }
     for (const draft of openDrafts(messages)) {
       found.push({ kind: 'draft', ms: draft.ms, text: (draft.data.files ?? []).map((f) => f.path).join(', ') })

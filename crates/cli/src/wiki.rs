@@ -108,6 +108,7 @@ pub fn put(state_dir: &Path, slug: &str, title: &str, text: &str, always: bool) 
     pages.push(page);
     pages.sort_by_key(|p| std::cmp::Reverse(p.updated_ms));
     save(state_dir, &pages)?;
+    crate::progress::record(state_dir, &[crate::progress::Milestone::Wiki]);
     Ok(slug)
 }
 

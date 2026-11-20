@@ -48,6 +48,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const [github, setGithub] = useState<GitHubState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [touring, setTouring] = useState(false)
+  const [savingNavigation, setSavingNavigation] = useState(false)
   const [tab, setTab] = useState<Tab>(initialTab)
   useEffect(() => {
     setTab(initialTab)
@@ -130,6 +131,12 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     }
   }
 
+  const saveNavigation = async (showAll: boolean) => {
+    setSavingNavigation(true)
+    await save({ show_all_navigation: showAll })
+    setSavingNavigation(false)
+  }
+  const legacyNavigation = bots.state.progress?.legacy === true
   const connections = settings?.connections ?? []
   // Ready first, then the ones that only need a sign-in, then the ones not on this machine.
   const rank = (installed: boolean, signedOut: boolean) => (!installed ? 2 : signedOut ? 1 : 0)
@@ -186,6 +193,17 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
         <LanguagePicker />
       </div>
       <div className="cfg-painel" role="tabpanel">
+        {tab === 'conexoes' && !IS_REMOTE && (
+          <label className="cfg-navegacao">
+            <input
+              type="checkbox"
+              checked={legacyNavigation || (settings?.show_all_navigation ?? bots.state.show_all_navigation ?? false)}
+              disabled={legacyNavigation || savingNavigation}
+              onChange={(event) => void saveNavigation(event.target.checked)}
+            />
+            {t.settingsShowAllNavigation}
+          </label>
+        )}
         {tab === 'conexoes' && (
           <div className="cfg-grade">
             {!settings && <Skeleton rows={6} />}

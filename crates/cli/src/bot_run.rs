@@ -17,7 +17,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, RUN_MARK, SHOT_MARK, TASK_MARK, TO_MARK};
+use crate::bot_marks::{self, OPEN_MARK, PROPOSAL_MARK, QUESTION_MARK, RUN_MARK, SHOT_MARK, TASK_MARK, TO_MARK};
 use crate::bot_trail::{self, Trail};
 
 /// A bot that thinks longer than this is stopped.
@@ -38,6 +38,8 @@ pub enum Mode {
 pub struct Reply {
     pub text: String,
     pub proposal: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub question: Option<String>,
     /// Messages for other projects' bots, as the bot wrote them.
     #[serde(default)]
     pub to: Vec<crate::bot_marks::Note>,
@@ -116,6 +118,8 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
          raiox takes a screenshot and hands it to you. \
          To leave work for later on the person's task board (for you, at most three), end with one line per task: \
          {TASK_MARK} <a short title>; leave each task once, not again in later answers. \
+         When you need an answer from the person before continuing, put the question once on its own line: \
+         {QUESTION_MARK} <the question>. \
          When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
          holding JSON like {{\"title\": \"Build steps\", \"subtitle\": \"run of 14/11\", \"unit\": \"s\", \
          \"rows\": [{{\"label\": \"Install\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
@@ -517,6 +521,7 @@ pub fn reply_from(text: &str) -> Reply {
     Reply {
         text: marked.text,
         proposal: marked.proposal,
+        question: marked.question,
         to: marked.notes,
         open: marked.open,
         run: marked.run.iter().map(|c| crate::commands::request(c)).collect(),

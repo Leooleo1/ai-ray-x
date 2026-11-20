@@ -41,6 +41,7 @@ pub mod pins;
 pub mod preview;
 pub mod procs;
 pub mod profile;
+mod progress;
 pub mod requests;
 pub mod room;
 pub mod router;
@@ -91,8 +92,7 @@ pub fn chosen_language(db: Option<PathBuf>) -> Option<String> {
 pub fn start_panel(web_dir: PathBuf, db: Option<PathBuf>) -> Result<Started> {
     let roots = Roots::detect()?;
     let db = db.or_else(raiox_core::default_index_path).context("no cache folder found")?;
-    let mut store = Store::open(&db)?;
-    raiox_core::refresh(&mut store, &roots)?;
+    let store = Store::open(&db)?;
     let state_dir = db.parent().map_or_else(|| PathBuf::from("."), std::path::Path::to_path_buf);
     let project_dir = roots.home.clone();
     let jobs = bots::Jobs::default();
