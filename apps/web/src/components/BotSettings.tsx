@@ -14,7 +14,11 @@ const MAX_MANNER = 1200
 const MAX_ROLE = 40
 
 /** "claude-opus-5-5" reads as "Opus 5.5"; other names stay as they are. */
+/** Claude Code's model aliases, as a person reads them. */
+const ALIASES: Record<string, string> = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' }
+
 export function modelName(model: string): string {
+  if (ALIASES[model]) return ALIASES[model]
   const claude = model.match(/^claude-([a-z]+)-(\d+)-(\d+)/)
   if (!claude) return model
   return `${claude[1][0].toUpperCase()}${claude[1].slice(1)} ${claude[2]}.${claude[3]}`
@@ -243,7 +247,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
 }
 
 /** Past this many options, a searchable dropdown replaces the grid. */
-const GRID_LIMIT = 8
+const GRID_LIMIT = 6
 
 interface ChoiceProps {
   label: string
@@ -263,8 +267,8 @@ export function Choice({ label, current, fallback, options, free = false, show, 
   if (free || options.length > GRID_LIMIT) {
     return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} nullLabel={nullLabel} />
   }
-  const cols = options.length + 1
-  const gridStyle = cols <= 4 ? { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` } : { gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))' }
+  // One line of equal cells, never wrapped (longer lists use the searchable picker).
+  const gridStyle = { gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }
   return (
     <div className="ajustes-campo">
       <span>{label}</span>
