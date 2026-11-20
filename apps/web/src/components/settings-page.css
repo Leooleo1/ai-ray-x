@@ -122,7 +122,7 @@
   flex-direction: column;
   gap: 8px;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -199,7 +199,7 @@
   display: grid;
   min-height: 176px;
   place-items: center;
-  border-radius: 16px;
+  border-radius: var(--raio-painel);
   background: #08080b center 78% / cover no-repeat;
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -211,7 +211,7 @@
   align-self: flex-start;
   gap: 4px;
   padding: 4px;
-  border-radius: 14px;
+  border-radius: var(--raio-painel);
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -223,7 +223,7 @@
   height: 36px;
   padding: 0 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--raio-item);
   background: transparent;
   color: var(--nevoa);
   font: 500 14px/18px var(--sans);
@@ -291,7 +291,7 @@
   gap: 12px;
   min-width: 0;
   padding: 20px 20px 16px;
-  border-radius: 18px;
+  border-radius: var(--raio-painel);
   background:
     var(--brilho, none) right top / cover no-repeat,
     var(--carvao);
@@ -324,7 +324,7 @@
   width: 40px;
   height: 40px;
   place-items: center;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 6%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 8%),
@@ -351,7 +351,7 @@
 }
 
 .cfg-nome b {
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .cfg-nome small,
@@ -368,7 +368,7 @@
   min-width: 0;
   margin: 0;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .cfg-estado.ok span {
@@ -491,7 +491,7 @@
   gap: 8px;
   width: 248px;
   padding: 10px;
-  border-radius: 14px;
+  border-radius: var(--raio-painel);
   background: #15151b;
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 7%),
@@ -526,10 +526,10 @@
   height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--raio-item);
   background: transparent;
   color: var(--nevoa);
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   text-align: left;
   cursor: pointer;
 }
@@ -572,18 +572,18 @@
   height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--raio-item);
   outline: 0;
   background: rgb(255 255 255 / 6%);
   color: var(--giz);
-  font: 13px/16px var(--mono);
+  font: 12px/16px var(--mono);
 }
 
 .cfg-escolha-livre button {
   height: 34px;
   padding: 0 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--raio-item);
   background: var(--giz);
   color: var(--noite);
   font: 500 12px/16px var(--sans);
@@ -596,7 +596,7 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: var(--raio-painel);
   background: var(--carvao);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 6%),
@@ -628,7 +628,7 @@
 }
 
 .cfg-bot-texto b {
-  font: 500 16px/22px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .cfg-bot-texto small {
@@ -657,7 +657,7 @@
   gap: 6px;
   min-height: 248px;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--raio-painel);
   outline: 1px dashed rgb(255 255 255 / 16%);
   outline-offset: -1px;
   background: transparent;
@@ -690,7 +690,7 @@
 
 .cfg-bot-novo b {
   color: var(--giz);
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .cfg-bot-novo small {
@@ -820,7 +820,7 @@
 }
 
 .cfg-dicas-titulo b {
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .cfg-dicas-titulo small {

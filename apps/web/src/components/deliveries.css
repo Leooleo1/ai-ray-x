@@ -82,7 +82,7 @@
   align-items: start;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 3%);
 }
 
@@ -132,7 +132,7 @@
 }
 
 .entregas-corpo b {
-  font: 500 13px/18px var(--sans);
+  font: 500 14px/20px var(--sans);
   overflow-wrap: anywhere;
 }
 
@@ -147,7 +147,7 @@
 .entregas-corpo p {
   margin: 0;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 18px;
 }
 

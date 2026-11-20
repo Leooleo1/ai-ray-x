@@ -36,7 +36,7 @@
   grid-template-columns: repeat(44, minmax(0, 1fr));
   gap: 3px;
   padding: 2px 0;
-  border-radius: 6px;
+  border-radius: var(--raio-item);
   cursor: ew-resize;
   touch-action: none;
   user-select: none;
