@@ -64,7 +64,7 @@
   height: 36px;
   padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--giz);
   color: var(--noite);
   font: 500 12px/16px var(--sans);
@@ -229,7 +229,7 @@
   display: inline-flex;
   gap: 2px;
   padding: 4px;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 5%);
 }
 
@@ -237,7 +237,7 @@
   height: 28px;
   padding: 0 12px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 7px;
   background: none;
   color: var(--nevoa);
   font: 500 12px/16px var(--sans);
