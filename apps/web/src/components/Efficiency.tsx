@@ -1,119 +1,276 @@
-import { useEffect, useState } from 'react'
-import { AGENTS, type Agent } from '../agents'
-import { type ContextStatus, type Report, type Source, fetchSession } from '../api'
-import { dietLines } from '../diet'
-import { compact, percent, splitCompact, t } from '../i18n'
-import { Action } from './Action'
-import { Avatar } from './Avatar'
-import { CompactionBreakdown } from './Breakdown'
+import { useEffect, useRef, useState } from 'react'
+import {
+  IS_REMOTE,
+  type Bot,
+  type ContextStatus,
+  type Report,
+  type Source,
+  type WikiEntry,
+  fetchSession,
+  fetchWiki,
+  taskAction,
+} from '../api'
+import type { Bots } from '../bots'
+import { compact, locale, t } from '../i18n'
+import type { ChatNav } from './chat/nav'
 import { Segmented } from './Segmented'
 import { SelectChip } from './SelectChip'
+import type { Tab } from './Sidebar'
+import { BloatCard } from './efficiency/BloatCard'
+import { CutsCard } from './efficiency/CutsCard'
+import { KpiRow } from './efficiency/KpiRow'
+import { LedgerCard } from './efficiency/LedgerCard'
+import { LeversCard } from './efficiency/LeversCard'
+import { SessionBento } from './efficiency/SessionBento'
+import './efficiency/efficiency.css'
 
-const RULER_SCALE = 1_000_000
-/** Below this share of the ruler the 'now' label starts at its mark instead of centering on it. */
-const NEAR_START = 0.08
 const SOURCE_NAMES: Record<Source, string> = { claude: 'Claude Code', codex: 'Codex' }
-const DISPLAY: Record<string, string> = { 'your prompts': t.yourPrompts, 'injected text': t.injected }
 
 interface EfficiencyViewProps {
   report: Report
+  bots: Bots
+  nav: ChatNav
+  onGo: (tab: Tab) => void
   onChanged: () => void
 }
 
-/** Where a cut can go: the project raiox was opened in, and every project with a bot. */
-function targetsOf(report: Report): { dir: string; name: string; bot?: string }[] {
-  const here = { dir: report.project_dir, name: report.project_dir.split('/').pop() ?? report.project_dir }
-  const others = [...new Map(report.bots.bots.filter((b) => b.dir !== report.project_dir).map((b) => [b.dir, { dir: b.dir, name: b.name, bot: b.id }])).values()]
+interface Target {
+  dir: string
+  name: string
+  bot?: string
+}
+
+/** Where cuts and quick levers act: the project raiox opened in plus every active project bot. */
+function targetsOf(report: Report, liveBots: Bot[]): Target[] {
+  const hereBot = liveBots.find((b) => b.dir === report.project_dir)
+  const here: Target = {
+    dir: report.project_dir,
+    name: hereBot?.name ?? report.project_dir.split('/').pop() ?? report.project_dir,
+    bot: hereBot?.id,
+  }
+  const others = [
+    ...new Map(
+      liveBots
+        .filter((b) => b.dir !== report.project_dir)
+        .map((b) => [b.dir, { dir: b.dir, name: b.name, bot: b.id }]),
+    ).values(),
+  ]
   return [here, ...others.sort((a, b) => a.name.localeCompare(b.name))]
 }
 
-export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
+export function EfficiencyView({ report, bots, nav, onGo, onChanged }: EfficiencyViewProps) {
   const [source, setSource] = useState<Source>(report.sources[0]?.overview.source ?? 'claude')
-  const targets = targetsOf(report)
+  const liveBots = bots.state.bots
+  const targets = targetsOf(report, liveBots)
   const [targetDir, setTargetDir] = useState(targets[0].dir)
   const target = targets.find((x) => x.dir === targetDir) ?? targets[0]
-  const inTarget = (file: string) => file.startsWith(`${target.dir}/`)
+  const targetBot = target.bot ? liveBots.find((b) => b.id === target.bot) : liveBots.find((b) => b.dir === target.dir)
+  const botByDir = new Map(liveBots.map((b) => [b.dir, b.id]))
+
   const selected = report.sources.find((s) => s.overview.source === source) ?? report.sources[0]
-  const lines = selected ? dietLines(selected) : []
-  const best = Math.max(0, ...report.sources.flatMap((s) => s.suggestions.map((x) => x.saving_share)))
-  const count = report.sources.reduce((sum, s) => sum + s.suggestions.length, 0)
-  // The session of the project the cuts go to; undefined while it loads, null when it has none.
-  const status = useProjectSession(target.bot)
-  const open = report.changes.filter((c) => c.undone_ms === null && inTarget(c.file))
+  const inTarget = (file: string) => file.startsWith(`${target.dir}/`)
+  const openChanges = report.changes.filter((c) => c.undone_ms === null && inTarget(c.file))
   const lessons = report.changes.filter((c) => c.lesson !== null).length
   const applicable = report.applicable[source] ?? []
+
+  const status = useProjectSession(targetBot?.id)
+  const wikiPages = useWikiList()
+
+  const [highlight, setHighlight] = useState<'sim' | 'ledger' | null>(null)
+  const [auditing, setAuditing] = useState(false)
+  const [createdTasks, setCreatedTasks] = useState<Record<string, boolean>>({})
+  const [actionError, setActionError] = useState<string | null>(null)
+  const pulseTimer = useRef<number>(0)
+
+  useEffect(() => () => window.clearTimeout(pulseTimer.current), [])
+
+  if (!selected) return null
+
+  const focusSection = (sectionId: string, flag: 'sim' | 'ledger') => {
+    const el = document.getElementById(sectionId) ?? document.getElementById('efi-simulador')
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setHighlight(flag)
+    window.clearTimeout(pulseTimer.current)
+    pulseTimer.current = window.setTimeout(() => setHighlight(null), 1600)
+  }
+
+  const runAudit = async () => {
+    if (!targetBot || auditing || targetBot.busy) return
+    setActionError(null)
+    setAuditing(true)
+    try {
+      if (!targetBot.auditor?.enabled) {
+        if (IS_REMOTE) return
+        const enabled = await bots.act('auditor', { id: targetBot.id, enabled: true })
+        if (!enabled) return
+      }
+      const next = await bots.act('audit_run', { id: targetBot.id, lang: locale })
+      const updated = next?.bots.find((b) => b.id === targetBot.id)
+      const threadId = updated?.auditor?.thread
+      if (threadId) nav.openMessage(targetBot.id, threadId, 0)
+    } finally {
+      setAuditing(false)
+    }
+  }
+
+  const newCleanChat = async () => {
+    if (!targetBot) {
+      onGo('agents')
+      return
+    }
+    setActionError(null)
+    const next = await bots.act('thread_new', { id: targetBot.id })
+    const created = next?.bots.find((b) => b.id === targetBot.id)?.threads.at(-1)
+    if (created) nav.openMessage(targetBot.id, created.id, 0)
+    else nav.openBot(targetBot.id)
+  }
+
+  const createTask = async (kind: 'shots' | 'startup') => {
+    if (!targetBot) return
+    const key = `${targetBot.id}:${kind}`
+    if (createdTasks[key]) return
+    setActionError(null)
+    const title = kind === 'shots' ? t.efiTaskShotsTitle : t.efiTaskStartupTitle
+    const detail = kind === 'shots' ? t.efiTaskShotsDetail : t.efiTaskStartupDetail
+    try {
+      await taskAction('add', { bot: targetBot.id, title, detail })
+      setCreatedTasks((prev) => ({ ...prev, [key]: true }))
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const taskFlags = {
+    shots: Boolean(targetBot && createdTasks[`${targetBot.id}:shots`]),
+    startup: Boolean(targetBot && createdTasks[`${targetBot.id}:startup`]),
+  }
+
+  const metaBar =
+    openChanges.length > 1
+      ? t.efiMetaBar.replace('{calls}', compact(selected.efficiency.context.calls)).replace('{active}', String(openChanges.length))
+      : openChanges.length === 1
+        ? t.efiMetaBarOne.replace('{calls}', compact(selected.efficiency.context.calls))
+        : t.efiMetaBarNone.replace('{calls}', compact(selected.efficiency.context.calls))
+
   return (
-    <main className="grade eficiencia">
-      <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare isHero />
-      <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} loading={status === undefined} label={t.raioLine.replace('{p}', target.name)} />
-      <AgentCard agent={AGENTS.memo} value={lessons} label={t.memoLine} />
-      <section className="cartao dieta-lista">
-        <header className="dieta-topo">
-          <h2>
-            {t.dietaTitle}
-            {targets.length <= 1 && <small>{t.dietaHint}</small>}
-          </h2>
-          <div className="dieta-controles">
-            {report.sources.length > 1 && (
-              <Segmented
-                label={t.dietaTitle}
-                value={source}
-                onChange={setSource}
-                options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
-              />
-            )}
-            {targets.length > 1 && (
-              <SelectChip
-                className="alvo-projeto"
-                label={t.applyIn}
-                prefix={t.applyIn}
-                value={target.dir}
-                align="right"
-                options={targets.map((x) => ({ value: x.dir, label: x.name }))}
-                onChange={setTargetDir}
-              />
-            )}
-          </div>
-        </header>
-        <ol className="sugestoes">
-          {lines.map((line) => (
-            <li key={line.id}>
-              <div className="linha-1">
-                <span className="nome">{line.title}</span>
-                {line.saving > 0 && <span className="num">{`-${compact(line.saving)}`}</span>}
-                {line.share > 0 && <span className="apoio">{`~${percent(line.share)}`}</span>}
-              </div>
-              {line.id === 'compact-earlier' && selected?.efficiency.compaction.best ? (
-                <CompactionBreakdown model={selected.efficiency.compaction} />
-              ) : (
-                <div className="linha-2">{line.evidence}</div>
-              )}
-              <div className="linha-3">{line.how}</div>
-              {applicable.includes(line.id) && (
-                <Action
-                  key={`${line.id}:${target.dir}`}
-                  id={line.id}
-                  value={line.value}
-                  source={source}
-                  change={open.find((c) => c.suggestion === line.id)}
-                  outcome={report.outcomes.find((o) => o.change_id === open.find((c) => c.suggestion === line.id)?.id)}
-                  onChanged={onChanged}
-                  bot={target.bot}
-                  project={target.name}
-                />
-              )}
-            </li>
-          ))}
-        </ol>
-      </section>
-      {status ? (
-        <SessionCard status={status} />
-      ) : (
-        <section className="cartao sessao">
-          <h2>{t.sessionTitle}</h2>
-          <p className="nota">{status === undefined ? t.probing : t.noSessionIn.replace('{p}', target.name)}</p>
-        </section>
+    <main className="eficiencia-grid">
+      <div className="efi-barra">
+        <div className="efi-barra-esq">
+          {report.sources.length > 1 && (
+            <Segmented
+              label={t.dietaTitle}
+              value={source}
+              onChange={setSource}
+              options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
+            />
+          )}
+          <span className="efi-barra-meta">{metaBar}</span>
+        </div>
+        <div className="efi-barra-dir">
+          {targets.length > 1 && (
+            <SelectChip
+              className="alvo-projeto"
+              label={t.applyIn}
+              prefix={t.applyIn}
+              value={target.dir}
+              align="right"
+              options={targets.map((x) => ({ value: x.dir, label: x.name }))}
+              onChange={setTargetDir}
+            />
+          )}
+        </div>
+      </div>
+
+      {(actionError || bots.error) && (
+        <div className="efi-barra">
+          <span className="nota failed">{actionError ?? bots.error}</span>
+        </div>
       )}
+
+      <KpiRow
+        selected={selected}
+        status={status}
+        targetName={target.name}
+        targetBot={targetBot}
+        openChanges={openChanges}
+        outcomes={report.outcomes}
+        lessons={lessons}
+        auditing={auditing}
+        onJumpSimulator={() => focusSection('efi-simulador', 'sim')}
+        onJumpCuts={() => focusSection('efi-simulador', 'sim')}
+        onJumpLedger={() => focusSection('efi-historico', 'ledger')}
+        onRunAudit={() => void runAudit()}
+        onNewCleanChat={() => void newCleanChat()}
+        onOpenChat={() => (targetBot ? nav.openBot(targetBot.id) : onGo('agents'))}
+        onOpenWiki={() => onGo('wiki')}
+      />
+
+      <CutsCard
+        selected={selected}
+        source={source}
+        targetDir={target.dir}
+        targetName={target.name}
+        targetBot={targetBot}
+        applicable={applicable}
+        openChanges={openChanges}
+        outcomes={report.outcomes}
+        highlighted={highlight === 'sim'}
+        auditing={auditing}
+        createdTasks={taskFlags}
+        onChanged={onChanged}
+        onRunAudit={() => void runAudit()}
+        onNewCleanChat={() => void newCleanChat()}
+        onOpenWiki={() => onGo('wiki')}
+        onOpenBoard={() => onGo('desk')}
+        onOpenChats={() => onGo('agents')}
+        onCreateTask={(kind) => void createTask(kind)}
+      />
+
+      <SessionBento
+        status={status}
+        targetName={target.name}
+        targetBot={targetBot}
+        buckets={selected.efficiency.buckets}
+        onNewCleanChat={() => void newCleanChat()}
+        onOpenChat={() => (targetBot ? nav.openBot(targetBot.id) : onGo('agents'))}
+      />
+
+      <BloatCard
+        carried={selected.efficiency.carried}
+        costShares={selected.efficiency.cost_shares}
+        applicable={applicable}
+        openChanges={openChanges}
+        targetBot={targetBot}
+        auditing={auditing}
+        shotsTaskCreated={taskFlags.shots}
+        onFocusTrim={() => focusSection('efi-corte-trim-tool-output', 'sim')}
+        onCreateShotsTask={() => void createTask('shots')}
+        onRunAudit={() => void runAudit()}
+        onOpenWiki={() => onGo('wiki')}
+        onOpenBoard={() => onGo('desk')}
+      />
+
+      <LeversCard
+        targetName={target.name}
+        targetBot={targetBot}
+        bots={bots}
+        wikiPages={wikiPages}
+        auditing={auditing}
+        onRunAudit={() => void runAudit()}
+        onOpenAuditThread={(threadId) => targetBot && nav.openMessage(targetBot.id, threadId, 0)}
+        onOpenWiki={() => onGo('wiki')}
+        onOpenBoard={() => onGo('desk')}
+        onAddBot={() => nav.add()}
+      />
+
+      <LedgerCard
+        changes={report.changes}
+        outcomes={report.outcomes}
+        targetDir={target.dir}
+        botByDir={botByDir}
+        highlighted={highlight === 'ledger'}
+        onChanged={onChanged}
+      />
     </main>
   )
 }
@@ -134,82 +291,17 @@ function useProjectSession(bot: string | undefined): ContextStatus | null | unde
   return status
 }
 
-interface AgentCardProps {
-  agent: Agent
-  value: number
-  label: string
-  isShare?: boolean
-  loading?: boolean
-  /** The tab's one big number: what Dieta could save. */
-  isHero?: boolean
-}
-
-function AgentCard({ agent, value, label, isShare = false, loading = false, isHero = false }: AgentCardProps) {
-  const big = isShare ? { value: percent(value), unit: '' } : splitCompact(value)
-  return (
-    <section className={`cartao agente ${isHero ? 'agente-heroi' : ''}`}>
-      <div className="agente-topo">
-        <Avatar agent={agent} size={isHero ? 40 : 28} followPointer={isHero} state={isHero ? 'idle' : 'still'} />
-        <b className="agente-nome">{agent.name}</b>
-      </div>
-      <div className="destaque">
-        <strong>
-          {loading ? (
-            '…'
-          ) : (
-            <>
-              {isShare && value > 0 && !isHero ? `~${big.value}` : big.value}
-              {big.unit && <span className="unidade-pequena">{big.unit}</span>}
-            </>
-          )}
-        </strong>
-        <span>{label}</span>
-      </div>
-    </section>
-  )
-}
-
-interface SessionCardProps {
-  status: ContextStatus
-}
-
-/** Raio's view of the current session: where it sits on the ruler and what it loaded. */
-function SessionCard({ status }: SessionCardProps) {
-  const at = (value: number) => ({ left: `${Math.min(100, (value / RULER_SCALE) * 100)}%` })
-  return (
-    <section className="cartao sessao">
-      <h2>
-        {t.sessionTitle}
-        <small>{`${status.project.split('/').pop()} · ${status.requests_since_compaction} ${t.requests}`}</small>
-      </h2>
-      <div className={`trilho-wrap ${status.source}`}>
-        <div className="trilho" />
-        {status.usual_compaction_at > 0 && <span className="corte" style={at(status.usual_compaction_at)} />}
-        <span className="marcador mediana" style={at(status.context_tokens)} />
-        <span className={`rotulo-marca acima ${status.context_tokens / RULER_SCALE < NEAR_START ? 'do-inicio' : ''}`} style={at(status.context_tokens)}>
-          {t.now} {compact(status.context_tokens)}
-        </span>
-        {status.usual_compaction_at > 0 && (
-          <span className="rotulo-marca abaixo antes" style={at(status.usual_compaction_at)}>
-            {t.compacts} {compact(status.usual_compaction_at)}
-          </span>
-        )}
-        <span className="rotulo-escala inicio">0</span>
-      </div>
-      <ul className="lista sem-ponto">
-        <li>
-          <span className="nome">{t.startup}</span>
-          <span className="num">{compact(status.startup_tokens)}</span>
-          <span className="apoio">{percent(status.startup_tokens / Math.max(1, status.context_tokens))}</span>
-        </li>
-        {status.loaded_since_compaction.map((item) => (
-          <li key={item.name}>
-            <span className="nome">{DISPLAY[item.name] ?? item.name}</span>
-            <span className="num">{compact(item.tokens)}</span>
-            <span className="apoio">{percent(item.tokens / Math.max(1, status.context_tokens))}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
+/** Loads the team's shared wiki once so the fixed-memory lever shows real per-turn weight. */
+function useWikiList(): WikiEntry[] | null {
+  const [pages, setPages] = useState<WikiEntry[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetchWiki()
+      .then((list) => alive && setPages(list.pages))
+      .catch(() => alive && setPages([]))
+    return () => {
+      alive = false
+    }
+  }, [])
+  return pages
 }

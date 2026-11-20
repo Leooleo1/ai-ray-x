@@ -208,6 +208,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
                 &dir,
                 input.get("id").and_then(Value::as_str).unwrap_or(""),
                 input.get("source").and_then(Value::as_str).unwrap_or("claude"),
+                input.get("value").and_then(Value::as_str),
             ))),
             Err(reply) => reply,
         },
