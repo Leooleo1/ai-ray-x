@@ -16,6 +16,8 @@ use crate::{commands, drafts};
 
 /// Commands that run without asking, per question, before the bot has to answer.
 const MAX_AUTO_RUNS: usize = 3;
+/// Commands one answer may run by itself when the bot runs without asking (a multi-step loop, like a CLI in auto mode).
+const MAX_ALONE_RUNS: usize = 12;
 /// Screenshots the bot gets per question.
 const MAX_SHOTS: usize = 2;
 const SHOT_SIZE: (u32, u32) = (1280, 800);
@@ -152,7 +154,8 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             return say(drafted(state_dir, &bot.id, work, &reply));
         }
         // Past the project's daily limit, allowed commands wait for a click like any other.
-        let within = runs < MAX_AUTO_RUNS && crate::budget::check(state_dir, &bot.name).is_ok();
+        let limit = if runs_alone(state_dir, bot) { MAX_ALONE_RUNS } else { MAX_AUTO_RUNS };
+        let within = runs < limit && crate::budget::check(state_dir, &bot.name).is_ok();
         let next = if within { allowed_command(state_dir, bot, &reply) } else { None };
         let wanted: Vec<String> = if next.is_none() && shots_taken < MAX_SHOTS && crate::budget::check(state_dir, &bot.name).is_ok() {
             reply.shots.iter().take(MAX_SHOTS - shots_taken).cloned().collect()
