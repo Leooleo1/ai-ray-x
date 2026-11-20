@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { type CSSProperties, useCallback, useState } from 'react'
 import type { Bot } from '../api'
 import { AGENT_SHORT, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
@@ -87,27 +87,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
         )}
         <div className={`projetos-grade ${empty ? 'vazia' : ''}`}>
           {cards.map(({ bot, waiting, busy, lastMs, preview }) => (
-            <button
-              key={bot.id}
-              type="button"
-              className={`projeto-cartao ${waiting ? 'projeto-cartao-espera' : ''}`}
-              onClick={() => onOpen(bot.id)}
-            >
-              <span className="projeto-cartao-topo">
-                <Avatar agent={faceForBot(bot)} size={32} state={busy ? 'thinking' : 'still'} />
-                <b className="projeto-cartao-nome">{bot.name}</b>
-                <span className="projeto-cartao-ia">
-                  <AgentLogo agent={bot.agent} size={14} />
-                  <span>{AGENT_SHORT[bot.agent]}</span>
-                </span>
-              </span>
-              <span className={`projeto-cartao-estado ${waiting ? 'espera' : busy ? 'trabalha' : ''}`}>
-                {waiting && <i className="ponto alerta" aria-hidden="true" />}
-                {!waiting && busy && <i className="ponto trabalhando" aria-hidden="true" />}
-                <span>{waiting ? t.cardWaiting : busy ? t.cardWorking : lastMs ? relativeTime(lastMs) : t.cardEmpty}</span>
-              </span>
-              {preview && <span className="projeto-cartao-frase">{preview}</span>}
-            </button>
+            <BotRoom key={bot.id} bot={bot} waiting={waiting} busy={busy} lastMs={lastMs} preview={preview} onOpen={() => onOpen(bot.id)} />
           ))}
           <button
             type="button"
@@ -161,5 +141,56 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
       </section>
       {modalOpen && <AddProjectModal bots={bots} onOpen={onOpen} onClose={closeModal} />}
     </main>
+  )
+}
+
+interface BotRoomProps {
+  bot: Bot
+  waiting: boolean
+  busy: boolean
+  lastMs: number | null
+  preview: string | null
+  onOpen: () => void
+}
+
+/** A bot's card as its room: its character large on a floor of its own light, which brightens while it works or waits,
+ *  and, while it works, the step it is on now; otherwise the last thing said. */
+function BotRoom({ bot, waiting, busy, lastMs, preview, onOpen }: BotRoomProps) {
+  const face = faceForBot(bot)
+  const step = busy ? bot.step : null
+  const state = waiting ? t.cardWaiting : busy ? t.cardWorking : lastMs ? relativeTime(lastMs) : t.cardEmpty
+  return (
+    <button
+      type="button"
+      className={`projeto-cartao projeto-quarto ${waiting ? 'projeto-cartao-espera' : ''} ${busy ? 'ativo' : ''}`}
+      style={{ '--cor-bot': face.color } as CSSProperties}
+      onClick={onOpen}
+    >
+      <span className="quarto-personagem" aria-hidden="true">
+        <Avatar agent={face} size={64} state={busy ? 'thinking' : waiting ? 'happy' : 'idle'} followPointer />
+      </span>
+      <span className="quarto-texto">
+        <span className="projeto-cartao-topo">
+          <b className="projeto-cartao-nome">{bot.name}</b>
+          <span className="projeto-cartao-ia">
+            <AgentLogo agent={bot.agent} size={14} />
+            <span>{AGENT_SHORT[bot.agent]}</span>
+          </span>
+        </span>
+        <span className={`projeto-cartao-estado ${waiting ? 'espera' : busy ? 'trabalha' : ''}`}>
+          {waiting && <i className="ponto alerta" aria-hidden="true" />}
+          {!waiting && busy && <i className="ponto trabalhando" aria-hidden="true" />}
+          <span>{state}</span>
+        </span>
+        {step ? (
+          <span className="projeto-cartao-frase quarto-passo">
+            {t.stepWords[step.kind]}
+            {step.target && <code>{step.target}</code>}
+          </span>
+        ) : (
+          preview && <span className="projeto-cartao-frase">{preview}</span>
+        )}
+      </span>
+    </button>
   )
 }

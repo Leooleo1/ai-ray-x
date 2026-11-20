@@ -3202,7 +3202,7 @@ textarea:focus-visible {
 }
 
 .parear .cheio:disabled {
-  opacity: 0.45;
+  opacity: 0.6;
 }
 
 /* One frame for the app: the sidebar and the title bar are the same surface,
@@ -3274,4 +3274,60 @@ textarea:focus-visible {
   mask-image: radial-gradient(ellipse 60% 62% at 50% 50%, #000 62%, transparent 100%);
   pointer-events: none;
   user-select: none;
+}
+
+/* A bot's card as its room: the character on a floor of the bot's own colour, lit brighter while it works or waits.
+   The light is a still gradient (nothing blurred live); only its strength changes. */
+.projeto-quarto {
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  min-height: 112px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.projeto-quarto::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(90% 120% at 12% 110%, color-mix(in srgb, var(--cor-bot) 38%, transparent), transparent 66%);
+  opacity: 0.6;
+  transition: opacity 400ms ease;
+  content: '';
+}
+
+.projeto-quarto.ativo::before,
+.projeto-quarto.projeto-cartao-espera::before,
+.projeto-quarto:hover::before {
+  opacity: 1;
+}
+
+.quarto-personagem {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+}
+
+.quarto-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quarto-passo code {
+  margin-left: 6px;
+  color: var(--giz);
+  font: 12px/16px var(--mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projeto-quarto::before {
+    transition: none;
+  }
 }
