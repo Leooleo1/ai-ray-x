@@ -89,8 +89,20 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
       if (changed && !confirmClose) setConfirmClose(true)
       else onClose()
     }
+    // A click outside the drawer closes it as Escape does (asking first when a change is unsaved);
+    // the button that opens it toggles it by itself.
+    const onOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target || target.closest('.ajustes, [data-abre-ajustes]')) return
+      if (changed && !confirmClose) setConfirmClose(true)
+      else onClose()
+    }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onOutside)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onOutside)
+    }
   }, [changed, confirmClose, onClose])
   const days = usage?.days ?? 30
   const models = usage?.models ?? []

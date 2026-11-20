@@ -188,7 +188,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           </button>
           {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
           <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
-          <button type="button" className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={toggleSettings}>
+          <button type="button" data-abre-ajustes className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={toggleSettings}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="4" y="5" width="16" height="14" rx="2.5" />
               <path d="M14 5v14" />
