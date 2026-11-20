@@ -23,6 +23,8 @@ const OPENCODE_TALK: &str = r#"{"permission":{"bash":"deny","edit":"deny","webfe
 const OPENCODE_EDIT: &str = r#"{"permission":{"bash":"deny","webfetch":"deny","external_directory":"deny"}}"#;
 /// Full access: the shell and edits allowed in the project, other folders still denied.
 const OPENCODE_FULL: &str = r#"{"permission":{"bash":"allow","edit":"allow","webfetch":"deny","external_directory":"deny"}}"#;
+/// The "full" mode: nothing denied, other folders included.
+const OPENCODE_BYPASS: &str = r#"{"permission":{"bash":"allow","edit":"allow","webfetch":"deny","external_directory":"allow"}}"#;
 /// Models opencode serves without an account (its Zen free tier), offered when it lists none.
 pub const OPENCODE_FREE: [&str; 2] = ["opencode/deepseek-v4.1-flash-free", "opencode/mimo-v2.6-flash-free"];
 
@@ -33,6 +35,9 @@ pub fn antigravity(target: &Target, mode: Mode) -> Command {
     if target.full && mode == Mode::Talk {
         // Its automatic mode: it edits and runs commands, the terminal without the sandbox (installs, git).
         command.args(["--mode", "auto"]);
+        if target.bypass {
+            command.arg("--dangerously-skip-permissions");
+        }
     } else {
         command.args(["--sandbox", "--mode", if mode == Mode::Talk { "plan" } else { "accept-edits" }]);
     }
@@ -69,6 +74,7 @@ pub fn opencode(target: &Target, mode: Mode) -> Command {
         command.arg("--auto");
     }
     let config = match (mode, full) {
+        (Mode::Talk, true) if target.bypass => OPENCODE_BYPASS,
         (Mode::Talk, true) => OPENCODE_FULL,
         (Mode::Talk, false) => OPENCODE_TALK,
         (Mode::Edit, _) => OPENCODE_EDIT,

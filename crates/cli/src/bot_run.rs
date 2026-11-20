@@ -100,6 +100,9 @@ pub struct Target<'a> {
     /// Full access (its grants): the CLI edits, runs commands and uses git in the project by itself,
     /// in its own automatic mode, instead of only reading.
     pub full: bool,
+    /// With full access, the "full" mode: the CLI runs with no review of its own at all
+    /// (Claude Code's bypassPermissions, Codex without approvals or sandbox).
+    pub bypass: bool,
 }
 
 /// What the bot is told on every turn: how raiox works, how to propose a
@@ -140,8 +143,8 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
         String::new()
     } else {
         format!(
-            "\n\nProjects with a raiox bot that are not wired to this one: {}. If the person asks you to talk to, ask or \
-             tell one of them, say that once the two projects are wired in raiox you can send it a message (with their \
+            "\n\nProjects with a raiox bot that are not linked to this one: {}. If the person asks you to talk to, ask or \
+             tell one of them, say that once the two projects are linked in raiox (Settings › Links) you can send it a message (with their \
              approval), and end with one line {OPEN_MARK} wires",
             unwired.join(", ")
         )
@@ -186,8 +189,8 @@ fn full_access(project: &str) -> String {
     format!(
         "You are working through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
          You have full access to this project, like a coding CLI in auto mode: edit its files, run commands (tests, \
-         builds, installs, git status, commit, pull and push) and check your own work, without asking first. Your \
-         CLI reviews risky actions by itself. Before something hard to undo beyond this folder (a force push, \
+         builds, installs, git status, commit, pull and push) and check your own work, without asking first. \
+         Before something hard to undo beyond this folder (a force push, \
          rewriting shared history, deleting remote branches, deploying, publishing), ask the person first. \
          Never start a dev server or any command that does not end in your shell: it would hold your turn. To start \
          the project's app, end with one line {OPEN_MARK} app; raiox installs what is missing, starts it, keeps it \
@@ -276,7 +279,7 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     // (its built-in tools are still the list above, and the secrets rules still deny).
     if full {
         // Claude Code's own auto mode: it acts without asking and its classifier stops what is risky.
-        command.args(["--permission-mode", "auto"]);
+        command.args(["--permission-mode", if target.bypass { "bypassPermissions" } else { "auto" }]);
     } else if target.mcp {
         command.args(["--permission-mode", "bypassPermissions"]);
     } else if mode == Mode::Edit {
@@ -303,8 +306,13 @@ fn codex(target: &Target, mode: Mode) -> Command {
     for image in target.images {
         command.arg("--image").arg(image);
     }
-    command.args(["--json", "--skip-git-repo-check", "-c", sandbox]);
-    if full {
+    if full && target.bypass {
+        // The "full" mode: no approvals and no sandbox.
+        command.args(["--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox"]);
+    } else {
+        command.args(["--json", "--skip-git-repo-check", "-c", sandbox]);
+    }
+    if full && !target.bypass {
         // Codex's own automatic review answers its approvals; the network lets installs and git reach out.
         command.args(["--approve-for-me", "-c", "sandbox_workspace_write.network_access=true"]);
     }
@@ -605,7 +613,25 @@ mod tests {
     }
 
     fn target<'a>(dir: &'a Path, agent: &'a str, full: bool) -> Target<'a> {
-        Target { agent, dir, guide: String::new(), session: None, model: None, effort: None, shots: None, images: &[], web: false, mcp: false, full }
+        Target { agent, dir, guide: String::new(), session: None, model: None, effort: None, shots: None, images: &[], web: false, mcp: false, full, bypass: false }
+    }
+
+    #[test]
+    fn the_full_mode_runs_each_cli_with_no_review_at_all() {
+        let dir = Path::new("/tmp/projeto");
+        let full = |agent| Target { bypass: true, ..target(dir, agent, true) };
+        let claude = args(&claude_command(&full("claude"), Mode::Talk));
+        assert!(has_pair(&claude, "--permission-mode", "bypassPermissions"), "{claude:?}");
+        let codex = args(&codex(&full("codex"), Mode::Talk));
+        assert!(codex.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()) && !codex.contains(&"--approve-for-me".to_string()));
+        let agy = args(&crate::bot_clis::antigravity(&full("antigravity"), Mode::Talk));
+        assert!(agy.contains(&"--dangerously-skip-permissions".to_string()));
+        let opencode = crate::bot_clis::opencode(&full("opencode"), Mode::Talk);
+        assert!(opencode_config(&opencode).contains(r#""external_directory":"allow""#), "nothing denied");
+        assert!(args(&cursor(&full("cursor"), Mode::Talk)).contains(&"--force".to_string()));
+        // Without full access, the flag does nothing.
+        let reads = args(&claude_command(&Target { bypass: true, ..target(dir, "claude", false) }, Mode::Talk));
+        assert!(!reads.contains(&"bypassPermissions".to_string()));
     }
 
     #[test]
@@ -686,7 +712,7 @@ mod tests {
         assert!(guide("app", "", &["shop".into()], &[], false).contains("Other projects with a raiox bot: shop."));
         // A project with a bot but no wire comes with the way to wire it.
         let unwired = guide("app", "", &[], &["shop".into()], false);
-        assert!(unwired.contains("not wired to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
+        assert!(unwired.contains("not linked to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
     }
 
     #[test]

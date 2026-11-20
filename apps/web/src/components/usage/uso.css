@@ -1,0 +1,282 @@
+/* Usage: what the AIs' use would cost at API prices. The total in dot type is the one loud thing. */
+.uso {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+/* Open sections on the frame, one under the other, split by a hairline: no card inside the frame. */
+.uso-topo,
+.uso-totais {
+  padding: 24px 4px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.uso-controles {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+}
+
+.uso-controles .segmentado {
+  margin-left: 0;
+}
+
+/* The total and each AI on the left, the days on a ruler on the right. */
+.uso-topo {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(360px, 1fr) minmax(0, 2fr);
+  gap: 32px;
+}
+
+.uso-resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.uso-total {
+  font-family: var(--pontos);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--giz);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.uso-meta,
+.uso-nota {
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.uso-ias {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uso-ias li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.uso-ias i,
+.uso-nome i,
+.uso-dia i {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.uso-ias b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.uso-ias small {
+  grid-column: 1 / -1;
+  padding-left: 20px;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.uso-ia-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uso-nota {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 12px;
+}
+
+/* The chart: a quiet ruler, one line per AI, the day under the pointer below. */
+.uso-grafico {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.uso-grafico svg {
+  display: block;
+  width: 100%;
+  height: 220px;
+  overflow: visible;
+}
+
+.uso-regua {
+  stroke: rgb(255 255 255 / 6%);
+}
+
+.uso-eixo {
+  fill: var(--nevoa);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.uso-mira {
+  stroke: rgb(255 255 255 / 25%);
+  stroke-dasharray: 2 3;
+}
+
+.uso-dia {
+  display: flex;
+  gap: 16px;
+  min-height: 18px;
+  color: var(--nevoa);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.uso-dia b {
+  color: var(--giz);
+  font-weight: 500;
+}
+
+.uso-dia span {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* The tokens by kind, in one row. */
+.uso-totais {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.uso-totais div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.uso-totais span {
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.uso-totais b {
+  font-size: 20px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The breakdown fills the rest of the page; only its rows scroll. */
+.uso-detalhe {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 240px;
+  padding: 24px 4px 0;
+  overflow: hidden;
+}
+
+.uso-detalhe header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.uso-detalhe h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.uso-tabela {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.uso-corpo {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.uso-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 110px 110px;
+  gap: 16px;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid var(--fio);
+  font-variant-numeric: tabular-nums;
+}
+
+.uso-linha > span:not(:first-child) {
+  text-align: right;
+}
+
+.uso-linha.cabeca {
+  min-height: 32px;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.uso-linha small {
+  color: var(--nevoa);
+}
+
+.uso-nome {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .uso-topo,
+  .uso-totais {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .uso-totais {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .uso-controles {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .uso-total {
+    font-size: 40px;
+  }
+
+  .uso-linha {
+    grid-template-columns: minmax(0, 1fr) 96px 64px;
+  }
+
+  .uso-linha > span:nth-child(3) {
+    display: none;
+  }
+}

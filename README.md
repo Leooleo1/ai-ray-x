@@ -31,13 +31,13 @@ Intel Macs and Linux: [build from source](docs/building.md).
 
 ## An AI in every project
 
-- **Full access, one click away.** Under the message field, each AI's mode
-  shows as a coding CLI shows it: *full access* or *asks first*. A click, or
-  Shift+Tab, switches it. With full access the AI edits files, runs any
-  command, installs, sets up the project's `.env`, commits, pulls and pushes.
-  Each CLI's own automatic mode stops what is risky: Claude Code's auto mode,
-  Codex's approve-for-me, Antigravity's and opencode's auto. It asks you
-  before a force push or a deploy.
+- **Four modes, as in a coding CLI.** Beside Send, each AI's mode: *allow*
+  (it runs what only reads, tests or installs; changes come as proposals),
+  *approve for me* (it applies its own proposals), *auto* (it edits, runs
+  any command, installs, sets up the `.env`, commits, pulls and pushes, with
+  its CLI's own automatic review stopping what is risky) and *full* (no
+  review at all). Shift+Tab steps through them; a click lists them. It asks
+  you before a force push or a deploy.
 - **It sees your app.** It starts the project's dev server through See the
   app (installing what is missing), keeps it running and takes screenshots of
   the pages it changed, or of the iOS simulator.
@@ -72,13 +72,22 @@ each one shows what reading it cost this week.
 
 ![The Wiki: pages split by what they cost, one open to write](docs/screenshots/wiki.webp)
 
-**And more:** routines on a schedule, channels where several AIs talk with a
+**Workflows.** A trigger (by hand, a time, or a Desk task that finished) and
+steps in a line: ask an AI, wait for your approval, post in a channel, each
+step able to use the answer before it. Drawn as one line you edit in place;
+the step being run lights up.
+
+**And more:** ⌘K to go anywhere, the use of each AI's plan as two rings
+beside your profile, routines on a schedule, channels where several AIs talk with a
 free router, one question to several projects at once, a reviewer AI that reads
 another's proposals, a built-in self-improving agent template, an opt-in
 Dev/Infra auditor, and Ray, Diet and Memo, three helpers that answer from your
 logs at no cost. From your phone (pairing by QR) or Telegram too.
 
 ## Where the tokens go
+
+**Usage.** What your AIs' use would cost at API prices: per day, per AI, per
+model and per project.
 
 **X-ray.** Tokens read and written, what they would cost paying per use, when
 you use your AIs, how much each request re-reads and what gets re-read most,
@@ -104,10 +113,12 @@ before you flip them.
 
 | Switch | What it does | The risk |
 |---|---|---|
-| **Runs without asking** (per AI, on by default) | Runs on its own the commands that only read, test, lint, build or install locked dependencies, and starts the app with a screenshot | Other commands (deleting, `git push`, adding a package, other scripts) still wait for your click |
-| **Full access** (per AI; the mode under the message field, or Shift+Tab) | The AI works in the project like its CLI in auto mode: edits files (its `.env` included), runs any command, installs, commits, pulls and pushes, and starts the app | It acts in your project and your git remote without asking; each CLI's own automatic review is what stops a risky step (Cursor's `--force` has none) |
-| **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
+| **Mode: allow** (per AI, the default) | Runs on its own the commands that only read, test, lint, build or install locked dependencies, and starts the app with a screenshot | Other commands (deleting, `git push`, adding a package, other scripts) still wait for your click |
+| **Mode: approve for me** | Also approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
+| **Mode: auto** | The AI works in the project like its CLI in auto mode: edits files (its `.env` included), runs any command, installs, commits, pulls and pushes, and starts the app | It acts in your project and your git remote without asking; each CLI's own automatic review is what stops a risky step (Cursor's `--force` has none) |
+| **Mode: full** | The same with no review at all: Claude Code's bypassPermissions, Codex without approvals or sandbox, Antigravity skipping permissions | Nothing stops a destructive command; only for a project you can redo |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
+| **Workflows on a trigger** (per workflow, off until you turn it on) | Run their steps at a time or when a Desk task finishes | Each run spends your plan; an approval step stops it until you answer |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |
 | **Dev/Infra Auditor** (per AI) | Audits project scripts, workflows, routines and skills on demand, on infra change, or weekly | Spends your plan on each audit; fixes always wait in a draft for your approval |
 | **Reads the web** (per AI) | Lets it open pages and search | What it reads can try to steer it |
@@ -138,7 +149,7 @@ before you flip them.
 
 ## Status
 
-Early (0.1.6). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
+Early (0.1.7). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
 x64); Linux should work.
 
 ## License

@@ -47,11 +47,14 @@ pub struct Grants {
     /// automatic review still stops what is risky.
     #[serde(default)]
     pub full_access: bool,
+    /// With full access, the "full" mode: no review by the CLI at all, for a project that can be redone.
+    #[serde(default)]
+    pub bypass: bool,
 }
 
 impl Default for Grants {
     fn default() -> Self {
-        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: true, full_access: false }
+        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: true, full_access: false, bypass: false }
     }
 }
 
@@ -102,6 +105,7 @@ pub fn changed(current: &Grants, agent: &str, input: &Value) -> Result<Grants> {
     Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit),
         auto_run: flag("auto_run", current.auto_run),
         full_access: flag("full_access", current.full_access),
+        bypass: flag("bypass", current.bypass),
     })
 }
 
@@ -182,6 +186,7 @@ pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
         "auto_edit": bot.grants.auto_edit,
         "auto_run": bot.grants.auto_run,
         "full_access": bot.grants.full_access,
+        "bypass": bot.grants.bypass,
         "week_used": week_used(state_dir, &bot.id),
         "week_choices": WEEK_CHOICES,
         "web_possible": web_possible(&bot.agent),

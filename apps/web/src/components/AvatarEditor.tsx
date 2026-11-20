@@ -23,10 +23,18 @@ export function AvatarEditor({ value, onChange }: AvatarEditorProps) {
     <div className="aparencia">
       <div className="aparencia-campo">
         <span className="aparencia-rotulo">{t.templatesLabel}</span>
-        <div className="aparencia-grade" role="radiogroup" aria-label={t.templatesLabel}>
-          {TEMPLATES.map((look) => (
-            <button key={`${look.shape}-${look.color}-${look.finish}`} type="button" role="radio" aria-checked={same(look)} className={same(look) ? 'ativo' : ''} onClick={() => onChange(look)}>
-              <Avatar agent={faceOf(look.shape, look.color, look.shape, look.finish)} size={34} state="still" />
+        <div className="aparencia-modelos" role="radiogroup" aria-label={t.templatesLabel}>
+          {TEMPLATES.map(({ art, ...look }) => (
+            <button
+              key={`${look.shape}-${look.color}-${look.finish}`}
+              type="button"
+              role="radio"
+              aria-checked={same(look)}
+              aria-label={`${look.shape} · ${t.finishNames[look.finish]}`}
+              className={`pelucia-pula ${same(look) ? 'ativo' : ''}`}
+              onClick={() => onChange(look)}
+            >
+              <img className="pelucia" src={art} alt="" loading="lazy" />
             </button>
           ))}
         </div>

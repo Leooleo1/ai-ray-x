@@ -1,0 +1,95 @@
+/* Loading as the X-ray would show it: bars made of faint dots, and a beam of light crossing
+   them slowly, as if the plate were being read. Still under reduced motion. */
+.esqueleto {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 8px 0;
+  overflow: hidden;
+}
+
+.esqueleto::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 5%) 48%, transparent 66%);
+  content: '';
+  animation: esqueleto-feixe 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.esq-linha {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.esq-linha > span,
+.esq-topo > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.esq-barra,
+.esq-ponto,
+.esq-bloco {
+  display: block;
+  background-image: radial-gradient(rgb(255 255 255 / 16%) 0.9px, transparent 1.2px);
+  background-size: 4px 4px;
+}
+
+.esq-barra {
+  height: 10px;
+  border-radius: 3px;
+}
+
+.esq-barra.fina {
+  height: 6px;
+  opacity: 0.6;
+}
+
+.esq-barra.numero {
+  width: 42%;
+  height: 34px;
+}
+
+.esq-ponto {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.esq-topo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 32px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.esq-bloco {
+  height: 180px;
+  border-radius: 6px;
+  mask-image: linear-gradient(to top, #000 30%, transparent);
+}
+
+@keyframes esqueleto-feixe {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto::after {
+    animation: none;
+    opacity: 0;
+  }
+}

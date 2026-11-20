@@ -4,10 +4,36 @@ import { faceForBot } from '../avatars'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon, type IconName } from './Icons'
+import { PlanRings } from './PlanRings'
 import { ProfileMenu } from './ProfileMenu'
+import './sidebar-nav.css'
 
-export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
+export type Tab = 'xray' | 'usage' | 'efficiency' | 'flows' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
+
+/** The three pages about what the AIs consume, behind one item: the X-ray, Usage and Efficiency. */
+export const CONSUMPTION: Tab[] = ['xray', 'usage', 'efficiency']
+const LAST_CONSUMPTION = 'raiox.consumo'
+/** The palette's keys as this computer writes them. */
+const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
+
+/** The consumption page the person last looked at, so the item opens where they left it. */
+export function lastConsumption(): Tab {
+  try {
+    const saved = localStorage.getItem(LAST_CONSUMPTION) as Tab | null
+    return saved && CONSUMPTION.includes(saved) ? saved : 'xray'
+  } catch {
+    return 'xray'
+  }
+}
+
+export function keepConsumption(tab: Tab) {
+  try {
+    if (CONSUMPTION.includes(tab)) localStorage.setItem(LAST_CONSUMPTION, tab)
+  } catch {
+    // Private mode: it opens on the X-ray next time.
+  }
+}
 
 interface SidebarProps {
   tab: Tab
@@ -25,10 +51,12 @@ interface SidebarProps {
   /** Opens Settings on one of its tabs (from the profile menu). */
   onSettings: (tab: 'conexoes' | 'celular') => void
   onSetup: () => void
+  /** Opens the ⌘K palette. */
+  onSearch: () => void
 }
 
 /** The one navigation of the panel: the sections, then a row per project with a bot. */
-export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup }: SidebarProps) {
+export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapsed, onToggle, onTab, onChat, onSettings, onSetup, onSearch }: SidebarProps) {
   const [tip, setTip] = useState<{ text: string; top: number; left: number } | null>(null)
   useEffect(() => {
     if (!collapsed) setTip(null)
@@ -45,15 +73,44 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
     onFocus: showTip(text),
     onBlur: hideTip,
   })
-  const nav: { id: Tab; label: string; short?: string; icon: IconName }[] = [
-    { id: 'xray', label: t.tabXray, icon: 'xray' },
-    { id: 'efficiency', label: t.tabEfficiency, short: t.efficiencyShort, icon: 'efficiency' },
+  const [adding, setAdding] = useState(false)
+  const [more, setMore] = useState(false)
+  // The + menu and the phone's More close on a click elsewhere or Escape.
+  useEffect(() => {
+    if (!adding && !more) return undefined
+    const away = (event: PointerEvent) => {
+      if (!(event.target as Element).closest('.lado-novo, .lado-novo-menu, .lado-mais, .lado-mais-folha')) {
+        setAdding(false)
+        setMore(false)
+      }
+    }
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setAdding(false)
+      setMore(false)
+    }
+    window.addEventListener('pointerdown', away)
+    window.addEventListener('keydown', escape)
+    return () => {
+      window.removeEventListener('pointerdown', away)
+      window.removeEventListener('keydown', escape)
+    }
+  }, [adding, more])
+  // The work first, then one item for consumption. On a phone the last three move under More.
+  const nav: { id: Tab; label: string; short?: string; icon: IconName; underMore?: boolean; phoneOnly?: boolean }[] = [
     { id: 'agents', label: t.tabAgents, short: t.agentsShort, icon: 'agents' },
     { id: 'desk', label: t.deskTab, icon: 'desk' },
-    { id: 'deliveries', label: t.deliveriesTab, icon: 'deliveries' },
-    { id: 'wiki', label: t.wikiTab, icon: 'wiki' },
-    { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders' },
+    { id: 'flows', label: t.flowsTab, icon: 'flows' },
+    { id: 'deliveries', label: t.deliveriesTab, icon: 'deliveries', underMore: true },
+    { id: 'wiki', label: t.wikiTab, icon: 'wiki', underMore: true },
+    { id: lastConsumption(), label: t.consumptionTab, icon: 'xray' },
+    { id: 'settings', label: t.settingsTitle, short: t.settingsShort, icon: 'sliders', underMore: true, phoneOnly: true },
   ]
+  const isOn = (id: Tab) => tab === id || (CONSUMPTION.includes(id) && CONSUMPTION.includes(tab))
+  const go = (id: Tab) => {
+    setMore(false)
+    onTab(id)
+  }
   const toggleLabel = collapsed ? t.sidebarExpand : t.sidebarCollapse
   return (
     <aside className={`lateral ${collapsed ? 'recolhida' : ''}`}>
@@ -77,16 +134,21 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
           <Icon name={collapsed ? 'sidebar-expand' : 'sidebar-collapse'} />
         </button>
       </div>
+      <button type="button" className="lado-busca" aria-label={collapsed ? t.paletteLabel : undefined} onClick={onSearch} {...tipProps(`${t.paletteSearch} ${SHORTCUT}`)}>
+        <Icon name="search" />
+        <span className="nome">{t.paletteSearch}</span>
+        <kbd>{SHORTCUT}</kbd>
+      </button>
       <div className="lado-scroll" onScroll={hideTip}>
         <nav className="lado-grupo lado-menu" aria-label="raiox">
           {nav.map((item) => (
             <button
-              key={item.id}
+              key={item.label}
               type="button"
-              className={`lado-item ${item.id === 'settings' ? 'so-celular' : ''} ${tab !== item.id ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`}
-              aria-current={tab === item.id ? 'page' : undefined}
+              className={`lado-item ${item.phoneOnly ? 'so-celular' : ''} ${item.underMore ? 'no-mais' : ''} ${CONSUMPTION.includes(item.id) ? 'lado-consumo' : ''} ${!isOn(item.id) ? '' : item.id === 'agents' ? 'ativo-leve' : 'ativo'}`}
+              aria-current={isOn(item.id) ? 'page' : undefined}
               aria-label={collapsed ? item.label : undefined}
-              onClick={() => onTab(item.id)}
+              onClick={() => go(item.id)}
               {...tipProps(item.label)}
             >
               <Icon name={item.icon} />
@@ -94,9 +156,57 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
               {item.short && <span className="nome curto">{item.short}</span>}
             </button>
           ))}
+          <button
+            type="button"
+            className={`lado-item so-celular lado-mais ${nav.some((item) => item.underMore && isOn(item.id)) ? 'ativo' : ''}`}
+            aria-expanded={more}
+            onClick={() => setMore(!more)}
+          >
+            <Icon name="more" />
+            <span className="nome">{t.moreTab}</span>
+          </button>
+          {more && (
+            <div className="lado-mais-folha" role="menu">
+              {nav
+                .filter((item) => item.underMore)
+                .map((item) => (
+                  <button key={item.label} type="button" role="menuitem" className={isOn(item.id) ? 'ativo' : ''} onClick={() => go(item.id)}>
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          )}
         </nav>
         <div className="lado-grupo lado-projetos">
-          <span className="lado-titulo">{t.projects}</span>
+          <div className="lado-titulo lado-titulo-acao">
+            <span>{t.projects}</span>
+            <button type="button" className="lado-novo" aria-label={t.newSomething} title={t.newSomething} aria-expanded={adding} onClick={() => setAdding(!adding)}>
+              <Icon name="plus" />
+            </button>
+            {adding && (
+              <div className="lado-novo-menu" role="menu">
+                {[
+                  { view: 'bots' as ChatView, icon: 'plus' as IconName, label: t.addProject },
+                  { view: 'canal:novo' as ChatView, icon: 'hash' as IconName, label: t.channelNewNav },
+                  { view: 'grupo' as ChatView, icon: 'ask-many' as IconName, label: t.askMany },
+                ].map((entry) => (
+                  <button
+                    key={entry.view}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setAdding(false)
+                      onChat(entry.view)
+                    }}
+                  >
+                    <Icon name={entry.icon} />
+                    {entry.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {/* One row per project; a project can have bots on several CLIs, the newest one opens. */}
           {projectsOf(bots).map(({ name, latest, busy, agents }) => {
             const hasUnread = bots.some((b) => b.name === name && unread.has(b.id))
@@ -144,39 +254,10 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
               </button>
             )
           })}
-          <button
-            type="button"
-            className={`lado-item ${tab === 'agents' && chat === 'canal:novo' ? 'ativo' : ''}`}
-            aria-label={collapsed ? t.channelNewNav : undefined}
-            onClick={() => onChat('canal:novo')}
-            {...tipProps(t.channelNewNav)}
-          >
-            <Icon name="hash" />
-            <span className="nome">{t.channelNewNav}</span>
-          </button>
-          <button
-            type="button"
-            className={`lado-item ${tab === 'agents' && chat.startsWith('grupo') ? 'ativo' : ''}`}
-            aria-label={collapsed ? t.askMany : undefined}
-            onClick={() => onChat('grupo')}
-            {...tipProps(t.askMany)}
-          >
-            <Icon name="ask-many" />
-            <span className="nome">{t.askMany}</span>
-          </button>
-          <button
-            type="button"
-            className={`lado-item ${tab === 'agents' && chat === 'bots' ? 'ativo' : ''}`}
-            aria-label={collapsed ? t.addProject : undefined}
-            onClick={() => onChat('bots')}
-            {...tipProps(t.addProject)}
-          >
-            <Icon name="plus" />
-            <span className="nome">{t.addProject}</span>
-          </button>
         </div>
       </div>
       <footer className="lado-rodape">
+        <PlanRings collapsed={collapsed} />
         <ProfileMenu bots={bots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
       </footer>
       {collapsed && tip && (

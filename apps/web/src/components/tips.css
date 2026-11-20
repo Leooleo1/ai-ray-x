@@ -29,6 +29,15 @@
   gap: 10px;
 }
 
+/* The helper's plush portrait. */
+.dica-retrato {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio-item);
+  object-fit: cover;
+}
+
 .dica-flutuante header span {
   display: flex;
   flex: 1;
@@ -43,9 +52,10 @@
 .dica-flutuante header small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .dica-flutuante p {
@@ -65,7 +75,7 @@
   height: 32px;
   padding: 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--giz);
   color: var(--noite);
   font: 500 12px/16px var(--sans);
@@ -151,5 +161,18 @@
 
   .app.recolhida .dica-flutuante {
     left: 76px;
+  }
+}
+
+/* With the plan rings above the profile, the tip rises above them too (on a computer). */
+@media (min-width: 961px) {
+  body:has(.aneis:not(.recolhidos)) .dica-flutuante,
+  body:has(.aneis:not(.recolhidos)) .dica-rosto {
+    bottom: 134px;
+  }
+
+  body:has(.aneis.recolhidos) .dica-flutuante,
+  body:has(.aneis.recolhidos) .dica-rosto {
+    bottom: 182px;
   }
 }

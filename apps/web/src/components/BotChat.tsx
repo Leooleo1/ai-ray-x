@@ -1,8 +1,10 @@
+import { OpenTabs } from './chat/OpenTabs'
 import { useEffect, useRef, useState } from 'react'
 import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
-import { AGENT_LABEL, faceForBot, speakerOf, personaName } from '../avatars'
+import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
+import { type AccessMode, grantsFor, modeOf } from '../modes'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
@@ -19,7 +21,7 @@ import { Expandable } from './chat/Expandable'
 import { useFollowBottom } from './chat/useFollowBottom'
 import { MemoriesLine } from './chat/MemoriesLine'
 import { PinsLine } from './chat/PinsLine'
-import { HouseAsk, HouseLine, isHouse } from './chat/HouseLine'
+import { HouseLine, houseCommands, isHouse } from './chat/HouseLine'
 import type { ChatNav } from './chat/nav'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
@@ -146,9 +148,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   }
   /** Full access from the conversation: on, then the AI is told it may go on. */
   const giveAccess = async () => {
-    if ((await bots.act('grants', { id: bot.id, full_access: true })) !== null) await send(t.accessContinue)
+    if ((await bots.act('grants', { id: bot.id, ...grantsFor('auto') })) !== null) await send(t.accessContinue)
   }
-  const toggleAccess = () => void bots.act('grants', { id: bot.id, full_access: !bot.grants?.full_access })
+  const pickMode = (next: AccessMode) => void bots.act('grants', { id: bot.id, ...grantsFor(next) })
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   return (
@@ -179,13 +181,15 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               <path d="M5 7h14M5 12h14M5 17h9" />
             </svg>
           </button>
-          <span className="conversa-titulo">
-            <Avatar agent={face} size={24} state={busyHere ? 'thinking' : 'still'} />
-            <span>
-              <b>{side ? side.title : t.mainConversation}</b>
-              <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
-            </span>
-          </span>
+          <OpenTabs
+            bots={bots.state.bots}
+            open={{ bot: bot.id, thread: current }}
+            busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && b.busy && (b.busy_thread ?? 'main') === tab.thread)}
+            onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
+            onNew={() => void newThread()}
+          />
+          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
+          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
           <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3.5" y="5" width="17" height="12" rx="2" />
@@ -202,10 +206,6 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           </button>
         </header>
 
-        <div className="linhas-topo">
-          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
-          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
-        </div>
         <div className="chat-mensagens" ref={list}>
           {messages.length === 0 && !busyHere && mail.length === 0 && (
             <div className="chat-vazio">
@@ -302,16 +302,16 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             </button>
           </div>
         )}
-        {!busyHere && <HouseAsk onAsk={(agent) => void bots.act('house', { id: bot.id, thread: current, agent })} />}
         <Composer
           draftKey={`${bot.id}:${current}`}
-          placeholder={`${t.composeBot} ${speaker}`}
+          placeholder={`${t.composeBot} ${speaker} · ${t.slashHint}`}
+          commands={houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent }))}
           maxLength={bots.state.max_text}
           busy={bot.busy}
           allowImages
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id })}
-          access={bot.grants ? { on: bot.grants.full_access, onToggle: toggleAccess } : undefined}
+          mode={bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
           onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}

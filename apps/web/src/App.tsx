@@ -21,33 +21,42 @@ import type { ChatNav } from './components/chat/nav'
 import { TipToast } from './components/TipToast'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
-import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
+import { CONSUMPTION, type ChatView, keepConsumption, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 import { UpdateNote } from './components/UpdateNote'
+import { UsageView } from './components/UsageView'
+import { CommandPalette } from './components/CommandPalette'
+import { Notices } from './components/Notices'
+import { flushSync } from 'react-dom'
+import { Flows } from './components/Flows'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SIDEBAR_KEY = 'raiox.sidebar'
-const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
+const SOURCE_LABELS: Record<string, string> = { claude: 'Claude Code', codex: 'Codex' }
 const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
+  usage: ['/uso', '/usage'],
   efficiency: ['/eficiencia', '/efficiency'],
   agents: ['/agentes', '/agents'],
   desk: ['/mesa', '/desk'],
+  flows: ['/fluxos', '/workflows'],
   deliveries: ['/entregas', '/deliveries'],
   wiki: ['/wiki'],
   settings: ['/configuracoes', '/settings'],
 }
-const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
-  xray: { title: t.title, subtitle: t.subtitle },
-  efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
-  agents: { title: t.botsTitle, subtitle: t.botsHint },
-  desk: { title: t.deskTitle, subtitle: t.deskSubtitle },
-  deliveries: { title: t.deliveriesTitle, subtitle: t.deliveriesSubtitle },
-  wiki: { title: t.wikiTitle, subtitle: t.wikiSubtitle },
-  settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
+const HEADINGS: Record<Tab, { title: string }> = {
+  xray: { title: t.title },
+  usage: { title: t.usageTitle },
+  efficiency: { title: t.dietTitleMain },
+  agents: { title: t.botsTitle },
+  desk: { title: t.deskTitle },
+  flows: { title: t.flowsTitle },
+  deliveries: { title: t.deliveriesTitle },
+  wiki: { title: t.wikiTitle },
+  settings: { title: t.settingsTitle },
 }
 
 const BOTS_PATH = '/bots'
@@ -190,11 +199,18 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
       }
       return next
     })
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  // Which workflow the palette asked the Workflows page to open (n changes on every pick).
+  const [flowPick, setFlowPick] = useState<{ id: string; n: number } | null>(null)
   useEffect(() => {
     const onShortcut = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
         event.preventDefault()
         toggleSidebar()
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((open) => !open)
       }
     }
     window.addEventListener('keydown', onShortcut)
@@ -211,15 +227,26 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
   }, [])
+  // A page change cross-fades the content (the sidebar stays put), where the browser can.
+  const swap = (change: () => void) => {
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return change()
+    document.startViewTransition(() => flushSync(change))
+  }
   const go = (next: Tab) => {
     if (next !== tab) history.pushState(null, '', PATHS[next][0])
-    setTab(next)
+    keepConsumption(next)
+    if (next === tab) return setTab(next)
+    swap(() => setTab(next))
   }
   const openChat = (view: ChatView) => {
     const path = chatPath(view)
     if (path !== window.location.pathname) history.pushState(null, '', path)
-    setChat(view)
-    setTab('agents')
+    const change = () => {
+      setChat(view)
+      setTab('agents')
+    }
+    if (tab === 'agents') change()
+    else swap(change)
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
@@ -275,13 +302,25 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           go('settings')
         }}
         onSetup={onSetup}
+        onSearch={() => setPaletteOpen(true)}
       />
       <div className="principal">
         <div className="titulo">
-          <h1>{heading.title}</h1>
-          <p>{heading.subtitle}</p>
+          {CONSUMPTION.includes(tab) ? (
+            // The three consumption pages share one title: their names are the tabs.
+            <nav className="titulo-abas" aria-label={t.consumptionPages}>
+              {CONSUMPTION.map((page) => (
+                <button key={page} type="button" className={page === tab ? 'ativa' : ''} aria-current={page === tab ? 'page' : undefined} onClick={() => go(page)}>
+                  {HEADINGS[page].title}
+                </button>
+              ))}
+            </nav>
+          ) : (
+            <h1>{heading.title}</h1>
+          )}
           <UpdateNote />
-          {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
+          {/* The period of the logs read: only where the figures come from them (Usage picks its own). */}
+          {(tab === 'xray' || tab === 'efficiency') && days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
         {/* The page itself, on a canvas inside the frame the sidebar and this title bar make. */}
         <div className="palco">
@@ -297,6 +336,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && openChannel && <ChannelView key={openChannel.id} channel={openChannel} bots={bots} nav={nav} onDeleted={() => openChat('bots')} />}
         {tab === 'agents' && chat === 'canal:novo' && <ChannelNew bots={bots} onCreated={(id) => openChat(`canal:${id}`)} />}
         {tab === 'agents' && !openBot && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
+        {tab === 'usage' && <UsageView />}
+        {tab === 'flows' && <Flows bots={bots} pick={flowPick} />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
         {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
@@ -323,6 +364,21 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         </div>
       </div>
       <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
+      <Notices />
+      {paletteOpen && (
+        <CommandPalette
+          bots={bots.state.bots}
+          channels={channels}
+          onClose={() => setPaletteOpen(false)}
+          onGo={go}
+          onChat={openChat}
+          onThread={(bot, thread) => nav.openMessage(bot, thread, 0)}
+          onFlow={(id) => {
+            setFlowPick((was) => ({ id, n: (was?.n ?? 0) + 1 }))
+            go('flows')
+          }}
+        />
+      )}
     </div>
   )
 }

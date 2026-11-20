@@ -1,3 +1,4 @@
+import { Skeleton } from './Skeleton'
 import { useEffect, useState } from 'react'
 import { type Bot, type Delivery, fetchDeliveries } from '../api'
 import { t } from '../i18n'
@@ -56,7 +57,7 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
   if (!items) {
     return (
       <main className="mesa entregas">
-        <p className={error ? 'nota failed quebra' : 'entregas-vazio'}>{error ?? t.deliveriesLoading}</p>
+        {error ? <p className="nota failed quebra">{error}</p> : <Skeleton rows={6} />}
       </main>
     )
   }
@@ -93,7 +94,12 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
       )}
       <Rhythm items={ofProject} selected={day} onPick={setDay} />
       <section className="entregas-diario" aria-label={t.deliveriesTitle}>
-        {items.length === 0 && <p className="entregas-vazio">{t.deliveriesEmpty}</p>}
+        {items.length === 0 && (
+          <div className="entregas-vazio-arte">
+            <img className="arte-vazia pelucia" src="/mascotes/vazio-entregas.webp" alt="" />
+            <p className="entregas-vazio">{t.deliveriesEmpty}</p>
+          </div>
+        )}
         {items.length > 0 && shown.length === 0 && <p className="entregas-vazio">{t.deliveriesNoMatch}</p>}
         {days.map(({ start, items: dayItems }) => (
           <div key={start} className="entregas-dia">

@@ -31,7 +31,7 @@ export function SetupHero({ steps, summary, face, onNext, onTour, onRedo }: Setu
   const done = steps.filter((s) => s.done === true).length
   const title = checking ? t.probing : left.length === 0 ? t.setupDone : left.length === 1 ? t.stepsLeftOne : t.stepsLeftMany.replace('{n}', String(left.length))
   return (
-    <section className="cartao cfg-heroi">
+    <section className="cfg-heroi">
       <div className="cfg-heroi-corpo">
         <div className="cfg-heroi-topo">
           <span className="cfg-progresso" aria-label={checking ? t.probing : `${done}/${steps.length}`}>

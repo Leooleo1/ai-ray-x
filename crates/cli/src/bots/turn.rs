@@ -291,6 +291,7 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
         web: bot.grants.web,
         mcp: bot.grants.mcp,
         full: bot.grants.full_access,
+        bypass: bot.grants.full_access && bot.grants.bypass,
     };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
@@ -352,9 +353,16 @@ fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) ->
         Ok(url) => {
             // Its output too: a second command (an API) may have stopped, for a missing .env say.
             let log = crate::preview::status(state_dir, &bot.id, &bot.dir).ok().and_then(|s| s["log"].as_str().map(str::to_string)).unwrap_or_default();
+            let full = find(state_dir, &bot.id).is_ok_and(|now| now.grants.full_access);
+            let secrets = if full {
+                "a missing secrets file you can create from its example if there is one (you have full access); ask the person only for real keys"
+            } else {
+                "a missing secrets file is for the person to fill, from its example if there is one"
+            };
+            let refused = crate::preview::blocked_port(&url).map(|port| port_refused(port, &url, full)).unwrap_or_default();
             let started = format!(
                 "(raiox started the project's app for the person: it answers at {url}. Its output so far:\n{log}\nIf a command stopped, \
-                 say which and what it needs; a missing secrets file is for the person to fill, from its example if there is one.)"
+                 say which and what it needs; {secrets}.{refused})"
             );
             let Some((prompt, files)) = screenshots(state_dir, jobs, bot, std::slice::from_ref(&url), say) else {
                 return Some((format!("{started}\n\nraiox could not take a screenshot. Tell the person briefly."), Vec::new()));
@@ -368,6 +376,18 @@ fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) ->
             Some((format!("raiox tried to start the project's app and it failed ({error:#}). Its last output:\n{log}\n\nTell the person briefly what went wrong and how to fix it."), Vec::new()))
         }
     }
+}
+
+/// What the AI is told when the app runs on a port browsers refuse: the person cannot open it there.
+fn port_refused(port: u16, url: &str, full: bool) -> String {
+    let next = if full {
+        "Change it now (in vite.config, package.json or the server's own settings) to one such as 5173. Vite restarts by itself on the \
+         new port and raiox follows it: then check the page with RAIOX-SHOT: /. A server that does not restart by itself needs the \
+         person to press Stop and Run in See the app."
+    } else {
+        "Propose changing it (in vite.config, package.json or the server's own settings) to one such as 5173."
+    };
+    format!(" Browsers (Safari, Chrome, Firefox) refuse port {port}, a restricted port, so the person cannot open {url} even though it runs. {next}")
 }
 
 /// Hands the person's attached images over to the CLI through `ai_dir`, and tells the CLI where they are.

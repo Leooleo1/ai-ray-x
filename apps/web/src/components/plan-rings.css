@@ -1,0 +1,60 @@
+/* Each AI's plan beside the profile: the five-hour window outside, the week inside. */
+.aneis {
+  display: flex;
+  gap: 6px;
+  padding: 0 4px 8px;
+}
+
+.aneis.recolhidos {
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 8px;
+}
+
+.anel {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+}
+
+.anel svg {
+  position: absolute;
+  inset: 0;
+}
+
+.anel-trilho,
+.anel-uso {
+  fill: none;
+  stroke-width: 3;
+}
+
+.anel-trilho {
+  stroke: rgb(255 255 255 / 9%);
+}
+
+.anel-uso {
+  stroke: var(--ok);
+  stroke-linecap: round;
+  transition: stroke-dasharray 400ms ease;
+}
+
+.anel-uso.aviso {
+  stroke: var(--alerta);
+}
+
+.anel-uso.alarme {
+  stroke: var(--brasa);
+}
+
+.anel-rosto {
+  display: grid;
+  place-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anel-uso {
+    transition: none;
+  }
+}

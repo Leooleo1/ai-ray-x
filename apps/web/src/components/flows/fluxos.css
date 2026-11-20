@@ -1,0 +1,611 @@
+/* Workflows: a list, and a dotted board where the chain hangs from its trigger. The amber
+   lightning of the trigger is the one warm accent; a run lights each node as it passes. */
+.fluxos {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  min-height: 0;
+}
+
+.fluxos .bv-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 500 14px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fluxos .bv-btn.cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.fluxos .bv-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fluxo-svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fluxo-vazio {
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+/* The list: a quiet column on the frame, no card around it. */
+.fluxo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 16px 4px 0;
+  box-shadow: inset -1px 0 0 var(--fio);
+}
+
+.fluxo-criar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/18px var(--sans);
+  cursor: pointer;
+}
+
+.fluxo-criar:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.fluxo-lista ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.fluxo-lista li button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fluxo-lista li button:hover {
+  color: var(--giz);
+}
+
+.fluxo-lista li button.ativo {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.fluxo-lista b {
+  overflow: hidden;
+  font: 500 14px/20px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fluxo-lista small {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fluxo-ponto {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 20%);
+}
+
+.fluxo-ponto.ligado {
+  background: var(--ok);
+}
+
+.fluxo-ponto.roda {
+  background: var(--alerta);
+}
+
+.fluxo-ponto.espera {
+  background: var(--brasa);
+}
+
+/* The stage: the dotted board itself, the name and Run on it, no inner card. */
+.fluxo-palco {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--raio-painel);
+  background-image: radial-gradient(rgb(255 255 255 / 6%) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+.fluxo-topo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 4px 4px 0;
+}
+
+.fluxo-nome {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  outline: 0;
+  background: transparent;
+  color: var(--giz);
+  font: 500 20px/24px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.fluxo-nome:hover,
+.fluxo-nome:focus {
+  background: var(--vidro-7);
+}
+
+.fluxo-ligar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nevoa);
+  font-size: 13px;
+}
+
+.fluxo-tabuleiro {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* An empty board: the lightning, what to do, one button. */
+.fluxo-comeco {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin: auto;
+  padding: 32px;
+  text-align: center;
+}
+
+.fluxo-comeco b {
+  font: 500 17px/24px var(--sans);
+}
+
+.fluxo-comeco p {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.fluxo-raio {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgb(229 181 76 / 12%);
+  box-shadow: inset 0 0 0 1px rgb(229 181 76 / 22%);
+  color: var(--alerta);
+}
+
+/* The signature: one line from the trigger down, each stop's icon sitting on it. The line
+   behind a stop the run has passed turns green; the stop being run glows amber, the one
+   waiting for the person glows ember. */
+.fluxo-corrente {
+  --fluxo-icone: 40px;
+  --fluxo-vao: 28px;
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100% - 20px);
+  margin: 0 0 0 10px;
+  padding: 32px 0 24px;
+}
+
+.fluxo-no {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--fluxo-icone) minmax(0, 1fr);
+  column-gap: 16px;
+  padding-bottom: var(--fluxo-vao);
+}
+
+.fluxo-no::before {
+  position: absolute;
+  top: var(--fluxo-icone);
+  bottom: 0;
+  left: calc(var(--fluxo-icone) / 2);
+  width: 1px;
+  background: rgb(255 255 255 / 14%);
+  content: '';
+}
+
+.fluxo-no.ultimo::before {
+  display: none;
+}
+
+.fluxo-no.done::before {
+  background: rgb(95 208 138 / 45%);
+}
+
+.fluxo-no-icone {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: var(--fluxo-icone);
+  height: var(--fluxo-icone);
+  place-items: center;
+  border-radius: 50%;
+  background: #141419;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.fluxo-no:first-child .fluxo-no-icone {
+  background: #1d1a12;
+  box-shadow: inset 0 0 0 1px rgb(229 181 76 / 30%);
+  color: var(--alerta);
+}
+
+.fluxo-no.done .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1px rgb(95 208 138 / 55%);
+}
+
+.fluxo-no.running .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1.5px var(--alerta), 0 0 0 5px rgb(229 181 76 / 10%);
+  animation: fluxo-pulsa 1.6s ease-in-out infinite;
+}
+
+.fluxo-no.waiting .fluxo-no-icone,
+.fluxo-no.failed .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1.5px var(--brasa), 0 0 0 5px rgb(232 117 74 / 10%);
+}
+
+@keyframes fluxo-pulsa {
+  50% {
+    box-shadow: inset 0 0 0 1.5px var(--alerta), 0 0 0 9px rgb(229 181 76 / 4%);
+  }
+}
+
+.fluxo-no-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 9px;
+}
+
+.fluxo-no-topo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fluxo-no-cabeca {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--giz);
+  font: 500 16px/22px var(--sans);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fluxo-no-cabeca:hover,
+.fluxo-no.aberto .fluxo-no-cabeca {
+  background: var(--vidro-7);
+}
+
+.fluxo-no-tirar {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.fluxo-no:hover .fluxo-no-tirar,
+.fluxo-no-tirar:focus-visible {
+  opacity: 1;
+}
+
+.fluxo-no-tirar:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.fluxo-no-tirar svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.fluxo-no-falta,
+.fluxo-no-resultado {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.fluxo-no-falta {
+  color: var(--alerta);
+}
+
+.fluxo-no-resultado {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.fluxo-no-resultado.falhou {
+  color: var(--brasa);
+}
+
+.fluxo-no-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* A node's editor. */
+.fluxo-no-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.fluxo-campo {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--raio-item);
+  outline: 0;
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+  color-scheme: dark;
+}
+
+.fluxo-campo:focus {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+}
+
+.fluxo-texto {
+  resize: vertical;
+}
+
+.fluxo-dica {
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.fluxo-opcoes,
+.fluxo-dias {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--raio-item);
+  background: var(--vidro-7);
+}
+
+.fluxo-opcoes button,
+.fluxo-dias button {
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 13px/18px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fluxo-opcoes button.ativo,
+.fluxo-dias button.ativo {
+  background: rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.fluxo-quando {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 8px;
+}
+
+/* Adding a step: the last stop on the line is a dashed ring with a +. */
+.fluxo-elo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.fluxo-mais {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 10px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 14px/20px var(--sans);
+  cursor: pointer;
+}
+
+.fluxo-mais-icone {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px dashed rgb(255 255 255 / 22%);
+  border-radius: 50%;
+}
+
+.fluxo-mais:hover {
+  color: var(--giz);
+}
+
+.fluxo-mais:hover .fluxo-mais-icone {
+  border-color: rgb(255 255 255 / 45%);
+}
+
+.fluxo-novo-passo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 240px;
+  padding: 6px;
+  border-radius: var(--raio-painel);
+  background: #16161c;
+  box-shadow: var(--sombra-flutua);
+}
+
+.fluxo-novo-passo button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--giz);
+  font: 14px/18px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fluxo-novo-passo button:hover {
+  background: var(--vidro-7);
+}
+
+.fluxo-rodape {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 12px 4px 4px 10px;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.fluxo-rodape .nota {
+  margin: 0;
+}
+
+.acao-texto.perigo {
+  color: var(--brasa);
+}
+
+@media (max-width: 960px) {
+  .fluxos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fluxo-lista {
+    max-height: 200px;
+    padding-right: 0;
+    box-shadow: inset 0 -1px 0 var(--fio);
+  }
+
+  .fluxo-topo {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fluxo-no.running .fluxo-no-icone {
+    animation: none;
+  }
+}
+
+select.fluxo-campo {
+  padding-right: 32px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239a9aa6' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+  background-position: right 10px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  cursor: pointer;
+}

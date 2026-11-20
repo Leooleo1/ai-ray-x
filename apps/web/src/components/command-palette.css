@@ -1,0 +1,158 @@
+/* ⌘K: a dark sheet high on the screen over a dimmed panel; the chosen row on glass. */
+.paleta-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14vh 16px 16px;
+  background: rgb(0 0 0 / 55%);
+  animation: paleta-fundo 140ms ease-out;
+}
+
+.paleta {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, 100%);
+  max-height: min(480px, 70vh);
+  overflow: hidden;
+  border-radius: 16px;
+  background: #121217;
+  box-shadow: var(--sombra-flutua);
+  animation: paleta-sobe 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.paleta-campo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  box-shadow: inset 0 -1px 0 var(--fio);
+}
+
+.paleta-campo svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.paleta-campo input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--giz);
+  font: 16px/22px var(--sans);
+}
+
+/* The field is the dialog's whole point: no ring drawn inside it. */
+.paleta-campo input:focus-visible {
+  outline: 0;
+}
+
+.paleta-campo input::placeholder {
+  color: var(--nevoa);
+}
+
+.paleta kbd {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--vidro-7);
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.paleta ul {
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.paleta-grupo {
+  display: block;
+  padding: 10px 10px 4px;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.paleta li button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.paleta li button[aria-selected='true'] {
+  background: var(--vidro-7);
+}
+
+.paleta-icone {
+  display: grid;
+  flex: none;
+  width: 22px;
+  place-items: center;
+  color: var(--nevoa);
+}
+
+.paleta-icone .icone {
+  margin: 0;
+}
+
+.paleta-rotulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paleta li small {
+  flex: none;
+  margin-left: auto;
+  color: var(--nevoa);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.paleta-vazio {
+  padding: 18px 10px;
+  color: var(--nevoa);
+  font-size: 14px;
+}
+
+@keyframes paleta-fundo {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes paleta-sobe {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paleta-fundo,
+  .paleta {
+    animation: none;
+  }
+}

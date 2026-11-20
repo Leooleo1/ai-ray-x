@@ -1,6 +1,5 @@
-import type { CSSProperties } from 'react'
 import type { BotAgent, Connection, GitHubState } from '../../api'
-import { DEFAULT_COLOR } from '../../avatars'
+import { AgentLogo } from '../AgentLogo'
 import { compact, t } from '../../i18n'
 import { Command } from '../../onboarding/parts'
 import { modelName } from '../BotSettings'
@@ -13,7 +12,9 @@ const EFFORTS: Partial<Record<BotAgent, string[]>> = {
   claude: ['low', 'medium', 'high', 'xhigh', 'max'],
   codex: ['low', 'medium', 'high', 'xhigh'],
 }
-const MONOGRAMS: Record<string, string> = { claude: 'CC', codex: 'CX', cursor: 'CU', opencode: 'OC', antigravity: 'AG', copilot: 'CP' }
+/** CLIs with a mark of their own; the others keep two letters. */
+const AGENT_IDS = new Set(['claude', 'codex', 'cursor', 'opencode', 'antigravity'])
+const MONOGRAMS: Record<string, string> = { copilot: 'CP' }
 
 type Tone = 'ok' | 'alerta' | ''
 
@@ -22,12 +23,6 @@ function statusOf(c: Connection): { text: string; tone: Tone } {
   if (c.logged_in === false) return { text: t.notSignedIn, tone: 'alerta' }
   if (c.logged_in === null) return { text: t.unknownSignIn, tone: 'ok' }
   return { text: [t.connected, c.method, c.plan].filter(Boolean).join(' · '), tone: 'ok' }
-}
-
-/** A lit card wears the baked glow of its CLI's color; the others stay plain. */
-function glowOf(id: string, lit: boolean): CSSProperties | undefined {
-  const color = DEFAULT_COLOR[id as BotAgent]
-  return lit && color ? ({ '--brilho': `url(/luz/brilho-${color.slice(1)}.webp)` } as CSSProperties) : undefined
 }
 
 export interface Defaults {
@@ -54,10 +49,10 @@ export function ConnectionTile({ connection: c, defaults, onToggle, onDefaults }
   const agent = c.id as BotAgent
   const efforts = EFFORTS[agent] ?? []
   return (
-    <article className={`cfg-ia ${lit ? 'ligada' : ''} ${usable ? '' : 'apagada'}`} style={glowOf(c.id, lit)}>
+    <article className={`cfg-ia ${lit ? 'ligada' : ''} ${usable ? '' : 'apagada'}`}>
       <header>
-        <span className="cfg-monograma" style={lit ? { color: DEFAULT_COLOR[agent] } : undefined}>
-          {MONOGRAMS[c.id] ?? c.name.slice(0, 2).toUpperCase()}
+        <span className="cfg-monograma">
+          {AGENT_IDS.has(c.id) ? <AgentLogo agent={c.id} size={18} /> : (MONOGRAMS[c.id] ?? c.name.slice(0, 2).toUpperCase())}
         </span>
         <span className="cfg-nome">
           <b>{c.name}</b>
@@ -116,7 +111,9 @@ export function GitHubTile({ github, onCheck }: GitHubTileProps) {
   return (
     <article className={`cfg-ia ${ok ? '' : 'apagada'}`} id="cfg-github">
       <header>
-        <span className="cfg-monograma">GH</span>
+        <span className="cfg-monograma">
+          <img src="/marcas/github.svg" width={17} height={17} alt="" />
+        </span>
         <span className="cfg-nome">
           <b>{t.githubTitle}</b>
           <small>gh</small>

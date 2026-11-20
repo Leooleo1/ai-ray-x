@@ -28,6 +28,7 @@ pub mod data;
 pub mod deliveries;
 pub mod devices;
 pub mod grants;
+pub mod limits;
 pub mod drafts;
 pub mod install;
 pub mod links;
@@ -59,6 +60,8 @@ pub mod threads;
 pub mod tunnel;
 pub mod uploads;
 pub mod wiki;
+pub mod workflow_run;
+pub mod workflows;
 
 use std::path::PathBuf;
 

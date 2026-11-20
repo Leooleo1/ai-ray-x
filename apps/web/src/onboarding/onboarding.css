@@ -27,10 +27,9 @@
   padding: 0;
   list-style: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 12px/14px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .bv-trilho li {
@@ -107,16 +106,18 @@
 
 .bv-legenda {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
+  font: 12px/14px var(--sans);
   text-align: center;
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Step card */
 
+/* As tall as its step needs (a short step is not a tall empty card), up to the page's height. */
 .bv-cartao {
+  align-self: start;
   gap: 0;
+  max-height: 100%;
   padding: 0;
 }
 
@@ -156,9 +157,9 @@
 .bv-btn {
   flex: none;
   height: 36px;
-  padding: 0 18px;
+  padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   font: 500 14px/18px var(--sans);
   white-space: nowrap;
   cursor: pointer;
@@ -201,7 +202,8 @@
 .bv-rotulo {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -482,7 +484,7 @@
   display: inline-flex;
   align-self: flex-start;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -491,7 +493,7 @@
   height: 30px;
   padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 7px;
   background: transparent;
   color: var(--nevoa);
   font: 500 13px/16px var(--sans);
@@ -834,3 +836,137 @@
   font-size: 13px;
   line-height: 18px;
 }
+
+/* The welcome's picture: one of raiox's plush characters, its dark backdrop fading into the page. */
+.bv-arte img {
+  width: min(100%, 420px);
+  height: auto;
+  mask-image: radial-gradient(ellipse 58% 60% at 50% 50%, #000 62%, transparent 100%);
+}
+
+/* The You step: the photo as a large circle beside the name. */
+.bv-perfil {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+}
+
+/* Empty, a dashed ring with the initials, inviting a photo; filled, the photo. A camera at the corner either way. */
+.bv-foto {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 104px;
+  height: 104px;
+  padding: 0;
+  border: 1px dashed rgb(255 255 255 / 22%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%) 70%);
+  color: var(--nevoa);
+  font: 400 30px/1 var(--sans);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  place-items: center;
+  transition: border-color 160ms ease;
+}
+
+.bv-foto.com-foto {
+  border: 0;
+  background: none;
+}
+
+.bv-foto img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 10%);
+  object-fit: cover;
+}
+
+.bv-foto:hover {
+  border-color: rgb(255 255 255 / 45%);
+}
+
+.bv-foto-selo {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--giz);
+  box-shadow: 0 0 0 3px #101014;
+  color: var(--noite);
+}
+
+.bv-foto-selo svg,
+.bv-com-icone svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bv-com-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 12px;
+}
+
+.bv-login {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+.bv-foto:focus-visible {
+  outline: 2px solid var(--cobalto);
+  outline-offset: 3px;
+}
+
+.bv-perfil-campos {
+  display: grid;
+  flex: 1 1 280px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bv-perfil-foto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.bv-nota {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.bv-campo > span {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.bv-campo input {
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--raio-item);
+  outline: 0;
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 16px/20px var(--sans);
+}
+
+.bv-campo input:focus-visible {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
+}
+

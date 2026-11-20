@@ -195,6 +195,19 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Ok(input) => respond(task_action(panel, &p["/api/tasks/".len()..], &input)),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/flows") => respond(Ok(crate::workflows::state(&panel.state_dir))),
+        (Method::Post, p) if p.starts_with("/api/flows/") && !remote => match body(request) {
+            Ok(input) => {
+                let action = p["/api/flows/".len()..].to_string();
+                let result = crate::workflows::act(&panel.state_dir, &action, &input);
+                // Run, approve: the step that follows goes out now, not on the next beat of the clock.
+                if result.is_ok() && matches!(action.as_str(), "run" | "approve") {
+                    crate::workflow_run::tick(&panel.state_dir, &panel.jobs);
+                }
+                respond(result.map(|value| if action == "save" { value } else { crate::workflows::state(&panel.state_dir) }))
+            }
+            Err(reply) => reply,
+        },
         (Method::Post, p) if p.starts_with("/api/wiki/") => match body(request) {
             Ok(input) => respond(wiki_action(&panel.state_dir, &p["/api/wiki/".len()..], &input)),
             Err(reply) => reply,
@@ -240,7 +253,21 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             ))),
             Err(reply) => reply,
         },
-        (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home))),
+        (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
+        (Method::Get, "/api/usage") => respond(usage(panel, request.url())),
+        (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
+        // The person's name and photo: from this computer only.
+        (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
+            Ok(input) => {
+                let changed = if input.get("from_github").and_then(Value::as_bool) == Some(true) {
+                    crate::profile::photo_from_github(&panel.roots.home, &panel.state_dir)
+                } else {
+                    crate::profile::save(&panel.state_dir, &input)
+                };
+                respond(changed.map(|()| crate::profile::get(&panel.roots.home, &panel.state_dir)))
+            }
+            Err(reply) => reply,
+        },
         (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(
@@ -598,6 +625,19 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("bots".into(), bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)?);
     }
     Ok(value)
+}
+
+/// The longest period the Usage page offers, in days.
+const USAGE_MAX_DAYS: i64 = 365;
+
+/// What the AIs' use would cost at API prices: `?days=30&source=claude` (no source: every AI).
+fn usage(panel: &Panel, url: &str) -> anyhow::Result<Value> {
+    let query = url.split_once('?').map_or("", |(_, q)| q);
+    let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='));
+    let days = param("days").and_then(|d| d.parse::<i64>().ok()).unwrap_or(30).clamp(1, USAGE_MAX_DAYS);
+    let source = param("source").filter(|s| matches!(*s, "claude" | "codex"));
+    let since = (chrono::Local::now().date_naive() - chrono::Duration::days(days - 1)).format("%Y-%m-%d").to_string();
+    Ok(json!(raiox_core::usage::usage(panel.store.conn(), &since, source)?))
 }
 
 pub(crate) fn respond(result: anyhow::Result<Value>) -> Reply {

@@ -138,7 +138,28 @@ fn opens_secret(url: &str) -> bool {
 }
 
 /// The first local address a dev server printed (0.0.0.0 read as localhost).
+/// The ports browsers refuse to open, whatever answers there (the Fetch standard's "bad ports").
+const BAD_PORTS: [u16; 81] = [
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113, 115, 117, 119,
+    123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990,
+    993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6679, 6697,
+];
+
+/// The port of a local address when browsers refuse it: the app runs, but no browser opens it there.
+pub fn blocked_port(url: &str) -> Option<u16> {
+    let host = url.split("://").nth(1)?.split('/').next()?;
+    let port: u16 = host.rsplit_once(':')?.1.parse().ok()?;
+    (BAD_PORTS.contains(&port) || port == 10080).then_some(port)
+}
+
+/// The dev server's address in its output; after it restarted (its config changed, say), the one it
+/// came back on, which may be another port.
 fn address(log: &str) -> Option<String> {
+    let after_restart = log.to_lowercase().rfind("restart").map(|at| &log[at..]);
+    after_restart.and_then(first_address).or_else(|| first_address(log))
+}
+
+fn first_address(log: &str) -> Option<String> {
     log.split_whitespace()
         .map(|word| word.trim_start_matches(|c: char| !c.is_ascii_alphanumeric()).trim_end_matches(|c: char| !(c.is_ascii_alphanumeric() || c == '/')))
         .find(|word| is_local(word) && word.split("://").nth(1).is_some_and(|rest| rest.contains(':')))
@@ -263,6 +284,7 @@ pub fn status(state_dir: &Path, bot: &str, dir: &Path) -> Result<Value> {
         "started_ms": started,
         "exit_code": code,
         "url": if running { address(&log) } else { None },
+        "blocked_port": if running { address(&log).and_then(|url| blocked_port(&url)) } else { None },
         "log": tail,
         "simulator": crate::simulator::booted(),
         "installing": crate::app_start::is_installing(bot),
@@ -400,6 +422,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_port_browsers_refuse_is_named() {
+        assert_eq!(blocked_port("http://127.0.0.1:4190/"), Some(4190), "Safari, Chrome and Firefox refuse 4190");
+        assert_eq!(blocked_port("http://localhost:6000/login"), Some(6000));
+        assert_eq!(blocked_port("http://localhost:5173/"), None);
+        assert_eq!(blocked_port("http://localhost/"), None, "no port: 80");
+    }
+
+    #[test]
     fn the_dev_server_address_is_read_from_its_output() {
         let vite = "\u{1b}[32m  VITE v8.0.0\u{1b}[39m  ready in 312 ms\n\n  ➜  Local:   http://localhost:5173/\n  ➜  Network: http://192.168.0.4:5173/";
         assert_eq!(address(&plain(vite)).as_deref(), Some("http://localhost:5173/"));
@@ -407,6 +437,8 @@ mod tests {
         assert_eq!(address("docs at https://example.com:443/x"), None);
         assert_eq!(address("see http://localhost/ for help"), None, "no port, no dev server");
         assert_eq!(address("Serving HTTP on 127.0.0.1 port 5199 (http://127.0.0.1:5199/) ...").as_deref(), Some("http://127.0.0.1:5199/"));
+        let restarted = "  ➜  Local:   http://127.0.0.1:4190/\n[vite] vite.config.ts changed, restarting server...\n  ➜  Local:   http://127.0.0.1:5173/";
+        assert_eq!(address(restarted).as_deref(), Some("http://127.0.0.1:5173/"), "after a restart, the address it moved to");
     }
 
     #[test]

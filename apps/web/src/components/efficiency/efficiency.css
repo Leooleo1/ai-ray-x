@@ -55,8 +55,9 @@
 
 .efi-meta {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .efi-meta.ok {
@@ -230,11 +231,12 @@
   border-radius: var(--raio-item);
   background: transparent;
   color: var(--nevoa);
-  font: 400 12px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
   cursor: pointer;
   transition:
     background 140ms ease,
     color 140ms ease;
+  font-variant-numeric: tabular-nums;
 }
 
 .efi-sim-tab:hover {
@@ -356,7 +358,8 @@
 
 .efi-corte-ganho small {
   color: var(--nevoa);
-  font: 400 11px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .efi-corte-texto {
@@ -504,8 +507,9 @@
 
 .efi-px-col-rotulo {
   color: var(--nevoa);
-  font: 400 11px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Carried Bloat Card */
@@ -515,7 +519,8 @@
   flex-wrap: wrap;
   gap: 8px 16px;
   color: var(--nevoa);
-  font: 400 11px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .efi-custo-legenda span {
@@ -689,9 +694,10 @@
 .efi-ledger-sub {
   overflow: hidden;
   color: var(--nevoa);
-  font: 400 11px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .efi-ledger-medicao {

@@ -1,3 +1,5 @@
+import { Skeleton } from './Skeleton'
+import { notify } from '../notify'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
@@ -59,6 +61,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     setError(null)
     try {
       setSettings(await saveSettings(change))
+      notify(t.noticeSaved)
       // The bots page and pickers read the turned-on CLIs from the bots state.
       bots.refresh()
     } catch (failure: unknown) {
@@ -124,7 +127,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
       <div className="cfg-painel" role="tabpanel">
         {tab === 'conexoes' && (
           <div className="cfg-grade">
-            {!settings && <p className="cfg-vazio">{t.probing}</p>}
+            {!settings && <Skeleton rows={6} />}
             {ready.map((c) => (
               <ConnectionTile
                 key={c.id}

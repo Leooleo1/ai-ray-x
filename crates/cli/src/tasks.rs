@@ -94,6 +94,18 @@ fn load(state_dir: &Path) -> Board {
     fs::read_to_string(state_dir.join(FILE)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
 }
 
+/// Tasks that finished after a moment, oldest first: (bot, title, when it finished).
+pub fn finished_since(state_dir: &Path, after_ms: i64) -> Vec<(String, String, i64)> {
+    let mut done: Vec<(String, String, i64)> = load(state_dir)
+        .tasks
+        .into_iter()
+        .filter(|task| task.status == Status::Done && task.updated_ms > after_ms)
+        .map(|task| (task.bot, task.title, task.updated_ms))
+        .collect();
+    done.sort_by_key(|(_, _, at)| *at);
+    done
+}
+
 fn save(state_dir: &Path, board: &Board) -> Result<()> {
     fs::create_dir_all(state_dir)?;
     fs::write(state_dir.join(FILE), serde_json::to_string_pretty(board)?)?;

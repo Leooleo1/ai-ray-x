@@ -130,7 +130,7 @@ export function ProfileMenu({ bots, updatedAt, collapsed = false, onSettings, on
         onClick={() => setOpen(!open)}
       >
         <span className="perfil-monograma" aria-hidden="true">
-          {initials(profile)}
+          {profile?.photo ? <img src={profile.photo} alt="" /> : initials(profile)}
           <i />
         </span>
         <span className="perfil-nome">

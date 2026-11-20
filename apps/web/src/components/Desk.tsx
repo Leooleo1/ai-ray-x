@@ -63,8 +63,6 @@ export function Desk({ bots, nav }: DeskProps) {
   const waiting = placed('waiting')
   const done = placed('done').sort((a, b) => b.task.updated_ms - a.task.updated_ms)
   const doneShown = allDone ? done : done.slice(0, SHOWN_DONE)
-  // Until the tasks first arrive, a lane says so instead of looking empty.
-  const emptyOr = (text: string) => (board ? text : t.wikiLoading)
 
   const open = ({ task, index }: Placed) => {
     const thread = board?.threads[index]
@@ -82,10 +80,10 @@ export function Desk({ bots, nav }: DeskProps) {
       <NewTask bots={all} board={board} act={act} />
       {(error || bots.error) && <p className="nota failed quebra">{error ?? bots.error}</p>}
       <div className="mesa-raias">
-        <Lane status="todo" title={t.boardTodo} count={placed('todo').length} empty={emptyOr(t.deskTodoEmpty)}>
+        <Lane status="todo" title={t.boardTodo} count={placed('todo').length} empty={t.deskTodoEmpty} loading={!board}>
           {placed('todo').map(card)}
         </Lane>
-        <Lane status="doing" title={t.boardDoing} tone="cobalto" count={live.length + doing.length} empty={t.deskDoingEmpty}>
+        <Lane status="doing" title={t.boardDoing} tone="cobalto" count={live.length + doing.length} empty={t.deskDoingEmpty} emptyArt="/mascotes/vazio-mesa.webp">
           {live.map(({ bot, doing: task }) => (
             <WorkCard key={bot.id} bot={bot} bots={bots} nav={nav} now={now} task={task?.task.title} />
           ))}
@@ -100,7 +98,7 @@ export function Desk({ bots, nav }: DeskProps) {
           ))}
           {waiting.map(card)}
         </Lane>
-        <Lane status="done" title={t.boardDone} count={done.length} empty={emptyOr(t.deskDoneEmpty)}>
+        <Lane status="done" title={t.boardDone} count={done.length} empty={t.deskDoneEmpty} loading={!board}>
           {doneShown.map(card)}
           {done.length > SHOWN_DONE && (
             <button type="button" className="acao-texto mesa-todas" onClick={() => setAllDone(!allDone)}>

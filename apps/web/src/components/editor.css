@@ -15,7 +15,44 @@
 
 .aparencia-rotulo {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The ready-made looks, as plush portraits. */
+.aparencia-modelos {
+  display: grid;
+  grid-template-columns: repeat(4, 64px);
+  gap: 8px;
+}
+
+.aparencia-modelos button {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: #141419;
+  cursor: pointer;
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+
+.aparencia-modelos button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aparencia-modelos button:hover {
+  transform: translateY(-1px);
+}
+
+.aparencia-modelos button.ativo,
+.aparencia-modelos button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--giz);
 }
 
 .aparencia-grade {
@@ -73,7 +110,7 @@
   display: inline-flex;
   align-self: flex-start;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -82,7 +119,7 @@
   height: 24px;
   padding: 0 12px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 7px;
   background: transparent;
   color: var(--nevoa);
   font: 500 12px/16px var(--sans);
@@ -100,7 +137,9 @@
   cursor: default;
 }
 
-/* Pixel finish: the dither filter from index.html, on the avatar's own pixels. */
+/* Pixel finish: every other 2 px square lets the background through, so the shape reads as pixels.
+   A CSS mask, not an SVG filter: WebKit (the desktop app's engine) left filtered avatars blank. */
 .avatar.pixel {
-  filter: url(#raiox-pixel);
+  -webkit-mask: repeating-conic-gradient(#000 0 25%, rgb(0 0 0 / 50%) 0 50%) 0 0 / 4px 4px;
+  mask: repeating-conic-gradient(#000 0 25%, rgb(0 0 0 / 50%) 0 50%) 0 0 / 4px 4px;
 }

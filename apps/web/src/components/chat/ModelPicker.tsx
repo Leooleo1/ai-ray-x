@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AgentLogo } from '../AgentLogo'
 import { type Bot, type BotUsage, type OtherAgent, botUsage, otherAgents } from '../../api'
 import { AGENT_LABEL } from '../../avatars'
 import type { Bots } from '../../bots'
@@ -89,6 +90,7 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
   return (
     <div className="modelo-escolha" ref={box}>
       <button type="button" className="modelo-botao" aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+        <AgentLogo agent={bot.agent} size={15} />
         <b>{model ? nameOf(model) : AGENT_LABEL[bot.agent]}</b>
         {effort && <span>{`· ${effort}`}</span>}
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -98,7 +100,10 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
       {open && (
         <div className="modelo-menu" role="dialog" aria-label={t.modelLabel}>
           <header>
-            <b>{AGENT_LABEL[bot.agent]}</b>
+            <b>
+              <AgentLogo agent={bot.agent} />
+              {AGENT_LABEL[bot.agent]}
+            </b>
             <small>{t.nextMessages}</small>
           </header>
           <div className="busca-wrap">
@@ -142,6 +147,7 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
               if (needle && shown.length === 0 && !other.name.toLowerCase().includes(needle)) return null
               return [
                 <li key={`${other.agent}-titulo`} className="modelo-grupo">
+                  <AgentLogo agent={other.agent} size={12} />
                   {other.name}
                 </li>,
                 <li key={`${other.agent}-padrao`}>

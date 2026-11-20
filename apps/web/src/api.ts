@@ -376,6 +376,8 @@ export interface Bot {
     auto_run: boolean
     /** Works in the project like its CLI in auto mode: edits, runs any command, git, starts the app. */
     full_access: boolean
+    /** With full access: no review by the CLI at all (the "full" mode). */
+    bypass?: boolean
     week_used: number
     week_choices: number[]
     web_possible: boolean
@@ -728,6 +730,8 @@ export interface Preview {
   simulator: string | null
   /** The project's dependencies are installing; the app starts when they are in. */
   installing?: boolean
+  /** The app answers on a port browsers refuse (4190, say): it runs, but no browser opens it there. */
+  blocked_port?: number | null
 }
 
 export function botPreview(id: string): Promise<Preview> {
@@ -793,10 +797,110 @@ export interface Pairing {
 export interface Profile {
   name: string | null
   github: string | null
+  /** The photo the person chose, as a data URL. */
+  photo: string | null
+}
+
+/** One window of an AI's plan: how much is used (0–100) and when it starts again (seconds). */
+export interface PlanWindow {
+  used: number
+  resets_at: number | null
+}
+
+/** How much of each AI's plan is used, as far as raiox can tell (Claude Code and Codex). */
+export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean }>>
+
+/** One day of use: what each AI's use would cost at API prices, and its tokens. */
+export interface UsageDay {
+  date: string
+  usd: Record<string, number>
+  tokens: number
+}
+
+/** A slice of the use (a model, an AI, a project or a day); usd is null when no model in it has a price. */
+export interface UsageSlice {
+  key: string
+  label?: string
+  source: string | null
+  usd: number | null
+  tokens: number
+  calls: number
+}
+
+export interface Usage {
+  since: string
+  usd: number
+  sessions: number
+  calls: number
+  unpriced_calls: number
+  totals: { input: number; cache_read: number; cache_write: number; output: number }
+  daily: UsageDay[]
+  by_source: UsageSlice[]
+  by_model: UsageSlice[]
+  by_project: UsageSlice[]
+}
+
+export function fetchUsage(days: number, source?: 'claude' | 'codex'): Promise<Usage> {
+  return request<Usage>(`/api/usage?days=${days}${source ? `&source=${source}` : ''}`)
+}
+
+/** What sets a workflow off: the person, a time on some days, or a Desk task that finished. */
+export type FlowTrigger =
+  | { kind: 'manual' }
+  | { kind: 'schedule'; days: number[]; hour: number; minute: number }
+  | { kind: 'task_done'; bot?: string | null }
+
+/** One step: ask an AI, wait for the person, or post in a channel. */
+export type FlowStep = { kind: 'ask'; bot: string; text: string } | { kind: 'approve'; text: string } | { kind: 'post'; channel: string; text: string }
+
+export type FlowRunStatus = 'running' | 'waiting' | 'done' | 'failed' | 'stopped'
+
+export interface FlowRun {
+  started_ms: number
+  cause: string
+  step: number
+  status: FlowRunStatus
+  asked_ms: number | null
+  results: { ok: boolean; text: string; ms: number }[]
+  ended_ms: number | null
+}
+
+export interface Flow {
+  id: string
+  name: string
+  enabled: boolean
+  trigger: FlowTrigger | null
+  steps: FlowStep[]
+  threads: Record<string, string>
+  run: FlowRun | null
+  runs: FlowRun[]
+}
+
+export function fetchFlows(): Promise<{ flows: Flow[] }> {
+  return request<{ flows: Flow[] }>('/api/flows')
+}
+
+export type FlowAction = 'run' | 'approve' | 'decline' | 'stop' | 'delete'
+
+export function flowAct(action: FlowAction, id: string): Promise<{ flows: Flow[] }> {
+  return request<{ flows: Flow[] }>(`/api/flows/${action}`, { id })
+}
+
+export function saveFlow(flow: Pick<Flow, 'name' | 'enabled' | 'trigger' | 'steps'> & { id?: string }): Promise<{ id: string }> {
+  return request<{ id: string }>('/api/flows/save', { ...flow })
+}
+
+export function fetchLimits(): Promise<PlanLimits> {
+  return request<PlanLimits>('/api/limits')
 }
 
 export function fetchProfile(): Promise<Profile> {
   return request<Profile>('/api/profile')
+}
+
+/** Changes the person's name or photo (a data URL, or null to take it away), or takes their GitHub photo. */
+export function saveProfile(change: { name?: string; photo?: string | null; from_github?: boolean }): Promise<Profile> {
+  return request<Profile>('/api/profile', change)
 }
 
 /** A page of the team's wiki, with this week's reads. */

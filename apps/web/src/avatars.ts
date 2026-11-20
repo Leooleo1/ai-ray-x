@@ -24,16 +24,16 @@ export interface Face {
 
 export const FINISHES: Finish[] = ['solid', 'flat', 'pixel']
 
-/** Ready-made looks: shape, color and finish in one click. */
-export const TEMPLATES: { shape: string; color: string; finish: Finish }[] = [
-  { shape: 'monitor', color: '#e8754a', finish: 'solid' },
-  { shape: 'monitor', color: '#6f95f2', finish: 'pixel' },
-  { shape: 'chat', color: '#b4a3f5', finish: 'flat' },
-  { shape: 'magnifier', color: '#6f95f2', finish: 'pixel' },
-  { shape: 'shield', color: '#5fd08a', finish: 'solid' },
-  { shape: 'rocket', color: '#ec7fb0', finish: 'pixel' },
-  { shape: 'ghost', color: '#d9c29a', finish: 'flat' },
-  { shape: 'cat', color: '#e8754a', finish: 'pixel' },
+/** Ready-made looks: shape, color and finish in one click, each shown as its plush portrait. */
+export const TEMPLATES: { shape: string; color: string; finish: Finish; art: string }[] = [
+  { shape: 'monitor', color: '#e8754a', finish: 'solid', art: '/mascotes/modelo-monitor-solido.webp' },
+  { shape: 'monitor', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-monitor-pixel.webp' },
+  { shape: 'star', color: '#b4a3f5', finish: 'flat', art: '/mascotes/modelo-estrela-chapado.webp' },
+  { shape: 'magnifier', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-lupa-pixel.webp' },
+  { shape: 'shield', color: '#5fd08a', finish: 'solid', art: '/mascotes/modelo-escudo-solido.webp' },
+  { shape: 'rocket', color: '#ec7fb0', finish: 'pixel', art: '/mascotes/modelo-foguete-pixel.webp' },
+  { shape: 'ghost', color: '#d9c29a', finish: 'flat', art: '/mascotes/modelo-fantasma-chapado.webp' },
+  { shape: 'cat', color: '#e8754a', finish: 'pixel', art: '/mascotes/modelo-gato-pixel.webp' },
 ]
 
 const fromPackage = (id: string): AvatarDefinition[] => {
@@ -57,7 +57,9 @@ const SHAPE_LIST: AvatarDefinition[] = [
 ]
 
 export const SHAPES: Record<string, AvatarDefinition> = Object.fromEntries(SHAPE_LIST.map((shape) => [shape.id, shape]))
-export const SHAPE_IDS: string[] = SHAPE_LIST.map((shape) => shape.id)
+/** Shapes the editor offers: the speech bubble's tail looked odd, so it is kept only for bots that already wear it. */
+const RETIRED = new Set(['chat'])
+export const SHAPE_IDS: string[] = SHAPE_LIST.map((shape) => shape.id).filter((id) => !RETIRED.has(id))
 
 /** Bot colors; each has a stage light engraved in public/luz/palco-<hex>.webp. */
 export const COLORS: string[] = ['#e8754a', '#6f95f2', '#5fd08a', '#b4a3f5', '#d9c29a', '#ec7fb0']

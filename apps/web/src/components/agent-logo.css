@@ -1,0 +1,34 @@
+.ia-logo {
+  display: inline-block;
+  flex: none;
+  vertical-align: -2px;
+  object-fit: contain;
+}
+
+/* On a conversation's face: the AI's mark in a small dark disc at the corner. */
+.rosto-com-ia {
+  position: relative;
+}
+
+.rosto-com-ia .ia-selo {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--noite);
+  box-shadow: 0 0 0 1px var(--fio);
+}
+
+/* The AI's name beside its mark, on one line. */
+.conversas-grupo,
+.modelo-menu header b,
+.modelo-grupo,
+.uso-ia-nome {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

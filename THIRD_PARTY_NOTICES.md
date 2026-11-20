@@ -33,6 +33,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## AI logos (lobe-icons, MIT)
+
+The marks in `apps/web/public/ia/` (Claude, OpenAI, Cursor, Antigravity and
+opencode) were copied from the `@lobehub/icons-static-svg` package, version
+1.104.0 (https://github.com/lobehub/lobe-icons), with the single-colour ones
+filled light for the dark panel. The package is MIT licensed, Copyright (c)
+LobeHub. The marks themselves are trademarks of their owners; raiox shows
+them only to say which AI a conversation, a plan or a cost belongs to.
+
+## GitHub mark (simple-icons, CC0)
+
+`apps/web/public/marcas/github.svg` comes from the `simple-icons` package,
+version 16.38.0 (https://github.com/simple-icons/simple-icons), released
+under CC0 1.0, filled light for the dark panel. The mark is a trademark of
+GitHub; raiox shows it only on the button that fetches the person's GitHub
+photo.
+
 ## Fonts (SIL Open Font License 1.1)
 
 The panel loads these fonts from their npm packages at build time; the font

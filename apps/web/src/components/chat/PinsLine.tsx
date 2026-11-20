@@ -24,11 +24,19 @@ export function PinsLine({ bot, onGo }: PinsLineProps) {
   if (items.length === 0) return null
   return (
     <div className="memorias">
-      <button type="button" className="memorias-linha" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {t.pinnedCount.replace('{n}', String(items.length))}
+      <button
+        type="button"
+        className={`icone-btn topo-contador ${open ? 'ativo' : ''}`}
+        aria-expanded={open}
+        aria-label={t.pinnedCount.replace('{n}', String(items.length))}
+        title={t.pinnedCount.replace('{n}', String(items.length))}
+        onClick={() => setOpen(!open)}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d={open ? 'M6 15l6-6 6 6' : 'M9 6l6 6-6 6'} />
+          <path d="M9 4h6l-1 5 3 3v1.5H7V12l3-3z" />
+          <path d="M12 13.5V20" />
         </svg>
+        <small>{items.length}</small>
       </button>
       {open && (
         <div className="memorias-lista">

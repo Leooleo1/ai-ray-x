@@ -28,7 +28,8 @@
 
 .chat-vazio > span {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-vazio p {
@@ -178,12 +179,14 @@
 }
 
 /* The composer grows with the text; thumbnails sit above the field, buttons on its last line. */
-.compositor {
+/* The chat's field: a pill on one line, a rounded box once images ride above it. form.compositor wins over
+   the shared single-line field's centered pill in styles.css. */
+form.compositor {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
   padding: 6px 6px 6px 10px;
-  border-radius: var(--raio-painel);
+  border-radius: 16px;
 }
 
 .compositor.arrastando {
@@ -191,15 +194,7 @@
   box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 38%);
 }
 
-/* The bot's mode under the field, as a coding CLI shows it: full access, or asking first. */
-.compositor-rodape {
-  display: flex;
-  align-self: stretch;
-  align-items: center;
-  gap: 8px;
-  padding: 0 0 2px;
-}
-
+/* The bot's mode beside Send, as a coding CLI shows it: full access, or asking first (Shift+Tab switches it). */
 .compositor-modo {
   display: inline-flex;
   align-items: center;
@@ -207,12 +202,16 @@
   height: 24px;
   padding: 0 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 8px;
   background: none;
   color: var(--nevoa);
   font: 500 12px/16px var(--sans);
+  white-space: nowrap;
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease;
+  /* Centered on Send while the field is one line; the row lines up at the bottom as it grows. */
+  margin-bottom: 6px;
+  flex: none;
 }
 
 .compositor-modo:hover {
@@ -220,9 +219,6 @@
   color: var(--giz);
 }
 
-.compositor-modo.ligado {
-  color: #7d9ff5;
-}
 
 .compositor-modo:focus-visible {
   outline: 2px solid var(--cobalto);
@@ -234,12 +230,6 @@
   height: 12px;
   fill: currentColor;
 }
-
-.compositor-atalho {
-  color: rgb(255 255 255 / 30%);
-  font: 12px/16px var(--mono);
-}
-
 .compositor-linha {
   display: flex;
   align-items: flex-end;
@@ -397,7 +387,7 @@
 /* Conversation list | conversation, like a messaging app. */
 .chat-centro.bot-chat {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
 .conversa {
@@ -487,9 +477,41 @@
   gap: 2px;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
+}
+
+/* One scroll for every group, so no group cuts its last row in half. */
+.conversas-rolagem {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+  overflow-y: auto;
   scrollbar-width: none;
+}
+
+/* Each row opens with its AI's face, as a messages app does. */
+.conversa-rosto {
+  display: grid;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--vidro-7);
+}
+
+.conversa-rosto.grupo svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .conversas li button {
@@ -552,6 +574,9 @@
 
 /* Header: the bot as a tab, new conversation, the model in the middle, the side panel. */
 .bot-topo {
+  /* Above the messages, so its menus (the model's) open over them. */
+  position: relative;
+  z-index: 6;
   gap: 6px;
   padding: 10px 14px;
 }
@@ -687,7 +712,7 @@
 .modelo-menu li.modelo-grupo {
   padding: 14px 8px 6px;
   color: rgb(255 255 255 / 45%);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
 }
 
@@ -740,7 +765,7 @@
   white-space: nowrap;
   padding: 0 10px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 7px;
   background: var(--vidro-7);
   color: var(--nevoa);
   font: 500 12px/16px var(--sans);
@@ -830,7 +855,7 @@
 .conversas-grupo {
   padding: 6px 10px 0;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
 }
 
 .troca-rostos {
@@ -903,47 +928,34 @@
 }
 
 /* Memories over the chat, and the unread mark. */
+/* Memories and pins: an icon with its count in the conversation's header; the list opens under it. */
 .memorias {
   position: relative;
-  padding: 10px 20px 0;
 }
 
-.memorias-linha {
+.topo-contador {
   display: inline-flex;
-  align-items: center;
   gap: 4px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--giz);
-  font: 500 14px/20px var(--sans);
-  cursor: pointer;
+  width: auto;
+  min-width: 34px;
+  padding: 0 8px;
 }
 
-.memorias-linha:disabled {
+.topo-contador small {
   color: var(--nevoa);
-  cursor: default;
-}
-
-.memorias-linha svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: var(--nevoa);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .memorias-lista {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 20px;
+  top: calc(100% + 8px);
+  right: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(460px, calc(100% - 40px));
+  width: min(460px, calc(100vw - 40px));
   max-height: 320px;
   padding: 10px;
   border-radius: var(--raio-painel);
@@ -1074,7 +1086,7 @@
   height: 32px;
   padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--giz);
   color: var(--noite);
   font: 500 12px/16px var(--sans);
@@ -1087,7 +1099,7 @@
   height: 32px;
   padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   background: var(--giz);
   color: var(--noite);
   font: 500 12px/16px var(--sans);
@@ -1101,15 +1113,6 @@
 }
 
 /* Memories and pins share the line over the chat. */
-.linhas-topo {
-  display: flex;
-  gap: 4px;
-}
-
-.linhas-topo .memorias + .memorias {
-  padding-left: 0;
-}
-
 .fixada-item {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) auto;
@@ -1175,9 +1178,10 @@
 .rotina-texto small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .rotina-quando {
@@ -1189,15 +1193,6 @@
 
 .rotina-quando .ajustes-grade button {
   height: 34px;
-}
-
-/* The lists of memories and pins open under the whole line, at full width. */
-.linhas-topo {
-  position: relative;
-}
-
-.linhas-topo .memorias {
-  position: static;
 }
 
 .rotinas-lista .fechar-aba {
@@ -1330,7 +1325,8 @@
 .grupo-meta,
 .grupo-coluna small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1396,12 +1392,14 @@
   flex: none;
   margin-left: auto;
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .grupo-coluna footer {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .grupo-coluna footer .lado-link {
@@ -1451,39 +1449,6 @@
 
 /* The house agents in a project's chat: three quiet chips over the composer,
    and their answers in a glass card, apart from the bot's own bubbles. */
-.casa-perguntas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 22px -2px;
-}
-
-.casa-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 12px 0 6px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--vidro-7);
-  box-shadow: inset 0 0 0 1px var(--fio);
-  color: var(--nevoa);
-  font: 12px/16px var(--sans);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.casa-chip:hover {
-  background: rgb(255 255 255 / 11%);
-  color: var(--giz);
-}
-
-.casa-chip b {
-  color: var(--giz);
-  font-weight: 500;
-}
-
 .casa {
   display: flex;
   flex-direction: column;
@@ -1511,9 +1476,10 @@
 .casa-quem small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .casa p {
@@ -1524,7 +1490,8 @@
 
 .casa-meta {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .casa .aprovacoes {
@@ -1533,14 +1500,6 @@
 
 @media (max-width: 760px) {
   /* On a phone the chips keep only face and name, so the three fit one line. */
-  .casa-chip span,
-  .casa-papel {
-    display: none;
-  }
-
-  .casa-chip {
-    padding-right: 10px;
-  }
 
   /* The before/after table needs the width it has in Efficiency. */
   .casa .comparativo {
@@ -1574,16 +1533,17 @@
 .projeto-topo small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .conversas-ia {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 2px;
-  min-height: 0;
 }
 
 .conversa-item {
@@ -1643,33 +1603,118 @@
 }
 
 /* The chat's title: which conversation, of which project and IA. */
-.conversa-titulo {
+/* The open conversations as tabs: the open one on glass, the others quiet, a close on hover. */
+.abas {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.conversa-titulo > span {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.conversa-titulo b {
-  overflow: hidden;
-  font: 500 14px/18px var(--sans);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conversa-titulo small {
-  overflow: hidden;
+.aba {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 200px;
+  border-radius: var(--raio-item);
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+}
+
+.aba > button:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 30px 0 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.aba:only-of-type > button:first-child {
+  padding-right: 12px;
+}
+
+.aba b {
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.aba:hover {
+  background: rgb(255 255 255 / 4%);
+  color: var(--giz);
+}
+
+.aba.ativa {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.aba-fechar,
+.aba-nova {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+}
+
+.aba-fechar {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  opacity: 0;
+}
+
+.aba:hover .aba-fechar,
+.aba.ativa .aba-fechar,
+.aba-fechar:focus-visible {
+  opacity: 1;
+}
+
+.aba-fechar:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.aba-nova {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--raio-item);
+}
+
+.aba-nova:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.aba-fechar svg,
+.aba-nova svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.aba-nova svg {
+  width: 16px;
+  height: 16px;
 }
 
 .so-celular {
@@ -1726,7 +1771,8 @@
 .grupo-anteriores small {
   flex: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 960px) {
@@ -1787,7 +1833,8 @@
 
 .rascunho > header small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rascunho ul {
@@ -1830,7 +1877,8 @@
 .rascunho-arquivo small {
   flex: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rascunho-arquivo svg {
@@ -1906,7 +1954,7 @@
   height: 32px;
   padding: 0 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--raio-item);
   font: 500 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
@@ -2017,7 +2065,8 @@
 
 .rodou-linha small {
   flex: none;
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rodou .ponto {
@@ -2210,9 +2259,10 @@
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .trilha-ponto {
@@ -2294,9 +2344,10 @@
 .caminho summary {
   width: fit-content;
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   cursor: pointer;
   list-style: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .caminho summary::-webkit-details-marker {
@@ -2355,7 +2406,8 @@
 .levar-grupo {
   margin: 6px 6px 2px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .levar-painel button {
@@ -2435,7 +2487,8 @@
   flex: none;
   white-space: nowrap;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .trazido ul {
@@ -2476,7 +2529,8 @@
 
 .print-ia figcaption {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .print-ia button {
@@ -2542,4 +2596,176 @@
 .minha-imagem.largo img {
   max-height: none;
   object-fit: contain;
+}
+
+/* The mode chip's menu: the four modes, from the most careful to the freest, over the field. */
+.modo {
+  position: relative;
+  flex: none;
+}
+
+.modo.auto .compositor-modo {
+  color: #7d9ff5;
+}
+
+.modo.full .compositor-modo {
+  color: var(--brasa);
+}
+
+.modo-menu {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: grid;
+  gap: 2px;
+  width: 320px;
+  padding: 6px;
+  border-radius: var(--raio-painel);
+  background: #18181e;
+  box-shadow: var(--sombra-flutua);
+}
+
+.modo-menu button {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+}
+
+.modo-menu button:hover,
+.modo-menu button.ativo {
+  background: rgb(255 255 255 / 7%);
+}
+
+.modo-menu button svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 0;
+}
+
+.modo-menu button.approve svg {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.modo-menu button.auto {
+  color: #7d9ff5;
+}
+
+.modo-menu button.full {
+  color: var(--brasa);
+}
+
+.modo-menu span {
+  display: grid;
+  gap: 2px;
+}
+
+.modo-menu b {
+  font: 500 13px/18px var(--sans);
+}
+
+.modo-menu small {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.modo-atalho {
+  padding: 6px 10px 4px;
+  color: rgb(255 255 255 / 35%);
+  font: 12px/16px var(--sans);
+}
+
+.compositor-modo svg {
+  stroke: currentColor;
+}
+
+.modo.approve .compositor-modo svg {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+
+/* On a phone there is room for one tab: the open conversation; the list button switches. */
+@media (max-width: 960px) {
+  .aba:not(.ativa),
+  .aba-fechar {
+    display: none;
+  }
+
+  .aba > button:first-child {
+    padding-right: 12px;
+  }
+}
+
+/* "/" at the start of the field: the helpers in a list just above it, the chosen one on glass. */
+.comando-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: min(360px, 100%);
+  padding: 6px;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow: var(--sombra-flutua);
+}
+
+.comando-menu button {
+  display: grid;
+  grid-template-columns: 18px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--giz);
+  font: 14px/18px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.comando-menu button[aria-selected='true'] {
+  background: var(--vidro-7);
+}
+
+.comando-menu b {
+  font: 500 13px/18px var(--mono);
+}
+
+.comando-menu span {
+  overflow: hidden;
+  color: var(--nevoa);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In the header, the lists hang from the header's right edge, not from their small icon. */
+.bot-topo .memorias {
+  position: static;
+}
+
+.bot-topo .memorias-lista {
+  top: calc(100% + 4px);
+  right: 14px;
 }
