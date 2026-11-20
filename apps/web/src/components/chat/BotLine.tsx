@@ -6,7 +6,7 @@ import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
 import { CarriedBlock } from './Carry'
 import { RanBlock, RunRequestCard } from './RunCards'
-import { ShotBlock } from './ShotBlock'
+import { ShotBlock, UploadedImages } from './ShotBlock'
 import { TrailView } from './TrailView'
 import { Expandable } from './Expandable'
 
@@ -141,20 +141,32 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   }
   if (message.author === 'you') {
     const fromMail = message.data.via === 'ai-memory'
+    const images = message.data.images ?? []
+    const text = message.data.text ?? ''
+    const bubble = (fromMail || text) && (
+      <span className={`balao ${fromMail ? 'via-memoria' : 'na-cor'}`} style={fromMail ? undefined : { background: face.color }}>
+        {fromMail ? (
+          <>
+            <small>{`${t.fromMemory} · ${text}`}</small>
+            <Expandable text={message.data.body ?? ''} />
+          </>
+        ) : (
+          text
+        )}
+      </span>
+    )
     return (
       <>
         {head}
-        <div className="linha minha" id={`msg-${message.ms}`}>
-          <span className={`balao ${fromMail ? 'via-memoria' : 'na-cor'}`} style={fromMail ? undefined : { background: face.color }}>
-            {fromMail ? (
-              <>
-                <small>{`${t.fromMemory} · ${message.data.text ?? ''}`}</small>
-                <Expandable text={message.data.body ?? ''} />
-              </>
-            ) : (
-              message.data.text
-            )}
-          </span>
+        <div className={`linha minha ${images.length > 0 ? 'com-imagens' : ''}`} id={`msg-${message.ms}`}>
+          {images.length > 0 ? (
+            <div className="minha-conteudo">
+              <UploadedImages bot={bot} names={images} />
+              {bubble}
+            </div>
+          ) : (
+            bubble
+          )}
           <span className="hora">{clock(message.ms)}</span>
         </div>
       </>

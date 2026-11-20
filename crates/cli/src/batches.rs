@@ -63,7 +63,7 @@ pub fn ask_many(state_dir: &Path, jobs: &Jobs, ids: &[String], text: &str) -> Re
             skipped.push(id.clone());
             continue;
         }
-        let asked = threads::create(state_dir, id, text).and_then(|thread| bots::ask(state_dir, jobs, id, &thread.id, text).map(|()| thread.id));
+        let asked = threads::create(state_dir, id, text).and_then(|thread| bots::ask(state_dir, jobs, id, &thread.id, text, &[]).map(|()| thread.id));
         match asked {
             Ok(thread) => items.push(Item { bot: id.clone(), thread }),
             Err(_) => skipped.push(id.clone()),

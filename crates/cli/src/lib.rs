@@ -52,6 +52,7 @@ pub mod telegram;
 pub mod team;
 pub mod threads;
 pub mod tunnel;
+pub mod uploads;
 pub mod wiki;
 
 use std::path::PathBuf;

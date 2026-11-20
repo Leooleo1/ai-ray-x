@@ -19,6 +19,8 @@ use std::io::Read;
 
 /// Bot messages can reach 4000 characters of any script.
 const MAX_BODY: u64 = 32 * 1024;
+/// Chat messages may carry up to four 5 MB images encoded in base64.
+const MAX_ASK_BODY: u64 = 30 * 1024 * 1024;
 
 pub(crate) type Reply = Response<Cursor<Vec<u8>>>;
 
@@ -242,7 +244,8 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
-            match body(request) {
+            let limit = if action == "ask" { MAX_ASK_BODY } else { MAX_BODY };
+            match body_limit(request, limit) {
                 // A paired device reaches only the bots (and channels) that are not kept on this computer.
                 Ok(input) if remote => respond(crate::grants::device_may(&panel.state_dir, &input).and_then(|()| bot_action(panel, &action, &input)).map(|state| seen_by(panel, remote, state))),
                 Ok(input) => respond(bot_action(panel, &action, &input)),
@@ -295,7 +298,17 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, dir.into_iter().collect());
             Ok(())
         }
-        "ask" => bots::ask(state_dir, jobs, field("id"), thread, field("text")),
+        "ask" => {
+            let images = match input.get("images") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(items)) => items
+                    .iter()
+                    .map(|item| item.as_str().map(str::to_string).ok_or_else(|| anyhow!("images must be base64 strings")))
+                    .collect::<Result<Vec<_>>>()?,
+                Some(_) => return Err(anyhow!("images must be an array")),
+            };
+            bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+        }
         "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
@@ -394,6 +407,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             return Ok(image);
         }
         "shot_image" => return crate::preview::image(state_dir, &bots::find(state_dir, field("id"))?.id, field("name")),
+        "upload_image" => return crate::uploads::image(state_dir, &bots::find(state_dir, field("id"))?.id, field("name")),
         "diet" => {
             let bot = bots::find(state_dir, field("id"))?;
             return crate::room::project_diet(&panel.store, &panel.roots, &bot.dir);
@@ -570,8 +584,15 @@ pub(crate) fn respond(result: anyhow::Result<Value>) -> Reply {
 
 /// Small JSON bodies only; anything else is refused.
 pub(crate) fn body(request: &mut Request) -> Result<Value, Reply> {
+    body_limit(request, MAX_BODY)
+}
+
+fn body_limit(request: &mut Request, max: u64) -> Result<Value, Reply> {
     let mut raw = String::new();
-    request.as_reader().take(MAX_BODY).read_to_string(&mut raw).map_err(|_| text(400, "unreadable body"))?;
+    request.as_reader().take(max + 1).read_to_string(&mut raw).map_err(|_| text(400, "unreadable body"))?;
+    if raw.len() as u64 > max {
+        return Err(text(413, "body too large"));
+    }
     serde_json::from_str(&raw).map_err(|_| text(400, "body must be JSON"))
 }
 
