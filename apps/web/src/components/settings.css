@@ -14,7 +14,7 @@
   flex-direction: column;
   width: min(420px, 100%);
   background: #101015;
-  box-shadow: inset 1px 0 0 var(--fio), -24px 0 48px rgb(0 0 0 / 45%);
+  box-shadow: var(--sombra-flutua);
   animation: ajustes-entra 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -148,9 +148,7 @@
   list-style: none;
   border-radius: var(--raio-painel);
   background: #16161c;
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 12%),
-    0 18px 40px rgb(0 0 0 / 60%);
+  box-shadow: var(--sombra-flutua);
   scrollbar-width: none;
 }
 
@@ -321,7 +319,7 @@
   padding: 14px 16px;
   border-radius: var(--raio-painel);
   background: #15151b;
-  box-shadow: inset 0 0 0 1px var(--fio), inset 0 1px 0 rgb(255 255 255 / 4%);
+  box-shadow: var(--sombra-card);
 }
 
 .barras figcaption {

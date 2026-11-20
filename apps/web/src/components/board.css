@@ -72,8 +72,8 @@
   min-width: 0;
   padding: 10px;
   border-radius: var(--raio-painel);
+  /* A faint ground is enough to tell the columns apart: no line, so the task cards are the only boxes. */
   background: rgb(255 255 255 / 2.5%);
-  box-shadow: inset 0 0 0 1px var(--fio);
 }
 
 .quadro-coluna h3 {
@@ -107,9 +107,7 @@
   padding: 10px 12px;
   border-radius: var(--raio-item);
   background: var(--carvao);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 5%),
-    0 0 0 1px var(--fio);
+  box-shadow: var(--sombra-card);
 }
 
 .quadro-cartao > b {

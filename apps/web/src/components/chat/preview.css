@@ -9,7 +9,7 @@
   flex-direction: column;
   width: min(760px, 100%);
   background: #101015;
-  box-shadow: inset 1px 0 0 var(--fio), -24px 0 48px rgb(0 0 0 / 45%);
+  box-shadow: var(--sombra-flutua);
 }
 
 .ver-topo {

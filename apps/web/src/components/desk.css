@@ -15,9 +15,7 @@
   padding: var(--lateral);
   border-radius: var(--raio-painel);
   background: var(--carvao);
-  box-shadow:
-    inset 0 0 0 1px var(--fio),
-    inset 0 1px 0 rgb(255 255 255 / 6%);
+  box-shadow: var(--sombra-card);
 }
 
 .mesa-secao > h2 {
