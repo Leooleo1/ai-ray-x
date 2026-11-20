@@ -566,6 +566,11 @@ export function installCli(id: string): Promise<Record<string, CliInstall>> {
   return request<Record<string, CliInstall>>('/api/setup/install', { id })
 }
 
+/** The installs started from the panel, without probing the CLIs again. */
+export function fetchInstalls(): Promise<Record<string, CliInstall>> {
+  return request<Record<string, CliInstall>>('/api/setup/install')
+}
+
 /** Opens a terminal with the CLI's own sign-in, which goes on in the browser. */
 export function signInCli(id: string): Promise<{ opened: boolean }> {
   return request<{ opened: boolean }>('/api/setup/sign_in', { id })

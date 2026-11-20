@@ -1,7 +1,7 @@
 import { Skeleton } from './Skeleton'
 import { notify } from '../notify'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings } from '../api'
+import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings, type CliInstall, fetchInstalls, installCli, signInCli } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -37,6 +37,11 @@ interface SettingsPageProps {
   initialTab: Tab
 }
 
+/** How often an install or a sign-in started here is looked at again. */
+const FOLLOW_MS = 2500
+/** How long a sign-in window is waited for. */
+const SIGN_IN_WAIT_MS = 5 * 60 * 1000
+
 /** Settings as the onboarding left them: the setup at a glance on top, then one part at a time. */
 export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTab }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsState | null>(null)
@@ -54,8 +59,38 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   }, [])
   useEffect(() => {
     fetchSettings().then(setSettings).catch((failure: unknown) => setError(message(failure)))
+    fetchInstalls().then(setInstalls).catch(() => undefined)
     loadGithub()
   }, [loadGithub])
+
+  // Installs and sign-ins started here: followed until they end, then the CLIs are probed again.
+  const [installs, setInstalls] = useState<Record<string, CliInstall>>({})
+  const [signingIn, setSigningIn] = useState<Record<string, number>>({})
+  const installing = Object.values(installs).some((job) => job.state === 'running')
+  const waitingSignIn = Object.entries(signingIn).some(([id, since]) => Date.now() - since < SIGN_IN_WAIT_MS && settings?.connections.find((c) => c.id === id)?.logged_in === false)
+  useEffect(() => {
+    if (!installing && !waitingSignIn) return undefined
+    const timer = window.setInterval(() => {
+      fetchInstalls()
+        .then((next) => {
+          setInstalls(next)
+          const ended = Object.entries(next).some(([id, job]) => job.state !== 'running' && installs[id]?.state === 'running')
+          if (ended || waitingSignIn) void fetchSettings().then(setSettings)
+        })
+        .catch(() => undefined)
+    }, FOLLOW_MS)
+    return () => window.clearInterval(timer)
+  }, [installing, waitingSignIn, installs])
+  const startInstall = (id: string) => {
+    setError(null)
+    installCli(id).then(setInstalls).catch((failure: unknown) => setError(message(failure)))
+  }
+  const startSignIn = (id: string) => {
+    setError(null)
+    signInCli(id)
+      .then(() => setSigningIn((before) => ({ ...before, [id]: Date.now() })))
+      .catch((failure: unknown) => setError(message(failure)))
+  }
 
   const save = async (change: Record<string, unknown>) => {
     setError(null)
@@ -132,6 +167,8 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
               <ConnectionTile
                 key={c.id}
                 connection={c}
+                signingIn={Boolean(signingIn[c.id]) && c.logged_in === false}
+                onSignIn={IS_REMOTE ? undefined : () => startSignIn(c.id)}
                 defaults={settings?.defaults[c.id] ?? { model: null, effort: null }}
                 onToggle={(on) => void save({ enabled: { [c.id]: on } })}
                 onDefaults={(chosen) => void save({ defaults: { [c.id]: { model: chosen.model ?? '', effort: chosen.effort ?? '' } } })}
@@ -141,7 +178,17 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
             {ordered
               .filter((c) => !ready.includes(c))
               .map((c) => (
-                <ConnectionTile key={c.id} connection={c} defaults={{ model: null, effort: null }} onToggle={() => undefined} onDefaults={() => undefined} />
+                <ConnectionTile
+                  key={c.id}
+                  connection={c}
+                  install={installs[c.id]}
+                  signingIn={Boolean(signingIn[c.id]) && c.logged_in === false}
+                  onInstall={IS_REMOTE || !(c.bots || c.xray) ? undefined : () => startInstall(c.id)}
+                  onSignIn={IS_REMOTE ? undefined : () => startSignIn(c.id)}
+                  defaults={{ model: null, effort: null }}
+                  onToggle={() => undefined}
+                  onDefaults={() => undefined}
+                />
               ))}
           </div>
         )}

@@ -290,6 +290,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             ),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/setup/install") => respond(Ok::<_, anyhow::Error>(crate::install::state())),
         (Method::Post, "/api/setup/install") => match body(request) {
             Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
             Err(reply) => reply,
