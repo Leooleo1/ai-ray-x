@@ -122,6 +122,8 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     let mut app_started = false;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
+        // An AI with full access edits the project itself: a photo before each step shows what it changed.
+        let before = (work.is_none() && turn.mode == Mode::Talk && runs_with_full_access(state_dir, bot)).then(|| crate::turn_diff::snapshot(dir)).flatten();
         let conversation = turn.keep_session.then(|| format!("{}:{thread}", bot.id));
         let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, conversation.as_deref(), &images);
         images.clear();
@@ -181,6 +183,12 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         // Tasks it left for the board go there, for this bot.
         crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
         let mut answer_data = json!({ "mode": "talk", "reply": reply });
+        if let Some(changes) = before.as_ref().and_then(|before| crate::turn_diff::compare(dir, before, &crate::turn_diff::snapshot(dir)?)) {
+            answer_data["changes"] = changes;
+        }
+        if !turn.keep_session && !turn.is_audit {
+            answer_data["aside"] = json!(true);
+        }
         if turn.is_audit {
             answer_data["audit"] = json!(true);
             if let Some(agent) = &turn.auditor_agent {
@@ -337,6 +345,11 @@ fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String>
         commands::check(command).is_ok_and(|words| now.grants.full_access || (now.grants.auto_run && crate::safe_commands::runs_alone(&words, &bot.dir)))
     };
     reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
+}
+
+/// Whether the bot has full access now (it may be turned on while it answers).
+fn runs_with_full_access(state_dir: &Path, bot: &Bot) -> bool {
+    find(state_dir, &bot.id).is_ok_and(|now| now.grants.full_access)
 }
 
 /// Whether the bot runs without asking now (the grant may change while it answers); full access includes it.

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ChatRequest } from '../../api'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
@@ -8,23 +9,42 @@ import { Who } from './Who'
 
 interface ApprovalCardProps {
   item: Waiting
+  bots: Bots
   nav: ChatNav
 }
 
-/** A proposal, draft or command an AI waits on: it is approved in its conversation, so the card opens it. */
-export function ApprovalCard({ item, nav }: ApprovalCardProps) {
+/** Proposals can start a draft here. Open leads to the original message for every kind. */
+export function ApprovalCard({ item, bots, nav }: ApprovalCardProps) {
+  const [approving, setApproving] = useState(false)
+  const proposal = item.kind === 'proposal'
+  const { bot, thread, ms } = item
+  const note = proposal && bot.persona?.name && bot.persona.name !== bot.name ? `${bot.name} · ${item.title}` : item.title
+  const approve = async () => {
+    setApproving(true)
+    await bots.act('approve', { id: bot.id, thread, answer_ms: ms })
+    setApproving(false)
+  }
+
   return (
     <article className="mesa-cartao waiting">
       <span className="mesa-tipo">
         <span>{t.waitingKinds[item.kind]}</span>
       </span>
-      {item.text && <code className="mesa-trecho">{item.text}</code>}
+      {item.text && (proposal ? <p className="mesa-proposta">{item.text}</p> : <code className="mesa-trecho">{item.text}</code>)}
       <footer className="mesa-pe">
-        <Who bot={item.bot} note={item.title} />
-        <button type="button" className="acao-texto" onClick={() => nav.openMessage(item.bot.id, item.thread, item.ms)}>
+        <Who bot={bot} note={note} />
+        <button type="button" className="acao-texto" onClick={() => nav.openMessage(bot.id, thread, ms)}>
           {t.deskOpen}
         </button>
       </footer>
+      {proposal && (
+        <div className="mesa-acoes">
+          <button type="button" className="mesa-cheio" disabled={bot.busy || approving} onClick={() => void approve()}>
+            {t.approveEdit}
+          </button>
+          <small className="mesa-apoio">{t.draftScope}</small>
+        </div>
+      )}
     </article>
   )
 }

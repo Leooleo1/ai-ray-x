@@ -65,7 +65,7 @@ export function DraftCard({ message, state, busy, onAct }: DraftCardProps) {
 }
 
 /** One file: its status, name and size of the change; the diff unfolds on a tap. */
-function FileDiff({ file, open }: { file: DraftFile; open: boolean }) {
+export function FileDiff({ file, open }: { file: DraftFile; open: boolean }) {
   const [shown, setShown] = useState(open)
   return (
     <li className="rascunho-arquivo">

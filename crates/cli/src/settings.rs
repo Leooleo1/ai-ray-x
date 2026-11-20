@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -26,6 +26,9 @@ pub struct Settings {
     /// The panel's language, when the person picked one ("en" or "pt-BR"); otherwise the system's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// A new version of the app installs itself once no AI is answering (off unless turned on).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_update: bool,
 }
 
 /// The languages the panel speaks.
@@ -85,7 +88,12 @@ pub fn update(state_dir: &Path, input: &Value) -> Result<Settings> {
             _ => bail!("the panel speaks {}", LANGUAGES.join(" or ")),
         },
     };
-    let next = Settings { enabled, defaults, language };
+    let auto_update = match input.get("auto_update") {
+        None => current.auto_update,
+        Some(value) => value.as_bool().context("auto_update is true or false")?,
+    };
+    let next = Settings { enabled, defaults, language, auto_update };
     next.save(state_dir)?;
+    crate::app_update::set_auto(next.auto_update);
     Ok(next)
 }

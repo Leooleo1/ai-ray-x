@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 9] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot"];
+const ASIDE: [&str; 10] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -182,7 +182,13 @@ struct Job {
 impl Jobs {
     /// One turn at a time per bot, whichever conversation it is in.
     fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| map.insert(id.to_string(), Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() }).is_none())
+        self.0.lock().is_ok_and(|mut map| {
+            let std::collections::hash_map::Entry::Vacant(entry) = map.entry(id.to_string()) else {
+                return false;
+            };
+            entry.insert(Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() });
+            true
+        })
     }
 
     fn thread_of(&self, id: &str) -> Option<String> {
@@ -431,6 +437,11 @@ pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()
     room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("reset", json!({}))])
 }
 
+/// The CLI session a conversation continues (for the context meter).
+pub(crate) fn conversation_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<String>> {
+    thread_session(state_dir, bot, thread)
+}
+
 /// The CLI session a conversation continues.
 fn thread_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<String>> {
     if thread == MAIN { Ok(bot.session.clone()) } else { threads::session(state_dir, &bot.id, thread) }
@@ -499,6 +510,33 @@ pub fn dir_of(state_dir: &Path, id: &str) -> Result<PathBuf> {
     find(state_dir, id).map(|bot| bot.dir)
 }
 
+/// The change a full-access answer made, with the bot it is in.
+fn turn_changes(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<(Bot, Vec<Message>, Value)> {
+    let bot = find(state_dir, id)?;
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let changes = messages.iter().find(|m| m.ms == ms && m.author == "bot" && m.kind == "answer").map(|m| m.data["changes"].clone()).context("no such answer")?;
+    if changes.is_null() {
+        bail!("this answer changed no file");
+    }
+    Ok((bot, messages, changes))
+}
+
+/// The diff of what a full-access answer changed in its project.
+pub fn turn_patch(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<Value> {
+    let (bot, _, changes) = turn_changes(state_dir, id, thread, ms)?;
+    Ok(json!({ "patch": crate::turn_diff::patch(&bot.dir, &changes)?, "files": changes["files"], "head_moved": changes["head_moved"] }))
+}
+
+/// Puts back the files a full-access answer changed, once, when they were not changed since.
+pub fn undo_turn(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<()> {
+    let (bot, messages, changes) = turn_changes(state_dir, id, thread, ms)?;
+    if messages.iter().any(|m| m.kind == "turn_undone" && m.data["ms"].as_i64() == Some(ms)) {
+        bail!("this turn is already undone");
+    }
+    crate::turn_diff::undo(&bot.dir, &changes)?;
+    room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("turn_undone", json!({ "ms": ms }))])
+}
+
 fn note(kind: &str, data: Value) -> Message {
     Message { ms: room::now_ms(), author: "bot".into(), kind: kind.into(), data }
 }
@@ -552,7 +590,9 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let brought: String = crate::carry::unread(&messages).into_iter().map(crate::carry::for_cli).collect();
     // The first question after the person switched this conversation to another AI carries what was said.
     let recap = crate::agent_switch::recap(&messages).unwrap_or_default();
-    let for_cli = format!("{recap}{brought}{for_cli}");
+    // The first question of a branch carries what was said up to where it branched.
+    let branched = crate::fork::branch_recap(&messages).unwrap_or_default();
+    let for_cli = format!("{recap}{branched}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
@@ -563,11 +603,39 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     Ok(())
 }
 
+/// A side question: answered with the recent messages as context, in a session of its own, so the
+/// conversation's session never sees it.
+pub fn ask_aside(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > MAX_TEXT {
+        bail!("a message has 1 to {MAX_TEXT} characters");
+    }
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let for_cli = crate::fork::side_question(&messages, text);
+    let asked = Some(said("ask", json!({ "text": text, "aside": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked, home: None, command: None, images: Vec::new(), keep_session: false, is_audit: false, auditor_agent: None })
+}
+
+/// A task done in a copy of the project of the bot's own: what it changes comes back as a draft
+/// to apply, so it never touches the project, nor what another AI does in it meanwhile.
+pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, prompt: &str, shown: &str) -> Result<()> {
+    let asked = Some(said("ask", json!({ "text": shown, "copy": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+}
+
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
-pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>) -> Result<()> {
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
+    if let Some(ms) = answer_ms
+        && !last.is_some_and(|m| m.ms == ms)
+    {
+        bail!("this proposal is no longer current");
+    }
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/proposal").and_then(Value::as_str))
@@ -759,7 +827,8 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
     let bot = find(state_dir, id)?;
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
-    let session = thread_session(state_dir, &bot, thread)?;
+    // A turn that does not keep its session (a side question) does not continue the conversation's either.
+    let session = if turn.keep_session { thread_session(state_dir, &bot, thread)? } else { None };
     if !jobs.start(id, thread) {
         bail!("the bot is still answering");
     }
@@ -850,6 +919,18 @@ mod tests {
     }
 
     #[test]
+    fn an_approval_from_the_desk_is_refused_once_the_proposal_is_not_the_latest() {
+        let dir = temp_dir("aprova-velha");
+        let messages = vec![
+            room::Message { ms: 100, author: "bot".into(), kind: "answer".into(), data: json!({ "reply": { "text": "Plan", "proposal": "Rename the helper" } }) },
+            room::Message { ms: 200, author: "you".into(), kind: "ask".into(), data: json!({ "text": "and the tests?" }) },
+        ];
+        room::append_messages(&threads::chat_file(&dir, "b1", MAIN), messages).unwrap();
+        let error = approve(&dir, &dir, &Jobs::default(), "b1", MAIN, Some(100)).unwrap_err();
+        assert!(error.to_string().contains("no longer current"), "{error:#}");
+    }
+
+    #[test]
     fn activation_needs_a_project_folder_under_the_home() {
         let home = temp_dir("home");
         fs::create_dir_all(home.join("Projects/app")).unwrap();
@@ -871,13 +952,13 @@ mod tests {
         let jobs = Jobs::default();
         let answer = |proposal: Value| note("answer", json!({ "mode": "talk", "reply": { "text": "t", "proposal": proposal } }));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(Value::Null)]).unwrap();
-        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no proposal"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN, None).unwrap_err().to_string().contains("no proposal"));
         room::append_messages(&chat_file(&state, "b1"), vec![answer(json!("rename"))]).unwrap();
         // Keeping the answer and a review of it leave the proposal approvable.
         let aside = vec![said("remembered", json!({})), said("review_asked", json!({})), note("review", json!({ "reply": { "text": "ok" } }))];
         room::append_messages(&chat_file(&state, "b1"), aside).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
-        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
+        assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN, None).unwrap_err().to_string().contains("no bot"));
     }
 
     #[test]

@@ -114,8 +114,8 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
   const toggleLabel = collapsed ? t.sidebarExpand : t.sidebarCollapse
   return (
     <aside className={`lateral ${collapsed ? 'recolhida' : ''}`}>
-      <div className="lado-topo">
-        <span className="marca" title="raiox">
+      <div className="lado-topo" data-tauri-drag-region>
+        <span className="marca" title="raiox" data-tauri-drag-region>
           <Mark />
           <span className="marca-nome">raiox</span>
         </span>

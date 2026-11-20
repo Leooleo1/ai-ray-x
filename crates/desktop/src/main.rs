@@ -19,6 +19,9 @@ use tauri_plugin_notification::NotificationExt;
 use crate::texts::texts;
 
 const MAIN: &str = "main";
+/// Marks the page as inside the macOS app (no title bar), once its document exists.
+#[cfg(target_os = "macos")]
+const MAC_WINDOW_SCRIPT: &str = "document.addEventListener('DOMContentLoaded', () => document.documentElement.classList.add('janela-mac'))";
 
 /// The running panel: its address (with the session token) and where its state lives.
 pub struct Panel {
@@ -119,7 +122,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
-            let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
+            let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
                 .title("raiox")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(960.0, 640.0)
@@ -129,8 +132,16 @@ fn main() {
                 .on_new_window(|url, _| {
                     open_outside(&url);
                     NewWindowResponse::Deny
-                })
-                .build()?;
+                });
+            // On macOS the title bar joins the panel: no bar, the three buttons over the sidebar's
+            // top, and the page marks the places that drag the window (data-tauri-drag-region).
+            #[cfg(target_os = "macos")]
+            let builder = builder
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
+                .traffic_light_position(tauri::LogicalPosition::new(20.0, 28.0))
+                .initialization_script(MAC_WINDOW_SCRIPT);
+            let window = builder.build()?;
             // Closing the window keeps raiox running in the menu bar; Quit ends it.
             let hidden = window.clone();
             window.on_window_event(move |event| {

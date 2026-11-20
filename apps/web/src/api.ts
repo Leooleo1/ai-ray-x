@@ -284,7 +284,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked'
   data: {
     text?: string
     proposal?: string
@@ -301,6 +301,12 @@ export interface BotMessage {
     draft?: string
     files?: DraftFile[]
     blocked?: string[]
+    /** What a full-access turn changed in the project (before and after photos). */
+    changes?: TurnChanges
+    /** Which turn an undo put back. */
+    ms?: number
+    /** A side question and its answer: outside the conversation's session. */
+    aside?: boolean
     /** What applying, undoing or discarding a draft touched. */
     paths?: string[]
     /** A command raiox ran, and whether the person had allowed it for the project. */
@@ -478,7 +484,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -560,6 +566,11 @@ export interface CliInstall {
 /** Runs a CLI's official installer; the setup state follows it. */
 export function installCli(id: string): Promise<Record<string, CliInstall>> {
   return request<Record<string, CliInstall>>('/api/setup/install', { id })
+}
+
+/** The installs started from the panel, without probing the CLIs again. */
+export function fetchInstalls(): Promise<Record<string, CliInstall>> {
+  return request<Record<string, CliInstall>>('/api/setup/install')
 }
 
 /** Opens a terminal with the CLI's own sign-in, which goes on in the browser. */
@@ -808,7 +819,7 @@ export interface PlanWindow {
 }
 
 /** How much of each AI's plan is used, as far as raiox can tell (Claude Code and Codex). */
-export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean }>>
+export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean; plan?: string; live?: boolean }>>
 
 /** One day of use: what each AI's use would cost at API prices, and its tokens. */
 export interface UsageDay {
@@ -888,6 +899,30 @@ export function flowAct(action: FlowAction, id: string): Promise<{ flows: Flow[]
 
 export function saveFlow(flow: Pick<Flow, 'name' | 'enabled' | 'trigger' | 'steps'> & { id?: string }): Promise<{ id: string }> {
   return request<{ id: string }>('/api/flows/save', { ...flow })
+}
+
+/** How full a conversation's context is, and when it will compact. */
+export interface ConversationContext {
+  status: ContextStatus
+  compact_at: number | null
+  compact_from: 'setting' | 'usual' | 'none'
+  window: number | null
+}
+
+export function fetchConversationContext(bot: string, thread: string): Promise<ConversationContext | null> {
+  return request<ConversationContext | null>(`/api/bot/context?id=${encodeURIComponent(bot)}&thread=${encodeURIComponent(thread)}`)
+}
+
+/** What a full-access turn changed: its files, from the before and after photos. */
+export interface TurnChanges {
+  from: string
+  to: string
+  head_moved: boolean
+  files: { path: string; added: number | null; removed: number | null }[]
+}
+
+export function fetchTurnDiff(bot: string, thread: string, ms: number): Promise<{ patch: string }> {
+  return request<{ patch: string }>(`/api/bot/turn_diff?id=${encodeURIComponent(bot)}&thread=${encodeURIComponent(thread)}&ms=${ms}`)
 }
 
 export function fetchLimits(): Promise<PlanLimits> {
@@ -976,6 +1011,8 @@ export interface AppVersion {
   available: string | null
   installing: boolean
   can_update: boolean
+  /** A new version installs itself once no AI is answering. */
+  auto: boolean
 }
 
 export function fetchAppVersion(): Promise<AppVersion> {
@@ -1007,6 +1044,9 @@ export interface Delivery {
   /** A screenshot's file name, or a routine's answer. */
   detail?: string
   tokens?: number
+  /** Lines a full-access turn added and removed. */
+  added?: number
+  removed?: number
 }
 
 export function fetchDeliveries(): Promise<Delivery[]> {
@@ -1029,6 +1069,8 @@ export interface Task {
   started_ms: number | null
   answer_ms: number | null
   tokens: number
+  /** Done in a copy of its own; what it changed comes back as a draft to apply. */
+  isolated?: boolean
 }
 
 export interface TaskBoardState {

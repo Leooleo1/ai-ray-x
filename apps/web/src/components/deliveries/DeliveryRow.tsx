@@ -55,6 +55,7 @@ export function DeliveryRow({ item, bot, nav }: DeliveryRowProps) {
             <small>{AGENT_LABEL[bot.agent]}</small>
           </span>
           {item.undone && <span className="entregas-cifra entregas-desfeito">{t.deliveryUndone}</span>}
+          {item.added || item.removed ? <span className="entregas-cifra">{`+${item.added ?? 0} −${item.removed ?? 0}`}</span> : null}
           {item.tokens ? <span className="entregas-cifra entregas-custo">{`${compact(item.tokens)} tokens`}</span> : null}
           <button type="button" className="acao-texto entregas-abrir" onClick={() => nav.openMessage(item.bot, item.thread, item.ms)}>
             {t.deliveryOpen}

@@ -36,13 +36,31 @@ export function UpdateNote() {
       setError(messageOf(failure))
     }
   }
+  const installing = app.installing && !error
   return (
-    <div className="atualizacao" role="status">
-      <span>
-        <b>{t.updateReady.replace('{v}', app.available)}</b>
-        {(app.installing || error) && <small>{error ?? t.updating}</small>}
+    <div className={`atualizacao ${installing ? 'instalando' : ''}`} role="status" aria-label={t.updateReady.replace('{v}', app.available)}>
+      <span className="atu-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 17V7M7.5 11.5 12 7l4.5 4.5" />
+        </svg>
       </span>
-      {!app.installing && (
+      <span className="atu-texto">
+        <small>{installing ? t.updating : error ?? (app.auto ? t.updateOnItsOwn : t.updateNew)}</small>
+        <b>
+          <span className="atu-de">{app.version}</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12h13M13 7l5 5-5 5" />
+          </svg>
+          <span className="atu-versao">{app.available}</span>
+        </b>
+      </span>
+      {installing ? (
+        <span className="atu-progresso" aria-hidden="true">
+          {Array.from({ length: 8 }, (_, i) => (
+            <i key={i} style={{ animationDelay: `${i * 110}ms` }} />
+          ))}
+        </span>
+      ) : (
         <button type="button" className="cheio" onClick={() => void update()}>
           {t.updateAction}
         </button>

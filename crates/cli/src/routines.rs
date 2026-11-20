@@ -165,6 +165,7 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
 
 /// Starts the scheduler next to the panel; it lives as long as the panel does.
 pub fn spawn(state_dir: PathBuf, jobs: Jobs) {
+    crate::app_update::set_auto(crate::settings::Settings::load(&state_dir).auto_update);
     std::thread::spawn(move || loop {
         tick(&state_dir, &jobs);
         // The board moves on with the same clock: finished tasks, and the next ones when bots pick them up.
@@ -173,6 +174,8 @@ pub fn spawn(state_dir: PathBuf, jobs: Jobs) {
         crate::auditor::tick(&state_dir, &jobs);
         // Workflows fire and move on with the same clock.
         crate::workflow_run::tick(&state_dir, &jobs);
+        // A new version of the app installs itself here when the person chose so and no AI is answering.
+        crate::app_update::tick_auto(&jobs);
         std::thread::sleep(TICK);
     });
 }

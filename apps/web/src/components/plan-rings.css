@@ -58,3 +58,115 @@
     transition: none;
   }
 }
+
+/* The rings are buttons now: no chrome of their own. */
+button.anel {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+button.anel:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 32%);
+  outline-offset: 2px;
+}
+
+.aneis {
+  position: relative;
+}
+
+/* The detail, over the rings: each AI's two windows as bars, when they start again, how fresh. */
+.aneis-painel {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 300px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow: var(--sombra-flutua);
+}
+
+.aneis.recolhidos .aneis-painel {
+  bottom: 0;
+  left: calc(100% + 12px);
+}
+
+.aneis-painel section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aneis-painel header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aneis-painel header b {
+  font: 500 13px/18px var(--sans);
+}
+
+.aneis-painel header small {
+  margin-left: auto;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.anel-janela {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 36px;
+  align-items: center;
+  column-gap: 8px;
+  color: var(--nevoa);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.anel-janela b {
+  color: var(--giz);
+  font: 500 12px/16px var(--mono);
+  text-align: right;
+}
+
+.anel-janela small {
+  grid-column: 2 / -1;
+  font-size: 11px;
+}
+
+.anel-barra {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 8%);
+}
+
+.anel-barra i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ok);
+}
+
+.anel-barra i.aviso {
+  background: var(--alerta);
+}
+
+.anel-barra i.alarme {
+  background: var(--brasa);
+}
+
+.aneis-painel p {
+  margin: 0;
+  color: var(--nevoa);
+  font-size: 11px;
+  line-height: 15px;
+}

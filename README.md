@@ -56,6 +56,11 @@ Intel Macs and Linux: [build from source](docs/building.md).
   switching a conversation to another AI with its recent messages. Each AI
   shows its own mark beside its model and effort, and `/` in the message
   field calls Ray, Diet and Memo.
+- **What each turn did.** A meter in the conversation shows how much context
+  every request re-reads and where it compacts. A turn of an AI with full
+  access lists the files it changed, with the diff and *Undo this turn*.
+  *Branch* starts a new conversation from any answer, and `/btw` asks a side
+  question that stays out of the conversation's session.
 
 ![An AI that asks first: it says what it needs and offers full access in one click](docs/screenshots/access.webp)
 
@@ -65,7 +70,9 @@ Intel Macs and Linux: [build from source](docs/building.md).
 each AI is doing right now, with its last steps, and everything that waits for
 you (proposals, drafts, commands, finished tasks). A lane lights up when
 something is in it. Hand a task to any AI, or let idle AIs pick tasks up in
-your free hours.
+your free hours. A task in its *own copy* runs in a copy of the project, so
+several AIs work on one project at once; what each changed comes back as a
+diff to apply.
 
 ![The Desk: tasks for each AI, what they do now and what waits for you](docs/screenshots/desk.webp)
 
@@ -136,6 +143,7 @@ before you flip them.
 | **Workflows on a trigger** (per workflow, off until you turn it on) | Run their steps at a time or when a Desk task finishes | Each run spends your plan; an approval step stops it until you answer |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |
 | **Dev/Infra Auditor** (per AI) | Audits project scripts, workflows, routines and skills on demand, on infra change, or weekly | Spends your plan on each audit; fixes always wait in a draft for your approval |
+| **Update on its own** (profile menu, off by default) | Installs a new version of the app once no AI is answering, and restarts it | The app restarts without asking; the signature is still checked |
 | **Reads the web** (per AI) | Lets it open pages and search | What it reads can try to steer it |
 | **Phone access** (Settings › Phone) | Opens the panel to a public address through Cloudflare Tunnel | The temporary link is on the internet; only devices you pair get in, and Remove cuts one off at once |
 | **Telegram** (Settings › Phone) | Lets one paired Telegram chat talk to your AIs | Anyone holding that phone can use them; proposals still wait in raiox |
@@ -159,12 +167,14 @@ before you flip them.
   before you are asked, variables that look like secrets stay out of their
   environment, and values that look like secrets are hidden in their output.
 - The desktop app checks the latest GitHub release for a new version (a request
-  with nothing about you), and installs it only when you press Update, after
-  checking its signature.
+  with nothing about you), and installs it when you press Update (or on its
+  own, if you turned that on), after checking its signature.
+- The Codex rings ask Codex's own app server for your plan's use once a minute;
+  it reads it from OpenAI under your account, as Codex itself does.
 
 ## Status
 
-Early (0.1.7). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
+Early (0.1.8). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
 x64); Linux should work.
 
 ## License

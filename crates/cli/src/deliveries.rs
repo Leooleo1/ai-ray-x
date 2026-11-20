@@ -40,6 +40,11 @@ pub struct Delivery {
     pub detail: String,
     #[serde(skip_serializing_if = "is_zero")]
     pub tokens: u64,
+    /// Lines a full-access turn added and removed, from its before and after photos.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub added: u64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub removed: u64,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -85,7 +90,8 @@ fn opening(text: &str) -> String {
 
 /// The deliveries of one conversation.
 fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -> Vec<Delivery> {
-    let base = |kind, ms, title: String| Delivery { kind, bot: bot.to_string(), thread: thread.to_string(), ms, title, files: Vec::new(), undone: false, detail: String::new(), tokens: 0 };
+    let base = |kind, ms, title: String| Delivery { kind, bot: bot.to_string(), thread: thread.to_string(), ms, title, files: Vec::new(), undone: false, detail: String::new(), tokens: 0, added: 0, removed: 0 };
+    let turns_undone: Vec<i64> = messages.iter().filter(|m| m.kind == "turn_undone").filter_map(|m| m.data["ms"].as_i64()).collect();
     let undone: Vec<&str> = messages.iter().filter(|m| m.kind == "draft_undone").filter_map(|m| m.data["draft"].as_str()).collect();
     let routine = ROUTINE_PREFIXES.iter().find_map(|prefix| title.strip_prefix(prefix));
     let is_audit_title = title == crate::auditor::THREAD_TITLE;
@@ -111,6 +117,12 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
                 ("bot", "answer") if routine.is_some() => Some(Delivery { detail: cut(text, EXCERPT), ..base("routine", m.ms, routine.unwrap_or("").to_string()) }),
                 // An AI with full access edits in the conversation itself: what it changed is a delivery,
                 // named by the start of its answer.
+                ("bot", "answer") if m.data["changes"]["files"].is_array() => {
+                    let files = m.data["changes"]["files"].as_array().cloned().unwrap_or_default();
+                    let sum = |key: &str| files.iter().filter_map(|f| f[key].as_u64()).sum::<u64>();
+                    let paths = files.iter().filter_map(|f| f["path"].as_str()).map(str::to_string).collect();
+                    Some(Delivery { files: paths, tokens, added: sum("added"), removed: sum("removed"), undone: turns_undone.contains(&m.ms), ..base("change", m.ms, cut(&opening(text), 140)) })
+                }
                 ("bot", "answer") if !edited(reply).is_empty() => Some(Delivery { files: edited(reply), tokens, ..base("change", m.ms, cut(&opening(text), 140)) }),
                 ("you", "draft_applied") => {
                     let draft = m.data["draft"].as_str().unwrap_or("");
@@ -154,6 +166,8 @@ pub fn list(state_dir: &Path) -> Vec<Delivery> {
             undone: false,
             detail: String::new(),
             tokens: task["tokens"].as_u64().unwrap_or(0),
+            added: 0,
+            removed: 0,
         });
     }
     all.sort_by_key(|d| std::cmp::Reverse(d.ms));
@@ -164,6 +178,18 @@ pub fn list(state_dir: &Path) -> Vec<Delivery> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_full_access_turn_lists_its_photographed_files_and_lines_and_its_undo() {
+        let changes = json!({ "from": "a", "to": "b", "head_moved": false, "files": [{ "path": "src/cart.ts", "added": 12, "removed": 3 }, { "path": "README.md", "added": 1, "removed": 0 }] });
+        let messages = vec![
+            message(1, "bot", "answer", json!({ "mode": "talk", "reply": { "text": "Fixed the cart total so it counts cents.", "read_tokens": 100 }, "changes": changes })),
+            message(2, "you", "turn_undone", json!({ "ms": 1 })),
+        ];
+        let found = of_conversation("b1", "main", "", &messages);
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].files.len(), found[0].added, found[0].removed, found[0].undone), (2, 13, 3, true));
+    }
     use serde_json::json;
 
     fn message(ms: i64, author: &str, kind: &str, data: Value) -> Message {

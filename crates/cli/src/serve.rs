@@ -8,7 +8,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::io::Cursor;
 use std::path::{Component, Path, PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
@@ -255,6 +255,20 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         },
         (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
         (Method::Get, "/api/usage") => respond(usage(panel, request.url())),
+        (Method::Get, "/api/bot/turn_diff") => {
+            let url = request.url().to_string();
+            let query = url.split_once('?').map_or("", |(_, q)| q);
+            let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('=')).unwrap_or("").to_string();
+            let thread = Some(param("thread")).filter(|t| crate::threads::valid(t)).unwrap_or_else(|| crate::threads::MAIN.to_string());
+            respond(bots::turn_patch(&panel.state_dir, &param("id"), &thread, param("ms").parse().unwrap_or(0)))
+        }
+        (Method::Get, "/api/bot/context") => {
+            let url = request.url().to_string();
+            let query = url.split_once('?').map_or("", |(_, q)| q);
+            let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('=')).unwrap_or("").to_string();
+            let thread = Some(param("thread")).filter(|t| crate::threads::valid(t)).unwrap_or_else(|| crate::threads::MAIN.to_string());
+            respond(crate::context::of_conversation(&mut panel.store, &panel.roots, &panel.state_dir, &param("id"), &thread))
+        }
         (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
         // The person's name and photo: from this computer only.
         (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
@@ -276,6 +290,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             ),
             Err(reply) => reply,
         },
+        (Method::Get, "/api/setup/install") => respond(Ok::<_, anyhow::Error>(crate::install::state())),
         (Method::Post, "/api/setup/install") => match body(request) {
             Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
             Err(reply) => reply,
@@ -351,9 +366,18 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
                     .collect::<Result<Vec<_>>>()?,
                 Some(_) => return Err(anyhow!("images must be an array")),
             };
-            bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+            if input.get("aside").and_then(Value::as_bool) == Some(true) {
+                bots::ask_aside(state_dir, jobs, field("id"), thread, field("text"))
+            } else {
+                bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+            }
         }
-        "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "branch" => crate::fork::branch(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0), field("title")).map(|_| ()),
+        "turn_undo" => bots::undo_turn(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0)),
+        "approve" => {
+            let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;
+            bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread, answer_ms)
+        }
         "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
@@ -472,7 +496,8 @@ fn task_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Val
     let state_dir = &panel.state_dir;
     match action {
         "add" => {
-            crate::tasks::add(state_dir, field("bot"), field("title"), field("detail"), "person")?;
+            let isolated = input.get("isolated").and_then(Value::as_bool).unwrap_or(false);
+            crate::tasks::add_with(state_dir, field("bot"), field("title"), field("detail"), "person", isolated)?;
         }
         "start" => crate::tasks::start(state_dir, &panel.jobs, field("id"))?,
         "done" | "reopen" | "delete" => crate::tasks::mark(state_dir, field("id"), action)?,

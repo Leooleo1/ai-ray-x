@@ -240,3 +240,22 @@
   left: 0;
   width: 232px;
 }
+
+/* Update on its own: the icon in the icons' column, the switch at the end of the row. */
+.perfil-auto {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  height: auto;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.perfil-auto .config-chave {
+  padding: 0;
+  pointer-events: none;
+}
+
+.perfil-auto small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,4 +1,4 @@
-import type { BotAgent, Connection, GitHubState } from '../../api'
+import type { BotAgent, CliInstall, Connection, GitHubState } from '../../api'
 import { AgentLogo } from '../AgentLogo'
 import { compact, t } from '../../i18n'
 import { Command } from '../../onboarding/parts'
@@ -15,10 +15,12 @@ const EFFORTS: Partial<Record<BotAgent, string[]>> = {
 /** CLIs with a mark of their own; the others keep two letters. */
 const AGENT_IDS = new Set(['claude', 'codex', 'cursor', 'opencode', 'antigravity'])
 const MONOGRAMS: Record<string, string> = { copilot: 'CP' }
+const lastLine = (log: string) => log.trim().split('\n').pop() ?? ''
 
 type Tone = 'ok' | 'alerta' | ''
 
-function statusOf(c: Connection): { text: string; tone: Tone } {
+function statusOf(c: Connection, install?: CliInstall): { text: string; tone: Tone } {
+  if (!c.installed && install?.state === 'running') return { text: t.installing, tone: 'alerta' }
   if (!c.installed) return { text: t.notFound, tone: '' }
   if (c.logged_in === false) return { text: t.notSignedIn, tone: 'alerta' }
   if (c.logged_in === null) return { text: t.unknownSignIn, tone: 'ok' }
@@ -32,14 +34,20 @@ export interface Defaults {
 
 interface ConnectionTileProps {
   connection: Connection
+  /** Its install from the panel, when one was started. */
+  install?: CliInstall
+  /** A sign-in window was opened for it and it is not signed in yet. */
+  signingIn?: boolean
+  onInstall?: () => void
+  onSignIn?: () => void
   defaults: Defaults
   onToggle: (on: boolean) => void
   onDefaults: (next: Defaults) => void
 }
 
 /** One AI CLI: whether it is here and signed in, what raiox read from it, and the model and effort its bots start on. */
-export function ConnectionTile({ connection: c, defaults, onToggle, onDefaults }: ConnectionTileProps) {
-  const status = statusOf(c)
+export function ConnectionTile({ connection: c, install, signingIn = false, onInstall, onSignIn, defaults, onToggle, onDefaults }: ConnectionTileProps) {
+  const status = statusOf(c, install)
   const usable = c.installed && c.logged_in !== false && (c.bots || c.xray)
   const lit = usable && c.enabled
   const how = !c.installed ? { label: t.installLabel, command: c.install } : c.logged_in === false ? { label: t.signInLabel, command: c.login } : null
@@ -77,8 +85,21 @@ export function ConnectionTile({ connection: c, defaults, onToggle, onDefaults }
       ) : (
         missing && <p className="cfg-faz">{missing}</p>
       )}
+      {install?.state === 'running' && <p className="cfg-faz cfg-instalando">{lastLine(install.log) || t.installing}</p>}
+      {install?.state === 'failed' && !c.installed && <p className="cfg-faz falhou">{t.installStopped}</p>}
+      {signingIn && <p className="cfg-faz">{t.signInOpened}</p>}
       <footer>
-        {how && <Command label={how.label} command={how.command} />}
+        {!c.installed && onInstall && install?.state !== 'running' && (
+          <button type="button" className="cfg-btn cheio pequeno" onClick={onInstall}>
+            {t.installAction}
+          </button>
+        )}
+        {c.installed && c.logged_in === false && onSignIn && (
+          <button type="button" className="cfg-btn cheio pequeno" onClick={onSignIn}>
+            {t.signInAction}
+          </button>
+        )}
+        {how && (install?.state === 'failed' || !onInstall || c.installed) && <Command label={how.label} command={how.command} />}
         {lit && c.bots && (
           <>
             <small className="cfg-rotulo">{t.startsWith}</small>

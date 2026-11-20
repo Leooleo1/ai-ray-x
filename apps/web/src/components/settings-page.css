@@ -309,7 +309,8 @@
   display: contents;
 }
 
-.cfg-ia.apagada {
+/* A CLI that is missing or signed out: its text steps back, its Install or Sign in button does not. */
+.cfg-ia.apagada :is(.cfg-monograma, .cfg-nome, .cfg-estado, .cfg-numero, .cfg-faz:not(.falhou)) {
   opacity: 0.55;
 }
 

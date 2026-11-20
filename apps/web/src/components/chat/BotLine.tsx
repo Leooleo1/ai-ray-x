@@ -4,6 +4,7 @@ import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
+import { TurnChanges } from './TurnChanges'
 import { CarriedBlock } from './Carry'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { ShotBlock, UploadedImages } from './ShotBlock'
@@ -55,12 +56,18 @@ interface BotLineProps {
   /** For a draft: whether it was applied, undone or discarded, and the way to do it. */
   draftState?: DraftState
   onDraft?: (action: 'apply' | 'discard' | 'undo') => void
+  /** The conversation, for a full-access turn's diff; whether that turn was undone, and how to undo it. */
+  thread?: string
+  turnUndone?: boolean
+  onTurnUndo?: () => void
   /** The latest answer: the commands it asks for can still run. */
   runnable: boolean
   onRun: (index: number, always: boolean) => void
   /** Already kept in ai-memory as a decision of the project. */
   remembered: boolean
   onRemember: () => void
+  /** A new conversation from this answer. */
+  onBranch?: () => void
   /** Keeps the answer as a page of the team's wiki. */
   onWiki?: () => Promise<boolean>
   /** The other AIs of the project, which can review a proposal. */
@@ -70,7 +77,7 @@ interface BotLineProps {
   onReview: (reviewer: string) => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -169,7 +176,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
     return (
       <>
         {head}
-        <div className={`linha minha ${images.length > 0 ? 'com-imagens' : ''}`} id={`msg-${message.ms}`}>
+        <div className={`linha minha ${images.length > 0 ? 'com-imagens' : ''} ${message.data.aside ? 'pergunta-lateral' : ''}`} id={`msg-${message.ms}`}>
           {images.length > 0 ? (
             <div className="minha-conteudo">
               <UploadedImages bot={bot} names={images} />
@@ -186,6 +193,12 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
+  if (message.kind === 'forked') {
+    return <p className="linha-sistema">{t.forkedLine}</p>
+  }
+  if (message.kind === 'turn_undone') {
+    return <p className="linha-sistema">{t.turnUndoneLine}</p>
+  }
   const reply = message.data.reply
   const meta = reply && [
     `${t.readWord} ${compact(reply.read_tokens)} tokens`,
@@ -195,7 +208,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   return (
     <>
       {head}
-      <div className="linha de-agente bolha-linha" id={`msg-${message.ms}`}>
+      <div className={`linha de-agente bolha-linha ${message.data.aside ? 'pergunta-lateral' : ''}`} id={`msg-${message.ms}`}>
         <div className="corpo">
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
           {reply && (
@@ -206,6 +219,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
           {meta && (
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
+              {message.data.aside && <span className="editou">{t.asideBadge}</span>}
               {message.data.audit && message.data.auditor_agent && (
                 <span className="auditor-selo">{t.auditorBadge.replace('{agent}', AGENT_LABEL[message.data.auditor_agent] ?? message.data.auditor_agent)}</span>
               )}
@@ -222,10 +236,18 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                   </button>
                 )}
                 {message.kind === 'answer' && onWiki && <WikiKeep onWiki={onWiki} />}
+                {message.kind === 'answer' && onBranch && !message.data.aside && (
+                  <button type="button" className="copiar" title={t.branchHint} onClick={onBranch}>
+                    {t.branchHere}
+                  </button>
+                )}
               </span>
             </span>
           )}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}
+          {message.data.changes && thread && onTurnUndo && (
+            <TurnChanges bot={bot.id} thread={thread} ms={message.ms} changes={message.data.changes} undone={turnUndone} busy={bot.busy} onUndo={onTurnUndo} />
+          )}
           {reply?.trail && <AnswerPath trail={reply.trail} />}
           {reply?.open?.map((place) => (
             <div key={place} className="cartao-acao">

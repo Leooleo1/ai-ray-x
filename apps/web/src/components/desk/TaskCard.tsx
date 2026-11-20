@@ -28,13 +28,13 @@ export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
     <article className={`mesa-cartao ${status}`}>
       {status === 'waiting' && (
         <span className="mesa-tipo">
-          <span>{t.deskTaskToFinish}</span>
+          <span>{task.isolated ? t.boardCopyReady : t.deskTaskToFinish}</span>
         </span>
       )}
       <p className="mesa-titulo">{task.title}</p>
       <Who
         bot={owner}
-        note={from ? t.boardFromBot.replace('{who}', nameOf(from)) : undefined}
+        note={[from ? t.boardFromBot.replace('{who}', nameOf(from)) : '', task.isolated ? t.boardInCopy : ''].filter(Boolean).join(' · ') || undefined}
         figure={task.tokens > 0 ? `${compact(task.tokens)} tokens` : undefined}
         working={status === 'doing'}
       />
@@ -44,13 +44,18 @@ export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
             {t.boardStart}
           </button>
         )}
-        {status === 'waiting' && (
+        {status === 'waiting' && task.isolated && (
+          <button type="button" className="mesa-cheio" onClick={onOpen}>
+            {t.boardSeeDiff}
+          </button>
+        )}
+        {status === 'waiting' && !task.isolated && (
           <button type="button" className="mesa-cheio" onClick={() => void act('done', { id: task.id })}>
             {t.boardFinish}
           </button>
         )}
         {status === 'doing' && <small className="mesa-trabalhando">{t.boardWorking}</small>}
-        {status !== 'todo' && (
+        {status !== 'todo' && !(status === 'waiting' && task.isolated) && (
           <button type="button" className="acao-texto" onClick={onOpen}>
             {t.boardOpen}
           </button>
