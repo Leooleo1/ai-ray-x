@@ -197,7 +197,8 @@ pub fn apply(plan: &Plan, state_dir: &Path, now_ms: i64) -> Result<Change> {
     Ok(change)
 }
 
-/// Undoes a change if the file still holds the value raiox wrote.
+/// Undoes a change if the file still holds the value raiox wrote; a file raiox created goes away
+/// again when nothing else was added to it.
 pub fn undo(change_id: &str, state_dir: &Path, now_ms: i64) -> Result<Change> {
     let ledger_path = state_dir.join("changes.json");
     let changes = ledger(&ledger_path)?;
@@ -217,7 +218,17 @@ pub fn undo(change_id: &str, state_dir: &Path, now_ms: i64) -> Result<Change> {
             change.after
         );
     }
-    write_settings(&file, &with_env(&settings, &change.key, change.before.as_deref()))?;
+    let restored = with_env(&settings, &change.key, change.before.as_deref());
+    if change.backup.is_none() && restored.is_empty() {
+        // raiox created the file (there was none to back up) and nothing else is in it now:
+        // leave the project as it was, with no file and no folder made for it.
+        fs::remove_file(&file).with_context(|| format!("removing {}", file.display()))?;
+        if let Some(folder) = file.parent() {
+            let _ = fs::remove_dir(folder);
+        }
+    } else {
+        write_settings(&file, &restored)?;
+    }
     let undone = Change { undone_ms: Some(now_ms), ..change.clone() };
     let updated: Vec<Change> = changes.iter().map(|c| if c.id == change_id { undone.clone() } else { c.clone() }).collect();
     save_ledger(&ledger_path, &updated)?;
@@ -293,6 +304,36 @@ mod tests {
     }
 
     #[test]
+    fn undo_leaves_no_file_where_there_was_none() {
+        let dir = temp_dir("no-file");
+        let project = dir.join("project");
+        fs::create_dir_all(&project).unwrap();
+        let plan = plan("compact-earlier", "claude", &project, None).unwrap();
+        let change = apply(&plan, &dir.join("state"), 10).unwrap();
+        assert!(plan.file.exists());
+        undo(&change.id, &dir.join("state"), 20).unwrap();
+        assert!(!plan.file.exists(), "the settings file raiox created is gone");
+        assert!(!project.join(".claude").exists(), "and so is the folder it made for it");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn undo_keeps_a_file_the_person_added_to() {
+        let dir = temp_dir("added-to");
+        let project = dir.join("project");
+        fs::create_dir_all(&project).unwrap();
+        let plan = plan("compact-earlier", "claude", &project, None).unwrap();
+        let change = apply(&plan, &dir.join("state"), 10).unwrap();
+        let mut settings: Value = serde_json::from_str(&fs::read_to_string(&plan.file).unwrap()).unwrap();
+        settings["permissions"] = serde_json::json!({ "allow": ["Bash(ls)"] });
+        fs::write(&plan.file, settings.to_string()).unwrap();
+        undo(&change.id, &dir.join("state"), 20).unwrap();
+        let left: Value = serde_json::from_str(&fs::read_to_string(&plan.file).unwrap()).unwrap();
+        assert_eq!(left["permissions"]["allow"][0], "Bash(ls)", "what the person wrote stays");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn trim_tool_output_applies_and_undoes_cleanly() {
         let dir = temp_dir("trim");
         let file = dir.join("project/.claude/settings.local.json");
@@ -303,8 +344,7 @@ mod tests {
         let applied: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
         assert_eq!(applied["env"]["BASH_MAX_OUTPUT_LENGTH"], "10000");
         undo(&change.id, &dir.join("state"), 20).unwrap();
-        let restored: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
-        assert!(restored.get("env").is_none());
+        assert!(!file.exists(), "the file raiox created for it is gone again");
         fs::remove_dir_all(dir).unwrap();
     }
 
