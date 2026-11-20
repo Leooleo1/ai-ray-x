@@ -148,3 +148,14 @@
     padding-top: 60px;
   }
 }
+
+/* With the sidebar folded to a rail, the face waits inside it and an opened tip floats beside it. */
+@media (min-width: 961px) {
+  .app.recolhida .dica-rosto {
+    left: 8px;
+  }
+
+  .app.recolhida .dica-flutuante {
+    left: 76px;
+  }
+}

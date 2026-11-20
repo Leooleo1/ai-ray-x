@@ -319,7 +319,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           </main>
         )}
       </div>
-      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} />
+      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
     </div>
   )
 }

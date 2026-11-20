@@ -17,10 +17,12 @@ interface TipToastProps {
   nav: ChatNav
   /** Lifted over the composer on the pages that have one. */
   raised: boolean
+  /** The sidebar is a narrow rail: a new tip waits folded there, as its face, instead of covering the page. */
+  folded: boolean
 }
 
 /** One floating tip at a time from Raio, Dieta or Memo; each shows once, and each agent can be muted. */
-export function TipToast({ bots, report, nav, raised }: TipToastProps) {
+export function TipToast({ bots, report, nav, raised, folded }: TipToastProps) {
   const [prefs, setPrefs] = useTipPrefs()
   // Bumped when a tip is closed, so the next one is worked out again.
   const [, setClosed] = useState(0)
@@ -34,10 +36,10 @@ export function TipToast({ bots, report, nav, raised }: TipToastProps) {
   // Each new tip opens, then folds by itself unless the pointer rests on it.
   useEffect(() => {
     if (!tip) return undefined
-    setOpen(true)
-    fold()
+    setOpen(!folded)
+    if (!folded) fold()
     return () => window.clearTimeout(timer.current)
-  }, [tip?.key])
+  }, [tip?.key, folded])
   if (!tip) return null
   const close = () => {
     markSeen(tip.key)
