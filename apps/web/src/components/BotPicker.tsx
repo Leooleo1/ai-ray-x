@@ -110,7 +110,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
                       <b>{row.name}</b>
                       <small>{row.bots.map((b) => AGENT_LABEL[b.agent]).join(' · ')}</small>
                     </span>
-                    <button type="button" className="projeto-acao cheio" onClick={() => onOpen(latest.id)}>
+                    <button type="button" className="acao-texto" onClick={() => onOpen(latest.id)}>
                       {t.openProject}
                     </button>
                   </li>
@@ -133,7 +133,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
                     <b>{channel.name}</b>
                     <small>{channel.members.map((m) => `@${m.handle}`).join(' ')}</small>
                   </span>
-                  <button type="button" className="projeto-acao cheio" onClick={() => onChannel(channel.id)}>
+                  <button type="button" className="acao-texto" onClick={() => onChannel(channel.id)}>
                     {t.openProject}
                   </button>
                 </li>
@@ -248,7 +248,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
               {choosing === row.project ? (
                 <span className="projeto-ias" role="group" aria-label={t.pickAi}>
                   {agents.map((agent) => (
-                    <button key={agent} type="button" className="projeto-acao" onClick={() => void activate(row, agent)}>
+                    <button key={agent} type="button" className="acao-texto" onClick={() => void activate(row, agent)}>
                       {AGENT_LABEL[agent]}
                     </button>
                   ))}
@@ -257,7 +257,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
                   </button>
                 </span>
               ) : (
-                <button type="button" className="projeto-acao" disabled={agents.length === 0} onClick={() => turnOn(row)}>
+                <button type="button" className="acao-texto" disabled={agents.length === 0} onClick={() => turnOn(row)}>
                   {t.activate}
                 </button>
               )}

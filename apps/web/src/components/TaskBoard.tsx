@@ -142,7 +142,7 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
                       )}
                       {task.status === 'doing' && <small className="quadro-trabalhando">{t.boardWorking}</small>}
                       {task.status !== 'todo' && (
-                        <button type="button" className="vidro-btn" onClick={() => open(task, index)}>
+                        <button type="button" className="acao-texto" onClick={() => open(task, index)}>
                           {t.boardOpen}
                         </button>
                       )}
@@ -151,20 +151,20 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
                           <button type="button" className="cheio" onClick={() => void act('done', { id: task.id })}>
                             {t.boardFinish}
                           </button>
-                          <button type="button" className="vidro-btn" onClick={() => void act('start', { id: task.id })}>
+                          <button type="button" className="acao-texto" onClick={() => void act('start', { id: task.id })}>
                             {t.boardAgain}
                           </button>
                         </>
                       )}
                       {task.status === 'done' && (
-                        <button type="button" className="vidro-btn" onClick={() => void act('reopen', { id: task.id })}>
+                        <button type="button" className="acao-texto" onClick={() => void act('reopen', { id: task.id })}>
                           {t.boardReopen}
                         </button>
                       )}
                       {(task.status === 'todo' || task.status === 'done') && (
                         <button
                           type="button"
-                          className={`link ${deleting === task.id ? 'confirmar' : ''}`}
+                          className={`acao-texto ${deleting === task.id ? 'confirmar' : ''}`}
                           onBlur={() => setDeleting(null)}
                           onClick={() => {
                             if (deleting !== task.id) setDeleting(task.id)

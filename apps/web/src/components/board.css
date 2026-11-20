@@ -153,19 +153,7 @@
   color: var(--noite);
 }
 
-.quadro-acoes .vidro-btn {
-  background: rgb(255 255 255 / 10%);
-  color: var(--giz);
-}
 
-.quadro-acoes .link {
-  background: transparent;
-  color: var(--nevoa);
-}
-
-.quadro-acoes .link.confirmar {
-  color: var(--brasa);
-}
 
 .quadro-trabalhando {
   color: var(--nevoa);

@@ -92,7 +92,7 @@ export function Desk({ bots, nav }: DeskProps) {
                 </span>
                 <span className={`mesa-espera-tipo ${item.kind}`}>{t.waitingKinds[item.kind]}</span>
                 <code>{item.text}</code>
-                <button type="button" className="vidro-btn" onClick={() => nav.openMessage(item.bot.id, item.thread, item.ms)}>
+                <button type="button" className="acao-texto" onClick={() => nav.openMessage(item.bot.id, item.thread, item.ms)}>
                   {t.deskOpen}
                 </button>
               </li>
@@ -224,10 +224,10 @@ function WorkCard({ bot, bots, nav, now }: WorkCardProps) {
         <button type="button" className="cheio" onClick={() => nav.openMessage(bot.id, thread, 0)}>
           {t.deskOpen}
         </button>
-        <button type="button" className="vidro-btn" onClick={() => setFixing(!fixing)}>
+        <button type="button" className="acao-texto" onClick={() => setFixing(!fixing)}>
           {t.correctSend}
         </button>
-        <button type="button" className="vidro-btn" onClick={() => void bots.act('stop', { id: bot.id })}>
+        <button type="button" className="acao-texto" onClick={() => void bots.act('stop', { id: bot.id })}>
           {t.stop}
         </button>
         {trail && trail.items.length > CARD_STEPS && (

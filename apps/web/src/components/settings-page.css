@@ -387,9 +387,10 @@
   margin: 0;
 }
 
+/* Each connection's count: light, on the title size; the page's one hero is the setup progress above. */
 .cfg-numero b {
   flex: none;
-  font: 300 30px/34px var(--sans);
+  font: 300 22px/28px var(--sans);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
@@ -397,7 +398,7 @@
 .cfg-faz {
   display: flex;
   align-items: flex-end;
-  min-height: 34px;
+  min-height: 28px;
   margin: 0;
 }
 

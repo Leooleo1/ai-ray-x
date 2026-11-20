@@ -2467,6 +2467,37 @@ textarea:focus-visible {
   gap: 6px;
 }
 
+/* The quiet action beside a card's one filled button (or a row's only action):
+   text, grey until hovered, no pill. One style for the whole panel. */
+.acao-texto {
+  flex: none;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.acao-texto:hover,
+.acao-texto:focus-visible {
+  color: var(--giz);
+}
+
+/* Asking "sure?" before it deletes. */
+.acao-texto.confirmar {
+  color: var(--brasa);
+}
+
+.acao-texto:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .projeto-acao {
   height: 32px;
   padding: 0 14px;

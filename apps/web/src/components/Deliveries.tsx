@@ -148,7 +148,7 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
                     {(item.kind === 'routine' || item.kind === 'audit') && item.detail && <p>{item.detail}</p>}
                     {item.kind === 'shot' && item.detail && <ShotBlock bot={bot} message={{ ms: item.ms, author: 'you', kind: 'shot', data: { name: item.detail } }} />}
                   </span>
-                  <button type="button" className="vidro-btn" onClick={() => nav.openMessage(item.bot, item.thread, item.ms)}>
+                  <button type="button" className="acao-texto" onClick={() => nav.openMessage(item.bot, item.thread, item.ms)}>
                     {t.deliveryOpen}
                   </button>
                 </li>
