@@ -5,6 +5,7 @@ import type { Bots } from '../bots'
 import { compact, t } from '../i18n'
 import { type Look, AvatarEditor } from './AvatarEditor'
 import { Bars } from './Bars'
+import { EffortMeter } from './EffortMeter'
 import { RoutinesEditor } from './RoutinesEditor'
 import './settings.css'
 
@@ -105,10 +106,10 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
         {failed && <p className="nota failed">{failed}</p>}
         {usage && models.length === 0 && <p className="nota">{t.noUsageDays.replace('{n}', String(days))}</p>}
         {models.length > 0 && (
-          <Bars title={t.modelsTitle} subtitle={t.modelsSub} color={face.color} rows={models.map((m) => ({ label: modelName(m.name), value: m.tokens }))} />
+          <Bars title={t.modelsTitle} subtitle={t.modelsSub} color={face.color} rows={models.map((m) => ({ label: m.name === 'default' ? (usage?.default.model ? modelName(usage.default.model) : t.defaultOption) : modelName(m.name), value: m.tokens }))} />
         )}
         {efforts.length > 0 && (
-          <Bars title={t.effortTitle} subtitle={t.effortSub} color={face.color} rows={efforts.map((e) => ({ label: e.name, value: e.requests }))} />
+          <Bars title={t.effortTitle} subtitle={t.effortSub} color={face.color} rows={efforts.map((e) => ({ label: e.name === 'default' ? (usage?.default.effort ?? t.defaultOption) : e.name, value: e.requests }))} />
         )}
 
         <span className="ajustes-grupo">{`${t.botUses} · ${AGENT_LABEL[bot.agent]}`}</span>
@@ -123,12 +124,12 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               onPick={(model) => run(model, bot.effort, null)}
             />
             {usage.offered_efforts.length > 0 && (
-            <Choice
+            <EffortMeter
               label={t.effortLabel}
               current={bot.effort}
               fallback={usage.default.effort}
               options={usage.offered_efforts}
-              show={(e) => e}
+              color={face.color}
               onPick={(effort) => run(bot.model, effort, null)}
             />
             )}
