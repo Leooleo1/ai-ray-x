@@ -6,7 +6,7 @@ import { t } from '../i18n'
 import { AddProjectModal } from './AddProjectModal'
 import { AgentLogo } from './AgentLogo'
 import { Avatar } from './Avatar'
-import { waitingOf } from './chat/waiting'
+import { type Waiting, waitingOf } from './chat/waiting'
 
 function relativeTime(ms: number): string {
   const mins = Math.max(0, Math.floor((Date.now() - ms) / 60_000))
@@ -90,7 +90,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
         )}
         <div className={`projetos-grade ${empty ? 'vazia' : ''}`}>
           {cards.map(({ bot, waiting, busy, lastMs, preview }) => (
-            <BotRoom key={bot.id} bot={bot} waiting={waiting} busy={busy} lastMs={lastMs} preview={preview} onOpen={() => onOpen(bot.id)} />
+            <BotRoom key={bot.id} bot={bot} waiting={waiting} busy={busy} lastMs={lastMs} preview={preview} onOpen={() => onOpen(bot.id)} bots={bots} />
           ))}
           <button
             type="button"
@@ -154,20 +154,24 @@ interface BotRoomProps {
   lastMs: number | null
   preview: string | null
   onOpen: () => void
+  bots: Bots
 }
 
 /** A bot's card as its room: its character large on a floor of its own light, which brightens while it works or waits,
  *  and, while it works, the step it is on now; otherwise the last thing said. */
-function BotRoom({ bot, waiting, busy, lastMs, preview, onOpen }: BotRoomProps) {
+function BotRoom({ bot, waiting, busy, lastMs, preview, onOpen, bots }: BotRoomProps) {
   const face = faceForBot(bot)
   const step = busy ? bot.step : null
   const state = waiting ? t.cardWaiting : busy ? t.cardWorking : lastMs ? relativeTime(lastMs) : t.cardEmpty
+  const first = waiting ? waitingOf(bot)[0] : undefined
   return (
-    <button
-      type="button"
+    <div
+      role="link"
+      tabIndex={0}
       className={`projeto-cartao projeto-quarto ${waiting ? 'projeto-cartao-espera' : ''} ${busy ? 'ativo' : ''}`}
       style={{ '--cor-bot': face.color } as CSSProperties}
       onClick={onOpen}
+      onKeyDown={(event) => event.key === 'Enter' && event.target === event.currentTarget && onOpen()}
     >
       <span className="quarto-personagem" aria-hidden="true">
         <Avatar agent={face} size={64} state={busy ? 'thinking' : waiting ? 'happy' : 'idle'} followPointer />
@@ -193,8 +197,49 @@ function BotRoom({ bot, waiting, busy, lastMs, preview, onOpen }: BotRoomProps) 
         ) : (
           preview && <span className="projeto-cartao-frase">{preview}</span>
         )}
+        {first && <QuickReply bot={bot} waiting={first} bots={bots} />}
       </span>
-    </button>
+    </div>
+  )
+}
+
+/** What a waiting bot asks, answered from its card: a proposal can be approved, a question or proposal answered in a line;
+ *  a command or a draft needs the conversation, which the card opens. */
+function QuickReply({ bot, waiting, bots }: { bot: Bot; waiting: Waiting; bots: Bots }) {
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const answerable = waiting.kind === 'proposal' || waiting.kind === 'question'
+  const send = async (action: 'ask' | 'approve') => {
+    setSending(true)
+    const payload = action === 'ask' ? { id: bot.id, thread: waiting.thread, text } : { id: bot.id, thread: waiting.thread, answer_ms: waiting.ms }
+    if ((await bots.act(action, payload)) !== null) setText('')
+    setSending(false)
+  }
+  return (
+    // The card opens the conversation; clicks here stay here.
+    <span className="quarto-resposta" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+      <span className="quarto-pergunta">{waiting.text}</span>
+      {answerable && (
+        <form
+          className="quarto-campo"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (text.trim() && !sending) void send('ask')
+          }}
+        >
+          <input value={text} placeholder={t.quickReplyPlaceholder} aria-label={t.quickReplyPlaceholder} disabled={sending} onChange={(event) => setText(event.target.value)} />
+          {waiting.kind === 'proposal' && !text.trim() ? (
+            <button type="button" className="cheio" disabled={sending || bot.busy} onClick={() => void send('approve')}>
+              {t.requestApprove}
+            </button>
+          ) : (
+            <button type="submit" className="cheio" disabled={sending || bot.busy || !text.trim()}>
+              {t.send}
+            </button>
+          )}
+        </form>
+      )}
+    </span>
   )
 }
 
@@ -222,7 +267,7 @@ function TeamPulse({ cards, onOpen }: { cards: ActiveCard[]; onOpen: (id: string
                 <Avatar key={c.bot.id} agent={faceForBot(c.bot)} size={20} state="still" />
               ))}
             </span>
-            <span>{words[key]}</span>
+            <span>{key === 'waiting' && groups.waiting.length === 1 ? t.pulseWaitingOne : words[key]}</span>
           </>
         )
         return key === 'waiting' ? (

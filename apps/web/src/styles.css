@@ -3384,3 +3384,70 @@ textarea:focus-visible {
 .pulso-rostos > * + * {
   margin-left: -6px;
 }
+
+/* A waiting bot answered from its card: what it asks, and a line to answer or approve it. */
+.projeto-quarto[role='link'] {
+  cursor: pointer;
+}
+
+.projeto-quarto[role='link']:focus-visible {
+  outline: 2px solid var(--giz);
+  outline-offset: 2px;
+}
+
+.quarto-resposta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  cursor: default;
+}
+
+.quarto-pergunta {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--giz);
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.quarto-campo {
+  display: flex;
+  gap: 6px;
+}
+
+.quarto-campo input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: rgb(0 0 0 / 35%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+  color: var(--giz);
+  font: 13px/18px var(--sans);
+}
+
+.quarto-campo input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cor-bot) 70%, white);
+}
+
+.quarto-campo button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 13px/16px var(--sans);
+  cursor: pointer;
+}
+
+.quarto-campo button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
