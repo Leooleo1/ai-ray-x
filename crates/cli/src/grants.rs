@@ -38,7 +38,9 @@ pub struct Grants {
     pub auto_edit: bool,
     /// Runs without asking (on unless turned off): the commands it asks for that only read, check
     /// or install run with no click, and the project's app starts when it offers See the app.
-    #[serde(default = "yes")]
+    /// Kept as "runs_alone": 0.1.4 wrote "auto_run": false for every bot when off was its default,
+    /// so that old key is ignored and those bots get today's default.
+    #[serde(rename = "runs_alone", default = "yes")]
     pub auto_run: bool,
 }
 
@@ -181,6 +183,19 @@ pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runs_without_asking_is_on_for_bots_saved_before_it_was() {
+        // 0.1.4 wrote the switch as off for every bot, when off was its default.
+        let old: Grants = serde_json::from_str(r#"{"devices":true,"web":false,"mcp":false,"week_limit":null,"auto_edit":false,"auto_run":false}"#).unwrap();
+        assert!(old.auto_run, "a bot from 0.1.4 gets the new default");
+        let missing: Grants = serde_json::from_str(r#"{"devices":true}"#).unwrap();
+        assert!(missing.auto_run);
+        // Once the person turns it off now, it stays off.
+        let off = Grants { auto_run: false, ..Grants::default() };
+        let again: Grants = serde_json::from_str(&serde_json::to_string(&off).unwrap()).unwrap();
+        assert!(!again.auto_run, "a choice made now is kept");
+    }
 
     #[test]
     fn grants_change_only_where_the_cli_allows() {
