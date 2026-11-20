@@ -85,7 +85,7 @@ export function StepProfile({ onBack, onNext }: StepProfileProps) {
     <Frame
       actions={
         <>
-          <button type="button" className="bv-btn" onClick={onBack}>
+          <button type="button" className="bv-btn vidro" onClick={onBack}>
             {o.back}
           </button>
           <button type="button" className="bv-btn cheio bv-principal" disabled={busy} onClick={() => void next()}>
@@ -95,8 +95,14 @@ export function StepProfile({ onBack, onNext }: StepProfileProps) {
       }
     >
       <div className="bv-perfil">
-        <button type="button" className="bv-foto" aria-label={o.photoPick} disabled={busy} onClick={() => picker.current?.click()}>
+        <button type="button" className={`bv-foto ${profile?.photo ? 'com-foto' : ''}`} aria-label={o.photoPick} disabled={busy} onClick={() => picker.current?.click()}>
           {profile?.photo ? <img src={profile.photo} alt="" /> : <span>{initials(name) || '?'}</span>}
+          <i className="bv-foto-selo" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" />
+              <circle cx="12" cy="12.5" r="3.2" />
+            </svg>
+          </i>
         </button>
         <input ref={picker} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void pick(event)} />
         <div className="bv-perfil-campos">
@@ -105,12 +111,17 @@ export function StepProfile({ onBack, onNext }: StepProfileProps) {
             <input value={name} maxLength={NAME_MAX} placeholder={o.profileNameHint} onChange={(event) => setName(event.target.value)} />
           </label>
           <div className="bv-perfil-foto-acoes">
-            <button type="button" className="bv-btn" disabled={busy} onClick={() => picker.current?.click()}>
+            <button type="button" className="bv-btn vidro bv-com-icone" disabled={busy} onClick={() => picker.current?.click()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15V4.5M7.5 9 12 4.5 16.5 9M5 15v2.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V15" />
+              </svg>
               {o.photoPick}
             </button>
             {profile?.github && (
-              <button type="button" className="bv-btn" disabled={busy} onClick={() => void run(() => saveProfile({ from_github: true }))}>
-                {o.photoGitHub.replace('{login}', profile.github)}
+              <button type="button" className="bv-btn vidro bv-com-icone" disabled={busy} onClick={() => void run(() => saveProfile({ from_github: true }))}>
+                <img src="/marcas/github.svg" width={15} height={15} alt="" />
+                {o.photoGitHub}
+                <small className="bv-login">@{profile.github}</small>
               </button>
             )}
             {profile?.photo && (

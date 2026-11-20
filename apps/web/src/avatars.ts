@@ -28,7 +28,7 @@ export const FINISHES: Finish[] = ['solid', 'flat', 'pixel']
 export const TEMPLATES: { shape: string; color: string; finish: Finish; art: string }[] = [
   { shape: 'monitor', color: '#e8754a', finish: 'solid', art: '/mascotes/modelo-monitor-solido.webp' },
   { shape: 'monitor', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-monitor-pixel.webp' },
-  { shape: 'chat', color: '#b4a3f5', finish: 'flat', art: '/mascotes/modelo-balao-chapado.webp' },
+  { shape: 'star', color: '#b4a3f5', finish: 'flat', art: '/mascotes/modelo-estrela-chapado.webp' },
   { shape: 'magnifier', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-lupa-pixel.webp' },
   { shape: 'shield', color: '#5fd08a', finish: 'solid', art: '/mascotes/modelo-escudo-solido.webp' },
   { shape: 'rocket', color: '#ec7fb0', finish: 'pixel', art: '/mascotes/modelo-foguete-pixel.webp' },
@@ -57,7 +57,9 @@ const SHAPE_LIST: AvatarDefinition[] = [
 ]
 
 export const SHAPES: Record<string, AvatarDefinition> = Object.fromEntries(SHAPE_LIST.map((shape) => [shape.id, shape]))
-export const SHAPE_IDS: string[] = SHAPE_LIST.map((shape) => shape.id)
+/** Shapes the editor offers: the speech bubble's tail looked odd, so it is kept only for bots that already wear it. */
+const RETIRED = new Set(['chat'])
+export const SHAPE_IDS: string[] = SHAPE_LIST.map((shape) => shape.id).filter((id) => !RETIRED.has(id))
 
 /** Bot colors; each has a stage light engraved in public/luz/palco-<hex>.webp. */
 export const COLORS: string[] = ['#e8754a', '#6f95f2', '#5fd08a', '#b4a3f5', '#d9c29a', '#ec7fb0']
