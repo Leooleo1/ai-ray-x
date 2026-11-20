@@ -145,7 +145,12 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             }
         };
         // Messages for projects without a bot are dropped: nobody there would read them.
-        let reply = Reply { to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(), ..reply };
+        let reply = Reply {
+            to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(),
+            model: setup.model.clone(),
+            effort: setup.effort.clone(),
+            ..reply
+        };
         if bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
             let _ = set_thread_session(state_dir, &bot.id, thread, reply.session.clone());
             session = reply.session.clone();

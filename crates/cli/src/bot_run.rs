@@ -71,6 +71,11 @@ pub struct Reply {
     /// What the API would charge; on a subscription it is only a yardstick.
     pub cost_usd: Option<f64>,
     pub duration_ms: u64,
+    /// The model and effort the turn asked the CLI for (none: the CLI's default), for the usage charts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
 }
 
 /// Who runs a turn: the CLI, where, with which guide, continuing which session.
@@ -456,6 +461,8 @@ pub fn reply_from(text: &str) -> Reply {
         output_tokens: 0,
         cost_usd: None,
         duration_ms: 0,
+        model: None,
+        effort: None,
     }
 }
 

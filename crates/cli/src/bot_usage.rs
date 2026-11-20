@@ -18,6 +18,36 @@ const MAX_ROWS: usize = 8;
 /// Claude Code's own model aliases; each points at the latest of its family.
 pub(crate) const CLAUDE_ALIASES: [&str; 4] = ["opus", "sonnet", "haiku", "fable"];
 
+/// A bot's models and efforts from its own answers in raiox since a moment: tokens read and answers each,
+/// "default" when the turn used the CLI's own default.
+fn chat_usage(state_dir: &Path, bot: &bots::Bot, since: i64) -> (Vec<Value>, Vec<Value>) {
+    let mut models: Vec<(String, i64, i64)> = Vec::new();
+    let mut efforts: Vec<(String, i64, i64)> = Vec::new();
+    let add = |rows: &mut Vec<(String, i64, i64)>, name: String, tokens: i64| match rows.iter_mut().find(|r| r.0 == name) {
+        Some(row) => {
+            row.1 += tokens;
+            row.2 += 1;
+        }
+        None => rows.push((name, tokens, 1)),
+    };
+    let conversations = std::iter::once(crate::threads::MAIN.to_string()).chain(crate::threads::list(state_dir, &bot.id).into_iter().map(|t| t.id));
+    for thread in conversations {
+        for message in crate::room::read_messages(&crate::threads::chat_file(state_dir, &bot.id, &thread)) {
+            if message.kind != "answer" || message.ms < since {
+                continue;
+            }
+            let reply = &message.data["reply"];
+            let tokens = reply["read_tokens"].as_i64().unwrap_or(0);
+            add(&mut models, reply["model"].as_str().unwrap_or("default").to_string(), tokens);
+            add(&mut efforts, reply["effort"].as_str().unwrap_or("default").to_string(), tokens);
+        }
+    }
+    models.sort_by_key(|m| std::cmp::Reverse(m.1));
+    efforts.sort_by_key(|e| std::cmp::Reverse(e.2));
+    let rows = |list: Vec<(String, i64, i64)>| list.into_iter().take(MAX_ROWS).map(|(name, tokens, requests)| json!({ "name": name, "tokens": tokens, "requests": requests })).collect();
+    (rows(models), rows(efforts))
+}
+
 fn grouped(store: &Store, sql: &str, source: &str, project: &str, since: i64) -> Result<Vec<Value>> {
     let mut statement = store.conn().prepare(sql)?;
     let rows = statement.query_map((source, project, since), |r| {
@@ -103,7 +133,10 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
     let bot = bots::list(state_dir).into_iter().find(|b| b.id == id).ok_or_else(|| anyhow::anyhow!("no bot {id}"))?;
     let project = raiox_core::project_label(&bot.dir, &roots.home);
     let since = crate::room::now_ms() - DAYS * DAY_MS;
-    let models = grouped(
+    // Cursor, Antigravity and opencode leave no logs raiox reads: their charts come from raiox's own conversations.
+    let from_chats = !crate::connections::known(&bot.agent).is_some_and(|k| k.xray);
+    let (chat_models, chat_efforts) = if from_chats { chat_usage(state_dir, &bot, since) } else { (Vec::new(), Vec::new()) };
+    let models = if from_chats { chat_models } else { grouped(
         store,
         "SELECT model, SUM(input + cache_read + cache_write_5m + cache_write_1h), COUNT(*) FROM calls
          WHERE source = ?1 AND project = ?2 AND is_sub = 0 AND ts_ms >= ?3 AND model IS NOT NULL
@@ -111,8 +144,8 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
         &bot.agent,
         &project,
         since,
-    )?;
-    let efforts = grouped(
+    )? };
+    let efforts = if from_chats { chat_efforts } else { grouped(
         store,
         "SELECT effort, SUM(input + cache_read + cache_write_5m + cache_write_1h), COUNT(*) FROM calls
          WHERE source = ?1 AND project = ?2 AND is_sub = 0 AND ts_ms >= ?3 AND effort IS NOT NULL
@@ -120,7 +153,7 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
         &bot.agent,
         &project,
         since,
-    )?;
+    )? };
     // Models to offer: Claude Code's aliases, or the Codex models this person has used.
     let offered: Vec<String> = match bot.agent.as_str() {
         "codex" => codex_models(store)?,
@@ -144,6 +177,29 @@ pub fn usage(store: &Store, roots: &Roots, state_dir: &Path, id: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cli_without_logs_gets_its_charts_from_its_answers() {
+        let home = std::env::temp_dir().join(format!("raiox-chat-usage-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&home);
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = bots::activate(&state, &home, "Projects/app", "cursor", None).unwrap();
+        let answer = |ms: i64, model: Option<&str>, effort: Option<&str>, read: u64| crate::room::Message {
+            ms,
+            author: "bot".into(),
+            kind: "answer".into(),
+            data: json!({ "reply": { "read_tokens": read, "model": model, "effort": effort } }),
+        };
+        let file = crate::threads::chat_file(&state, &bot.id, crate::threads::MAIN);
+        crate::room::append_messages(&file, vec![answer(10, Some("grok-4.7"), Some("high"), 300), answer(20, None, None, 100), answer(30, Some("grok-4.7"), Some("high"), 200), answer(1, Some("old"), None, 999)]).unwrap();
+        let (models, efforts) = chat_usage(&state, &bot, 5);
+        assert_eq!(models[0], json!({ "name": "grok-4.7", "tokens": 500, "requests": 2 }));
+        assert_eq!(models[1]["name"], "default", "a turn on the CLI's default model");
+        assert_eq!(models.len(), 2, "answers before the window are left out");
+        assert_eq!(efforts[0], json!({ "name": "high", "tokens": 500, "requests": 2 }));
+        let _ = fs::remove_dir_all(&home);
+    }
 
     #[test]
     fn reads_top_level_toml_values_only() {
