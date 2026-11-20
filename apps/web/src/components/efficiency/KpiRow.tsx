@@ -2,6 +2,7 @@ import { AGENTS } from '../../agents'
 import { IS_REMOTE, type Bot, type Change, type ContextStatus, type Outcome, type SourceReport } from '../../api'
 import { compact, percent, splitCompact, t, usd } from '../../i18n'
 import { Avatar } from '../Avatar'
+import { PixelBar } from './PixelField'
 
 interface KpiRowProps {
   selected: SourceReport
@@ -21,7 +22,7 @@ interface KpiRowProps {
   onOpenWiki: () => void
 }
 
-/** Four actionable KPI cards at the top of the Efficiency tab: every metric carries a direct CTA. */
+/** Four actionable KPI cards: one hero in Doto (Dieta's saving), three quiet 22px light figures. */
 export function KpiRow({
   selected,
   status,
@@ -66,33 +67,37 @@ export function KpiRow({
   const sessionSplit = status ? splitCompact(status.context_tokens) : null
   const canAudit = Boolean(targetBot && (targetBot.auditor?.enabled || !IS_REMOTE))
 
+  const savingSub =
+    bestTokens > 0
+      ? estUsd !== null && estUsd >= 1
+        ? `${t.efiKpiSavingSub.replace('{tokens}', compact(bestTokens))} · ${t.efiKpiSavingUsd.replace('{usd}', usd(estUsd))}`
+        : t.efiKpiSavingSub.replace('{tokens}', compact(bestTokens))
+      : t.efiKpiSavingLean
+
   return (
     <>
-      <section className="cartao efi-kpi efi-kpi-heroi">
+      <section className="cartao efi-kpi">
         <div className="efi-kpi-topo">
           <span className="efi-kpi-rotulo">
             <Avatar agent={AGENTS.dieta} size={24} followPointer state="idle" />
             {t.efiKpiSavingTitle}
           </span>
-          {estUsd !== null && estUsd >= 1 && <span className="efi-tag brasa">{t.efiKpiSavingUsd.replace('{usd}', usd(estUsd))}</span>}
         </div>
         <div className="efi-kpi-corpo">
-          <div className="efi-kpi-valor">{bestShare > 0 ? `~${savingBig}` : '0%'}</div>
-          <span className="efi-kpi-sub">
-            {bestTokens > 0 ? t.efiKpiSavingSub.replace('{tokens}', compact(bestTokens)) : t.efiKpiSavingLean}
-          </span>
+          <div className="efi-heroi-num">{bestShare > 0 ? `~${savingBig}` : '0%'}</div>
+          <span className="efi-kpi-sub">{savingSub}</span>
         </div>
         <div className="efi-kpi-rodape">
           {bestShare > 0 && !topAlreadyApplied ? (
-            <button type="button" className="efi-pill-cta primario" onClick={onJumpCuts}>
+            <button type="button" className="projeto-acao cheio" onClick={onJumpCuts}>
               {t.efiKpiSavingCta}
             </button>
           ) : openChanges.length > 0 ? (
-            <button type="button" className="efi-pill-cta ok" onClick={onJumpLedger}>
+            <button type="button" className="acao-texto" onClick={onJumpLedger}>
               {t.efiKpiSavingCtaDone}
             </button>
           ) : (
-            <button type="button" className="efi-pill-cta" onClick={canAudit ? onRunAudit : onOpenWiki} disabled={auditing}>
+            <button type="button" className="acao-texto" onClick={canAudit ? onRunAudit : onOpenWiki} disabled={auditing}>
               {auditing ? t.auditorRunning : canAudit ? t.efiKpiStartupCtaAudit : t.efiKpiStartupCtaWiki}
             </button>
           )}
@@ -102,7 +107,7 @@ export function KpiRow({
       <section className="cartao efi-kpi">
         <div className="efi-kpi-topo">
           <span className="efi-kpi-rotulo">{t.efiKpiContextTitle}</span>
-          {heavyCalls >= 0.1 && <span className="efi-tag alerta">{`${percent(heavyCalls)} >400K`}</span>}
+          {heavyCalls >= 0.1 && <span className="efi-meta">{`${percent(heavyCalls)} >400K`}</span>}
         </div>
         <div className="efi-kpi-corpo">
           <div className="efi-kpi-valor">
@@ -115,7 +120,7 @@ export function KpiRow({
           </span>
         </div>
         <div className="efi-kpi-rodape">
-          <button type="button" className="efi-pill-cta" onClick={onJumpSimulator}>
+          <button type="button" className="acao-texto" onClick={onJumpSimulator}>
             {t.efiKpiContextCta}
           </button>
         </div>
@@ -125,7 +130,7 @@ export function KpiRow({
         <div className="efi-kpi-topo">
           <span className="efi-kpi-rotulo">{t.efiKpiStartupTitle}</span>
           {listedSkills > 0 && usedSkills < listedSkills && (
-            <span className="efi-tag">{`${usedSkills}/${listedSkills} skills`}</span>
+            <span className="efi-meta">{`${usedSkills}/${listedSkills} skills`}</span>
           )}
         </div>
         <div className="efi-kpi-corpo">
@@ -144,11 +149,11 @@ export function KpiRow({
         </div>
         <div className="efi-kpi-rodape">
           {canAudit ? (
-            <button type="button" className="efi-pill-cta" disabled={auditing} onClick={onRunAudit}>
+            <button type="button" className="acao-texto" disabled={auditing} onClick={onRunAudit}>
               {auditing ? t.auditorRunning : t.efiKpiStartupCtaAudit}
             </button>
           ) : (
-            <button type="button" className="efi-pill-cta" onClick={onOpenWiki}>
+            <button type="button" className="acao-texto" onClick={onOpenWiki}>
               {t.efiKpiStartupCtaWiki}
             </button>
           )}
@@ -158,11 +163,11 @@ export function KpiRow({
       <section className="cartao efi-kpi">
         <div className="efi-kpi-topo">
           <span className="efi-kpi-rotulo">
-            <Avatar agent={AGENTS.raio} size={22} state="still" />
+            <Avatar agent={AGENTS.raio} size={20} state="still" />
             {t.efiKpiSessionTitle}
           </span>
           {measured && (
-            <span className={`efi-tag ${measured.context_change <= 0 ? 'ok' : 'alerta'}`}>
+            <span className={`efi-meta ${measured.context_change <= 0 ? 'ok' : 'alerta'}`}>
               {`${measured.context_change > 0 ? '+' : ''}${percent(measured.context_change)}`}
             </span>
           )}
@@ -181,9 +186,7 @@ export function KpiRow({
             )}
           </div>
           {status && status.usual_compaction_at > 0 && (
-            <div className="efi-micro-barra" aria-hidden="true">
-              <i className={isHeavyLive ? 'quente' : ''} style={{ width: `${Math.max(4, liveFill * 100)}%` }} />
-            </div>
+            <PixelBar ratio={liveFill} color={isHeavyLive ? 'var(--brasa)' : 'var(--cobalto)'} cols={22} rows={1} />
           )}
           <span className="efi-kpi-sub">
             {status
@@ -194,16 +197,16 @@ export function KpiRow({
         <div className="efi-kpi-rodape">
           {targetBot ? (
             isHeavyLive ? (
-              <button type="button" className="efi-pill-cta primario" onClick={onNewCleanChat}>
+              <button type="button" className="acao-texto" onClick={onNewCleanChat}>
                 {t.efiKpiSessionCtaClean}
               </button>
             ) : (
-              <button type="button" className="efi-pill-cta" onClick={onOpenChat}>
+              <button type="button" className="acao-texto" onClick={onOpenChat}>
                 {t.efiKpiSessionCtaOpen}
               </button>
             )
           ) : (
-            <button type="button" className="efi-pill-cta" onClick={onJumpCuts}>
+            <button type="button" className="acao-texto" onClick={onJumpCuts}>
               {t.efiKpiSessionCtaCuts}
             </button>
           )}

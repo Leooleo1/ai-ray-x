@@ -17,14 +17,16 @@ interface ActionProps {
   project: string
   /** Optional custom button text when idle. */
   label?: string
-  /** Highlight as primary CTA when appropriate. */
+  /** Use the filled primary button style (one per card). */
   primary?: boolean
+  /** Use the quiet text action style for secondary/per-row actions. */
+  quiet?: boolean
 }
 
 type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'confirm_switch' } | { kind: 'busy' } | { kind: 'done'; message: string } | { kind: 'failed'; message: string }
 
 /** Two taps to apply (Apply, then Confirm); one to undo. The server keeps a backup and a ledger. */
-export function Action({ id, value, source, change, outcome, onChanged, bot, project, label, primary = false }: ActionProps) {
+export function Action({ id, value, source, change, outcome, onChanged, bot, project, label, primary = false, quiet = false }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const box = useRef<HTMLDivElement>(null)
   const tipId = useId()
@@ -58,7 +60,7 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
           <button type="button" className="cheio" onClick={() => void run(switchValue, (kept) => (kept ? t.memoSaved : t.memoFailed))}>
             {t.confirm}
           </button>
-          <button type="button" className="link" onClick={() => setStep({ kind: 'idle' })}>
+          <button type="button" className="acao-texto" onClick={() => setStep({ kind: 'idle' })}>
             {t.cancel}
           </button>
           <span className="nota explica">{fill(t.applyTarget, `${keyName}=${desired}`).replace('{project}', project)}</span>
@@ -72,11 +74,11 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
           {t.applied} · {settingLabel(change)}
         </span>
         {canSwitch && (
-          <button type="button" className="vidro-btn" disabled={step.kind === 'busy'} onClick={() => setStep({ kind: 'confirm_switch' })}>
+          <button type="button" className={primary ? 'cheio' : 'acao-texto'} disabled={step.kind === 'busy'} onClick={() => setStep({ kind: 'confirm_switch' })}>
             {t.efiSwitchTo.replace('{v}', valueLabel(id, desired))}
           </button>
         )}
-        <button type="button" className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id, bot), () => t.deliveryUndone)}>
+        <button type="button" className="acao-texto" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id, bot), () => t.deliveryUndone)}>
           {t.undo}
         </button>
         {outcome && <span className={`nota resultado ${outcome.conclusive ? 'medido' : ''}`}>{describeOutcome(outcome)}</span>}
@@ -90,7 +92,7 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
         <button type="button" className="cheio" onClick={() => void run(() => applySuggestion(id, source, bot, desired || undefined), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
           {t.confirm}
         </button>
-        <button type="button" className="link" onClick={() => setStep({ kind: 'idle' })}>
+        <button type="button" className="acao-texto" onClick={() => setStep({ kind: 'idle' })}>
           {t.cancel}
         </button>
         <span className="nota explica">{fill(t.applyTarget, desired ? `${keyName}=${desired}` : id).replace('{project}', project)}</span>
@@ -98,12 +100,13 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
     )
   }
   const tips = explainApply(id, desired || value)
+  const idleClass = primary ? 'cheio' : quiet ? 'acao-texto' : 'vidro-btn'
   return (
     <div className="acao" ref={box}>
       <span className="dica-wrap">
         <button
           type="button"
-          className={primary ? 'cheio efi-btn-primario' : 'vidro-btn'}
+          className={idleClass}
           aria-describedby={tips.length > 0 ? tipId : undefined}
           disabled={step.kind === 'busy'}
           onClick={() => setStep({ kind: 'confirm' })}

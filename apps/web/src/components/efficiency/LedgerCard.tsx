@@ -3,7 +3,7 @@ import { type Change, type Outcome, undoChange } from '../../api'
 import { suggestionTitle } from '../../diet'
 import { compact, locale, percent, t } from '../../i18n'
 import { settingLabel } from '../Action'
-import { Segmented } from '../Segmented'
+import { PixelBar } from './PixelField'
 
 const MIN_REQUESTS = 200
 const MIN_SESSIONS = 2
@@ -26,7 +26,7 @@ function projectDirOf(file: string): string {
   return file.split('/.claude/')[0] ?? ''
 }
 
-/** Bento 5: Full-width Memo ledger showing every applied/undone cut, measurement progress, and 2-click undo. */
+/** Bento 5: Full-width Memo ledger with pixel progress and quiet 2-click undo. */
 export function LedgerCard({ changes, outcomes, targetDir, botByDir, highlighted, onChanged }: LedgerCardProps) {
   const inTarget = (c: Change) => c.file.startsWith(`${targetDir}/`)
   const hasMultipleProjects = new Set(changes.map((c) => projectDirOf(c.file))).size > 1
@@ -62,15 +62,14 @@ export function LedgerCard({ changes, outcomes, targetDir, botByDir, highlighted
           <small>{t.efiLedgerHint}</small>
         </h2>
         {hasMultipleProjects && (
-          <Segmented
-            label={t.efiLedgerTitle}
-            value={scope}
-            onChange={setScope}
-            options={[
-              { id: 'project', label: t.efiLedgerThisProject },
-              { id: 'all', label: t.efiLedgerAllProjects },
-            ]}
-          />
+          <div className="efi-acoes">
+            <button type="button" className={`acao-texto ${scope === 'project' ? 'ativo' : ''}`} onClick={() => setScope('project')}>
+              {t.efiLedgerThisProject}
+            </button>
+            <button type="button" className={`acao-texto ${scope === 'all' ? 'ativo' : ''}`} onClick={() => setScope('all')}>
+              {t.efiLedgerAllProjects}
+            </button>
+          </div>
         )}
       </header>
 
@@ -94,7 +93,7 @@ export function LedgerCard({ changes, outcomes, targetDir, botByDir, highlighted
                   <div className="efi-ledger-titulo">
                     <i className={`ponto ${undone ? '' : 'ok'}`} aria-hidden="true" />
                     <span>{suggestionTitle(change.suggestion, change.suggestion)}</span>
-                    <span className="efi-tag">{settingLabel(change)}</span>
+                    <span className="efi-meta">{settingLabel(change)}</span>
                   </div>
                   <span className="efi-ledger-sub" title={`${change.key}=${change.after} · ${change.file}`}>
                     {`${projectNameOf(change.file)} · ${appliedDate}${undone ? ` · ${t.efiLedgerUndone}` : ''}`}
@@ -104,21 +103,19 @@ export function LedgerCard({ changes, outcomes, targetDir, botByDir, highlighted
                 <div className="efi-ledger-medicao">
                   {outcome ? (
                     outcome.conclusive ? (
-                      <>
-                        <div className="efi-corte-acoes">
-                          <span className={`efi-tag ${outcome.context_change <= 0 ? 'ok' : 'alerta'}`}>
-                            {`${t.efiLedgerMeasured}: ${outcome.context_change > 0 ? '+' : ''}${percent(outcome.context_change)}`}
-                          </span>
-                          <span className="efi-kpi-sub-mono">
-                            {`${compact(outcome.before.avg_context)} → ${compact(outcome.after.avg_context)}`}
-                          </span>
-                        </div>
-                      </>
+                      <div className="efi-acoes">
+                        <span className={`efi-meta ${outcome.context_change <= 0 ? 'ok' : 'alerta'}`}>
+                          {`${t.efiLedgerMeasured}: ${outcome.context_change > 0 ? '+' : ''}${percent(outcome.context_change)}`}
+                        </span>
+                        <span className="efi-meta">
+                          {`${compact(outcome.before.avg_context)} → ${compact(outcome.after.avg_context)}`}
+                        </span>
+                      </div>
                     ) : (
                       <>
-                        <div className="efi-corte-acoes">
-                          <span className="efi-tag">{t.efiLedgerMeasuring}</span>
-                          <span className="efi-kpi-sub-mono">
+                        <div className="efi-acoes">
+                          <span className="efi-meta">{t.efiLedgerMeasuring}</span>
+                          <span className="efi-meta">
                             {t.efiLedgerProgress
                               .replace('{req}', String(Math.min(outcome.after.requests, MIN_REQUESTS)))
                               .replace('{reqMax}', String(MIN_REQUESTS))
@@ -126,30 +123,28 @@ export function LedgerCard({ changes, outcomes, targetDir, botByDir, highlighted
                               .replace('{sesMax}', String(MIN_SESSIONS))}
                           </span>
                         </div>
-                        <div className="efi-micro-barra" aria-hidden="true">
-                          <i style={{ width: `${Math.max(4, progress * 100)}%` }} />
-                        </div>
+                        <PixelBar ratio={progress} color="var(--cobalto)" cols={24} rows={1} />
                       </>
                     )
                   ) : (
-                    <span className="efi-kpi-sub-mono">{undone ? t.efiLedgerUndone : t.applied}</span>
+                    <span className="efi-meta">{undone ? t.efiLedgerUndone : t.applied}</span>
                   )}
                 </div>
 
                 <div className="efi-ledger-acoes">
-                  {change.lesson && <span className="efi-tag ok">{t.efiLedgerLessonKept}</span>}
+                  {change.lesson && <span className="efi-meta ok">{t.efiLedgerLessonKept}</span>}
                   {!undone &&
                     (confirmUndoId === change.id ? (
                       <>
-                        <button type="button" className="efi-pill-cta primario" disabled={busyId === change.id} onClick={() => void doUndo(change)}>
-                          {t.confirm}
+                        <button type="button" className="acao-texto confirmar" disabled={busyId === change.id} onClick={() => void doUndo(change)}>
+                          {t.efiLedgerUndoSure}
                         </button>
-                        <button type="button" className="efi-pill-cta suave" disabled={busyId === change.id} onClick={() => setConfirmUndoId(null)}>
+                        <button type="button" className="acao-texto" disabled={busyId === change.id} onClick={() => setConfirmUndoId(null)}>
                           {t.cancel}
                         </button>
                       </>
                     ) : (
-                      <button type="button" className="efi-pill-cta suave" onClick={() => setConfirmUndoId(change.id)}>
+                      <button type="button" className="acao-texto" onClick={() => setConfirmUndoId(change.id)}>
                         {t.undo}
                       </button>
                     ))}

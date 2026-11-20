@@ -164,7 +164,7 @@ export function EfficiencyView({ report, bots, nav, onGo, onChanged }: Efficienc
               options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
             />
           )}
-          <span className="efi-barra-meta">{metaBar}</span>
+          <span className="efi-meta">{metaBar}</span>
         </div>
         <div className="efi-barra-dir">
           {targets.length > 1 && (

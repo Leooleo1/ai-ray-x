@@ -4,6 +4,7 @@ import type { Bots } from '../../bots'
 import { compact, locale, percent, t } from '../../i18n'
 import { modelName } from '../BotSettings'
 import { SelectChip } from '../SelectChip'
+import { PixelBar } from './PixelField'
 
 const CHARS_PER_TOKEN = 3.6
 
@@ -33,7 +34,7 @@ function lighterSuggestion(main: string | null, offered: string[]): string | nul
   return pick('haiku') ?? pick('mini') ?? pick('flash')
 }
 
-/** Bento 4: 2x2 quick-action levers operating directly on the selected project's Bot and shared Wiki. */
+/** Bento 4: Four hairline-separated project levers (no inner boxes, one filled action max). */
 export function LeversCard({
   targetName,
   targetBot,
@@ -76,15 +77,31 @@ export function LeversCard({
         <div className="efi-sem-bot">
           <h3>{t.efiLeversNoBotTitle.replace('{p}', targetName)}</h3>
           <p>{t.efiLeversNoBotHint}</p>
-          <div className="efi-alavanca-acoes">
-            <button type="button" className="efi-pill-cta primario" onClick={onAddBot}>
+          <div className="efi-acoes">
+            <button type="button" className="projeto-acao cheio" onClick={onAddBot}>
               {t.efiLeversEnableBot}
             </button>
-            <button type="button" className="efi-pill-cta" onClick={onOpenWiki}>
+            <button type="button" className="acao-texto" onClick={onOpenWiki}>
               {t.efiCtaOpenWiki}
             </button>
           </div>
         </div>
+        {alwaysPages.length > 0 && (
+          <>
+            <div className="efi-divisor" />
+            <div className="efi-alavanca">
+              <div className="efi-alavanca-topo">
+                <h3>{t.efiLeverWikiTitle}</h3>
+                <span className="efi-meta">{`~${compact(alwaysTokens)}`}</span>
+              </div>
+              <p className="efi-alavanca-texto">
+                {(alwaysPages.length === 1 ? t.efiLeverWikiAlwaysOne : t.efiLeverWikiAlways)
+                  .replace('{n}', String(alwaysPages.length))
+                  .replace('{tokens}', compact(alwaysTokens))}
+              </p>
+            </div>
+          </>
+        )}
       </section>
     )
   }
@@ -133,26 +150,20 @@ export function LeversCard({
         </h2>
       </header>
 
-      <div className="efi-alavancas-grade">
-        {/* 1. Lighter talk model */}
+      <div className="efi-alavancas-lista">
         <article className="efi-alavanca">
           <div className="efi-alavanca-topo">
             <h3>{t.efiLeverTalkTitle}</h3>
-            {talkModel && <span className="efi-tag ok">{modelName(talkModel)}</span>}
+            {talkModel && <span className="efi-meta ok">{modelName(talkModel)}</span>}
           </div>
           <p className="efi-alavanca-texto">
             {talkModel
               ? t.efiLeverTalkActive.replace('{talk}', modelName(talkModel)).replace('{main}', mainModel ? modelName(mainModel) : t.cliDefault)
               : t.efiLeverTalkSame.replace('{main}', mainModel ? modelName(mainModel) : t.cliDefault)}
           </p>
-          <div className="efi-alavanca-acoes">
+          <div className="efi-acoes">
             {!talkModel && lighter && (
-              <button
-                type="button"
-                className="efi-pill-cta primario"
-                disabled={busyKey === 'talk'}
-                onClick={() => void setTalkModel(lighter)}
-              >
+              <button type="button" className="acao-texto" disabled={busyKey === 'talk'} onClick={() => void setTalkModel(lighter)}>
                 {t.efiLeverTalkQuick.replace('{model}', modelName(lighter))}
               </button>
             )}
@@ -165,19 +176,18 @@ export function LeversCard({
               />
             )}
             {talkModel && (
-              <button type="button" className="efi-pill-cta suave" disabled={busyKey === 'talk'} onClick={() => void setTalkModel(null)}>
+              <button type="button" className="acao-texto" disabled={busyKey === 'talk'} onClick={() => void setTalkModel(null)}>
                 {t.efiLeverTalkReset}
               </button>
             )}
           </div>
         </article>
 
-        {/* 2. Daily ceiling & weekly pace */}
         <article className="efi-alavanca">
           <div className="efi-alavanca-topo">
             <h3>{t.efiLeverBudgetTitle}</h3>
             {weekDelta !== null && (
-              <span className={`efi-tag ${weekDelta > 0.15 ? 'brasa' : weekDelta < -0.05 ? 'ok' : ''}`}>
+              <span className={`efi-meta ${weekDelta > 0.15 ? 'brasa' : weekDelta < -0.05 ? 'ok' : ''}`}>
                 {weekDelta >= 0
                   ? t.efiLeverWeekDeltaUp.replace('{p}', percent(weekDelta))
                   : t.efiLeverWeekDeltaDown.replace('{p}', percent(weekDelta))}
@@ -194,15 +204,18 @@ export function LeversCard({
                 : t.noLimit}
           </p>
           {budget && budget.limit !== null && (
-            <div className="efi-micro-barra" aria-hidden="true">
-              <i className={budgetFill >= 0.85 ? 'quente' : budgetFill >= 0.6 ? 'alerta' : 'ok'} style={{ width: `${Math.max(3, budgetFill * 100)}%` }} />
-            </div>
+            <PixelBar
+              ratio={budgetFill}
+              color={budgetFill >= 0.85 ? 'var(--brasa)' : budgetFill >= 0.6 ? 'var(--alerta)' : 'var(--ok)'}
+              cols={30}
+              rows={1}
+            />
           )}
           {budget && (
-            <div className="efi-alavanca-chips">
+            <div className="efi-acoes">
               <button
                 type="button"
-                className={`efi-chip-mini ${budget.limit === null ? 'ativo' : ''}`}
+                className={`acao-texto ${budget.limit === null ? 'ativo' : ''}`}
                 disabled={busyKey === 'limit'}
                 onClick={() => void setDailyLimit(0)}
               >
@@ -212,7 +225,7 @@ export function LeversCard({
                 <button
                   key={choice}
                   type="button"
-                  className={`efi-chip-mini ${budget.limit === choice ? 'ativo' : ''}`}
+                  className={`acao-texto ${budget.limit === choice ? 'ativo' : ''}`}
                   disabled={busyKey === 'limit'}
                   onClick={() => void setDailyLimit(choice)}
                 >
@@ -223,11 +236,10 @@ export function LeversCard({
           )}
         </article>
 
-        {/* 3. Dev/Infra Auditor */}
         <article className="efi-alavanca">
           <div className="efi-alavanca-topo">
             <h3>{t.efiLeverAuditorTitle}</h3>
-            {auditor?.enabled && <span className="efi-tag ok">{t.turnedOn}</span>}
+            {auditor?.enabled && <span className="efi-meta ok">{t.turnedOn}</span>}
           </div>
           <p className="efi-alavanca-texto">
             {auditor?.enabled
@@ -236,41 +248,42 @@ export function LeversCard({
                   .replace('{last}', auditorLast)
               : t.efiLeverAuditorOff}
           </p>
-          <div className="efi-alavanca-acoes">
+          <div className="efi-acoes">
             {auditor?.enabled ? (
-              <button type="button" className="efi-pill-cta primario" disabled={auditing || targetBot.busy} onClick={onRunAudit}>
+              <button type="button" className="projeto-acao cheio" disabled={auditing || targetBot.busy} onClick={onRunAudit}>
                 {auditing ? t.auditorRunning : t.efiLeverAuditorRun}
               </button>
             ) : canEnableAuditor ? (
-              <button type="button" className="efi-pill-cta primario" disabled={auditing || targetBot.busy} onClick={onRunAudit}>
+              <button type="button" className="projeto-acao cheio" disabled={auditing || targetBot.busy} onClick={onRunAudit}>
                 {auditing ? t.auditorRunning : t.efiLeverAuditorEnable}
               </button>
             ) : null}
             {auditorThread && (
-              <button type="button" className="efi-pill-cta suave" onClick={() => onOpenAuditThread(auditorThread)}>
+              <button type="button" className="acao-texto" onClick={() => onOpenAuditThread(auditorThread)}>
                 {t.efiLeverAuditorSee}
               </button>
             )}
           </div>
         </article>
 
-        {/* 4. Fixed Wiki & Weekly Peak */}
         <article className="efi-alavanca">
           <div className="efi-alavanca-topo">
             <h3>{t.efiLeverWikiTitle}</h3>
-            {alwaysPages.length > 0 && <span className="efi-tag">{`~${compact(alwaysTokens)}`}</span>}
+            {alwaysPages.length > 0 && <span className="efi-meta">{`~${compact(alwaysTokens)}`}</span>}
           </div>
           <p className="efi-alavanca-texto">
             {alwaysPages.length > 0
-              ? t.efiLeverWikiAlways.replace('{n}', String(alwaysPages.length)).replace('{tokens}', compact(alwaysTokens))
+              ? (alwaysPages.length === 1 ? t.efiLeverWikiAlwaysOne : t.efiLeverWikiAlways)
+                  .replace('{n}', String(alwaysPages.length))
+                  .replace('{tokens}', compact(alwaysTokens))
               : t.efiLeverWikiNone}
             {week?.top ? ` · ${t.efiLeverWeekTop.replace('{tool}', week.top.tool).replace('{tokens}', compact(week.top.tokens))}` : ''}
           </p>
-          <div className="efi-alavanca-acoes">
-            <button type="button" className="efi-pill-cta" onClick={onOpenWiki}>
+          <div className="efi-acoes">
+            <button type="button" className="acao-texto" onClick={onOpenWiki}>
               {t.efiKpiStartupCtaWiki}
             </button>
-            <button type="button" className="efi-pill-cta suave" onClick={onOpenBoard}>
+            <button type="button" className="acao-texto" onClick={onOpenBoard}>
               {t.efiCtaSeeBoard}
             </button>
           </div>

@@ -28,7 +28,7 @@ interface CutsCardProps {
   onCreateTask: (kind: 'shots' | 'startup') => void
 }
 
-/** Bento 1: Interactive compaction threshold simulator + prioritized action queue where every item has a real CTA. */
+/** Bento 1: Interactive compaction threshold simulator + prioritized action queue. One filled action, quiet text for the rest. */
 export function CutsCard({
   selected,
   source,
@@ -124,12 +124,12 @@ export function CutsCard({
           {t.efiSimTitle}
           <small>{t.efiSimHint}</small>
         </h2>
-        {compactChange && <span className="efi-tag ok">{`${t.applied} · ${compact(Number(compactChange.after))}`}</span>}
+        {compactChange && <span className="efi-meta ok">{`${t.applied} · ${compact(Number(compactChange.after))}`}</span>}
       </header>
 
       {activePlan ? (
-        <div className="efi-sim-box">
-          <div className="efi-sim-caps" role="radiogroup" aria-label={t.efiSimTitle}>
+        <div className="efi-sim">
+          <div className="efi-sim-tabs" role="radiogroup" aria-label={t.efiSimTitle}>
             {model.plans.map((plan) => {
               const isSelected = plan.cap === activePlan.cap
               const isBest = model.best?.cap === plan.cap
@@ -140,12 +140,12 @@ export function CutsCard({
                   type="button"
                   role="radio"
                   aria-checked={isSelected}
-                  className={`efi-cap-pill ${isSelected ? 'ativo' : ''}`}
+                  className={`efi-sim-tab ${isSelected ? 'ativo' : ''}`}
                   onClick={() => setSelectedCap(plan.cap)}
                 >
-                  {isApplied && <i className="efi-cap-ponto" aria-hidden="true" />}
+                  {isApplied && <i className="ponto ok" aria-hidden="true" />}
                   <span>{compact(plan.cap)}</span>
-                  {isBest && <span className="efi-cap-badge">{t.efiSimRecommended}</span>}
+                  {isBest && <span className="efi-sim-ideal">{t.efiSimRecommended}</span>}
                 </button>
               )
             })}
@@ -176,10 +176,10 @@ export function CutsCard({
             </div>
           </div>
 
-          {overQualityGuard && <div className="efi-sim-aviso">{t.efiSimQualityWarn}</div>}
+          {overQualityGuard && <div className="efi-aviso">{t.efiSimQualityWarn}</div>}
 
           {canApplyCompact && (
-            <div className="efi-corte-acoes">
+            <div className="efi-acoes">
               <Action
                 key={`compact-earlier:${targetDir}:${activePlan.cap}`}
                 id="compact-earlier"
@@ -200,6 +200,7 @@ export function CutsCard({
         <p className="efi-vazio">{t.efiSimNoPlans}</p>
       )}
 
+      <div className="efi-divisor" />
       <h3 className="efi-fila-titulo">{t.efiCutsHeading}</h3>
       {queueLines.length === 0 ? (
         <p className="efi-vazio">{t.efiCutsEmpty}</p>
@@ -227,29 +228,23 @@ export function CutsCard({
                     </span>
                   )}
                 </div>
-                <div className="efi-corte-evidencia">{line.evidence}</div>
-                <div className="efi-corte-como">{line.how}</div>
+                <div className="efi-corte-texto">{line.evidence}</div>
 
-                <div className="efi-corte-acoes">
+                <div className="efi-acoes">
                   {isTrim && canApplyTrim && (
                     <>
-                      {trimChoices.length > 1 && (
-                        <div className="efi-limite-chips" role="radiogroup" aria-label={t.efiLimitChoice}>
-                          {trimChoices.map(([, limit, saved]) => (
-                            <button
-                              key={limit}
-                              type="button"
-                              role="radio"
-                              aria-checked={selectedTrim === limit}
-                              className={`efi-chip-mini ${selectedTrim === limit ? 'ativo' : ''}`}
-                              onClick={() => setSelectedTrim(limit)}
-                              title={saved > 0 ? t.efiLimitSaves.replace('{tokens}', compact(saved)) : undefined}
-                            >
-                              {`${compact(limit)} ${t.efiCharsShort}`}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      {trimChoices.length > 1 &&
+                        trimChoices.map(([, limit, saved]) => (
+                          <button
+                            key={limit}
+                            type="button"
+                            className={`acao-texto ${selectedTrim === limit ? 'ativo' : ''}`}
+                            onClick={() => setSelectedTrim(limit)}
+                            title={saved > 0 ? t.efiLimitSaves.replace('{tokens}', compact(saved)) : undefined}
+                          >
+                            {`${compact(limit)} ${t.efiCharsShort}`}
+                          </button>
+                        ))}
                       <Action
                         key={`trim-tool-output:${targetDir}:${selectedTrim}`}
                         id="trim-tool-output"
@@ -261,6 +256,7 @@ export function CutsCard({
                         bot={targetBot?.id}
                         project={targetName}
                         label={t.efiApplyTrim.replace('{limit}', compact(selectedTrim))}
+                        quiet
                       />
                     </>
                   )}
@@ -268,7 +264,7 @@ export function CutsCard({
                   {isStartup && (
                     <>
                       {canAudit && (
-                        <button type="button" className="efi-pill-cta primario" disabled={auditing} onClick={onRunAudit}>
+                        <button type="button" className="acao-texto" disabled={auditing} onClick={onRunAudit}>
                           {auditing
                             ? t.auditorRunning
                             : targetBot?.auditor?.enabled
@@ -276,16 +272,16 @@ export function CutsCard({
                               : t.efiCtaAuditEnableAndRun}
                         </button>
                       )}
-                      <button type="button" className="efi-pill-cta" onClick={onOpenWiki}>
+                      <button type="button" className="acao-texto" onClick={onOpenWiki}>
                         {t.efiCtaOpenWiki}
                       </button>
                       {targetBot &&
                         (createdTasks.startup ? (
-                          <button type="button" className="efi-pill-cta ok" onClick={onOpenBoard}>
+                          <button type="button" className="acao-texto ativo" onClick={onOpenBoard}>
                             {`${t.efiCtaTaskCreated} · ${t.efiCtaSeeBoard}`}
                           </button>
                         ) : (
-                          <button type="button" className="efi-pill-cta suave" onClick={() => onCreateTask('startup')}>
+                          <button type="button" className="acao-texto" onClick={() => onCreateTask('startup')}>
                             {t.efiCtaCreateTask}
                           </button>
                         ))}
@@ -294,11 +290,11 @@ export function CutsCard({
 
                   {isBreaks &&
                     (targetBot ? (
-                      <button type="button" className="efi-pill-cta primario" onClick={onNewCleanChat}>
+                      <button type="button" className="acao-texto" onClick={onNewCleanChat}>
                         {t.efiCtaNewCleanChat}
                       </button>
                     ) : (
-                      <button type="button" className="efi-pill-cta" onClick={onOpenChats}>
+                      <button type="button" className="acao-texto" onClick={onOpenChats}>
                         {t.efiCtaOpenChat}
                       </button>
                     ))}
@@ -306,16 +302,16 @@ export function CutsCard({
                   {isShots &&
                     (targetBot ? (
                       createdTasks.shots ? (
-                        <button type="button" className="efi-pill-cta ok" onClick={onOpenBoard}>
+                        <button type="button" className="acao-texto ativo" onClick={onOpenBoard}>
                           {`${t.efiCtaTaskCreated} · ${t.efiCtaSeeBoard}`}
                         </button>
                       ) : (
-                        <button type="button" className="efi-pill-cta primario" onClick={() => onCreateTask('shots')}>
+                        <button type="button" className="acao-texto" onClick={() => onCreateTask('shots')}>
                           {t.efiCtaCreateTask}
                         </button>
                       )
                     ) : (
-                      <button type="button" className="efi-pill-cta" onClick={onOpenChats}>
+                      <button type="button" className="acao-texto" onClick={onOpenChats}>
                         {t.efiCtaOpenChat}
                       </button>
                     ))}
