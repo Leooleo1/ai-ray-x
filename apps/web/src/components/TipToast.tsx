@@ -73,7 +73,7 @@ export function TipToast({ bots, report, nav, raised, folded }: TipToastProps) {
       onMouseLeave={fold}
     >
       <header>
-        <img className="dica-retrato" src={face.art} alt="" />
+        <img className="dica-retrato pelucia" src={face.art} alt="" />
         <span>
           <b style={{ color: face.color }}>{face.name}</b>
           <small>{t.tipFree}</small>

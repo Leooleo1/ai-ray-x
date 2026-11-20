@@ -95,7 +95,7 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
       <section className="entregas-diario" aria-label={t.deliveriesTitle}>
         {items.length === 0 && (
           <div className="entregas-vazio-arte">
-            <img className="arte-vazia" src="/mascotes/vazio-entregas.webp" alt="" />
+            <img className="arte-vazia pelucia" src="/mascotes/vazio-entregas.webp" alt="" />
             <p className="entregas-vazio">{t.deliveriesEmpty}</p>
           </div>
         )}

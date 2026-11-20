@@ -30,7 +30,7 @@ export function Lane({ status, title, count, tone, empty, emptyArt, children }: 
       </header>
       {count === 0 ? (
         <div className="mesa-raia-vazia">
-          {emptyArt && <img className="arte-vazia" src={emptyArt} alt="" />}
+          {emptyArt && <img className="arte-vazia pelucia" src={emptyArt} alt="" />}
           <p>{empty}</p>
         </div>
       ) : (

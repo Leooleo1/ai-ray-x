@@ -31,10 +31,10 @@ export function AvatarEditor({ value, onChange }: AvatarEditorProps) {
               role="radio"
               aria-checked={same(look)}
               aria-label={`${look.shape} · ${t.finishNames[look.finish]}`}
-              className={same(look) ? 'ativo' : ''}
+              className={`pelucia-pula ${same(look) ? 'ativo' : ''}`}
               onClick={() => onChange(look)}
             >
-              <img src={art} alt="" loading="lazy" />
+              <img className="pelucia" src={art} alt="" loading="lazy" />
             </button>
           ))}
         </div>

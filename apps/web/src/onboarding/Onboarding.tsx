@@ -201,7 +201,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
           <p>{text}</p>
           {step === 'welcome' ? (
             <div className="bv-luz bv-arte">
-              <img src={WELCOME_ART} alt="" />
+              <img className="pelucia oi" src={WELCOME_ART} alt="" />
             </div>
           ) : (
             <div className="bv-luz" style={{ backgroundImage: `url(${stageLight(design.color)})` }}>
