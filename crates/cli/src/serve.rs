@@ -12,6 +12,7 @@ use anyhow::{anyhow, Context, Result};
 use raiox_core::{Roots, Store};
 use tiny_http::{Header, Method, Request, Response, Server};
 
+use crate::progress::{self, Milestone};
 use crate::{actions, bots, data, setup};
 use raiox_core::apply;
 use serde_json::{json, Value};
@@ -74,9 +75,13 @@ pub fn run(panel: Panel, port: u16, open_browser: bool) -> Result<()> {
 
 /// Starts the panel server on its own thread; gives its address (with the session token) and port.
 /// One panel per state folder: another raiox already serving the same data refuses this one.
-pub fn start(panel: Panel, port: u16) -> Result<(String, u16)> {
+pub fn start(mut panel: Panel, port: u16) -> Result<(String, u16)> {
     crate::procs::claim_panel(&panel.state_dir)?;
+    // Conversations whose turn was cut when the panel closed get a note; nothing runs on its own.
+    bots::recover_interrupted(&panel.state_dir);
     let server = Server::http(("127.0.0.1", port)).map_err(|e| anyhow!("cannot listen on 127.0.0.1:{port}: {e}"))?;
+    progress::initialize(&panel.state_dir, &panel.store)?;
+    raiox_core::refresh(&mut panel.store, &panel.roots)?;
     let port = server.server_addr().to_ip().map(|addr| addr.port()).ok_or_else(|| anyhow!("no TCP address"))?;
     let token = session_token();
     let url = format!("http://127.0.0.1:{port}/#t={token}");
@@ -128,13 +133,15 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
     if path.starts_with("/api/") && !remote && !authorized(request, token) {
         return Answer::Now(text(401, "missing or wrong session token"));
     }
+    let fresh = request.url().split_once('?').is_some_and(|(_, q)| q.split('&').any(|pair| pair == "fresh=1"));
     match (request.method().clone(), path) {
-        (Method::Get, "/api/settings") => Answer::Later(settings_later(panel)),
+        (Method::Get, "/api/settings") => settings_answer(panel, fresh),
         (Method::Post, "/api/settings") => match body(request).map(|input| crate::settings::update(&panel.state_dir, &input)) {
-            Ok(Ok(_)) => Answer::Later(settings_later(panel)),
+            Ok(Ok(_)) => settings_answer(panel, false),
             Ok(Err(error)) => Answer::Now(respond(Err(error))),
             Err(reply) => Answer::Now(reply),
         },
+        (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
         // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
         (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
@@ -150,11 +157,20 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         // Asks the update server: never on the main loop.
         (Method::Post, "/api/app/check") if !remote => Answer::Later(Box::new(|| respond(crate::app_update::check_now()))),
-        // Opening a terminal can take a moment (or wait on the system): never on the main loop.
-        (Method::Post, "/api/setup/sign_in") => match body(request) {
+        // Sign in may wait briefly for a login URL or open a browser/terminal: never on the main loop.
+        (Method::Post, "/api/setup/sign_in") if !remote => match body(request) {
             Ok(input) => {
                 let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|()| json!({ "opened": true })))))
+                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|out| json!({ "opened": true, "mode": out.mode })))))
+            }
+            Err(reply) => Answer::Now(reply),
+        },
+        // Minimal prompt test to confirm a CLI responds end-to-end: desk-only and off the main loop.
+        (Method::Post, "/api/setup/test") if !remote => match body(request) {
+            Ok(input) => {
+                let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                let home = panel.roots.home.clone();
+                Answer::Later(Box::new(move || respond(crate::connections::test_cli(&id, &home).map(|res| json!(res)))))
             }
             Err(reply) => Answer::Now(reply),
         },
@@ -269,7 +285,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             let thread = Some(param("thread")).filter(|t| crate::threads::valid(t)).unwrap_or_else(|| crate::threads::MAIN.to_string());
             respond(crate::context::of_conversation(&mut panel.store, &panel.roots, &panel.state_dir, &param("id"), &thread))
         }
-        (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
+        (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex, &crate::limits::claude_config(&panel.roots.home)))),
         // The person's name and photo: from this computer only.
         (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
             Ok(input) => {
@@ -282,7 +298,6 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             }
             Err(reply) => reply,
         },
-        (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(
                 setup::clone(&panel.store, &panel.roots.home, &panel.clones, input.get("repo").and_then(Value::as_str).unwrap_or(""))
@@ -291,8 +306,18 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Err(reply) => reply,
         },
         (Method::Get, "/api/setup/install") => respond(Ok::<_, anyhow::Error>(crate::install::state())),
-        (Method::Post, "/api/setup/install") => match body(request) {
+        (Method::Post, "/api/setup/install") if !remote => match body(request) {
             Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/setup/create_project") if !remote => match body(request) {
+            Ok(input) => respond(setup::create_project(
+                &panel.store,
+                &panel.roots.home,
+                &panel.state_dir,
+                &panel.clones,
+                input.get("name").and_then(Value::as_str).unwrap_or(""),
+            )),
             Err(reply) => reply,
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
@@ -347,6 +372,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())
         }
+        "create_project" => {
+            let bot = bots::create_project(state_dir, &panel.roots.home, field("name"), field("agent"))?;
+            crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
+            Ok(())
+        }
         "rsi_create" => {
             crate::rsi::create(state_dir, &panel.roots.home, jobs, field("name"), field("agent"), input.get("lang").and_then(Value::as_str))?;
             Ok(())
@@ -378,10 +408,18 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             let answer_ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid proposal timestamp")).transpose()?;
             bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread, answer_ms)
         }
+        "dismiss_missions" => progress::dismiss(state_dir),
+        "view_usage" => progress::viewed_usage(state_dir),
+        "cancel_waiting" => {
+            let ms = input["answer_ms"].as_i64().context("invalid answer timestamp")?;
+            let card = serde_json::from_value(input.clone())?;
+            bots::cancel_waiting(state_dir, jobs, field("id"), thread, ms, card)
+        }
         "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
-            bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
+            let ms = input.get("answer_ms").map(|value| value.as_i64().context("invalid answer timestamp")).transpose()?;
+            bots::run_command(state_dir, jobs, field("id"), thread, ms, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
         }
         "disallow" => bots::allow(state_dir, field("id"), field("command"), false),
         "review" => bots::request_review(state_dir, jobs, field("id"), thread, input.get("answer_ms").and_then(Value::as_i64).unwrap_or(0), field("reviewer")),
@@ -418,7 +456,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "draft" => bots::draft(state_dir, field("id"), thread, field("draft"), field("action")),
         "reset" => bots::reset(state_dir, jobs, field("id"), thread),
         "link_toggle" => {
-            crate::links::toggle(state_dir, field("a"), field("b"))?;
+            let (a, b) = (field("a"), field("b"));
+            crate::links::toggle(state_dir, a, b)?;
+            if crate::links::are_linked(state_dir, a, b) {
+                progress::record(state_dir, &[Milestone::Link]);
+            }
             let dirs = [field("a"), field("b")].iter().flat_map(|name| crate::team::around(state_dir, name)).collect();
             crate::team::refresh(state_dir, dirs);
             Ok(())
@@ -448,6 +490,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "stop" => jobs.stop(field("id")),
         "correct" => jobs.correct(field("id"), field("text")),
+        "continue" => bots::continue_turn(state_dir, jobs, field("id"), thread),
+        "retry" => bots::retry_turn(state_dir, jobs, field("id"), thread),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
             bots::configure(state_dir, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)
@@ -487,6 +531,12 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "handle" => crate::bot_mail::handle(state_dir, jobs, field("id"), field("message")),
         other => Err(anyhow!("unknown bot action {other}")),
     }?;
+    match action {
+        "ask" | "channel_post" | "ask_many" => progress::record(state_dir, &[Milestone::Chat]),
+        "approve" => progress::record(state_dir, &[Milestone::Approval, Milestone::Desk]),
+        "draft" if field("action") == "apply" => progress::record(state_dir, &[Milestone::Approval, Milestone::Desk]),
+        _ => (),
+    }
     bots::state(&panel.store, &panel.roots.home, state_dir, jobs)
 }
 
@@ -536,17 +586,53 @@ fn wiki_action(state_dir: &Path, action: &str, input: &Value) -> anyhow::Result<
     Ok(crate::wiki::list(state_dir))
 }
 
-/// The settings page: every known CLI probed now (off the panel's thread), and the person's choices.
-fn settings_later(panel: &Panel) -> Box<dyn FnOnce() -> Reply + Send> {
+/// The settings page: serves cached CLI probes immediately while refreshing in the background,
+/// or probes live off the main thread when `fresh` is requested (or no cache exists yet).
+fn settings_answer(panel: &Panel, fresh: bool) -> Answer {
     let usage = crate::connections::usage_all(&panel.store);
     let settings = crate::settings::Settings::load(&panel.state_dir);
     let home = panel.roots.home.clone();
-    Box::new(move || {
-        respond(Ok(json!({
-            "connections": crate::connections::statuses(crate::connections::probe_all(&home), &usage, &settings),
+    let state_dir = panel.state_dir.clone();
+    if !fresh
+        && let Some(cached) = crate::connections::load_cached(&state_dir)
+    {
+        crate::connections::refresh_in_background(state_dir, home);
+        return Answer::Now(respond(Ok(json!({
+            "connections": crate::connections::statuses(cached, &usage, &settings),
             "defaults": settings.defaults,
+            "show_all_navigation": settings.show_all_navigation,
+            "cached": true,
+        }))));
+    }
+    Answer::Later(Box::new(move || {
+        let probes = crate::connections::probe_and_cache(&state_dir, &home);
+        respond(Ok(json!({
+            "connections": crate::connections::statuses(probes, &usage, &settings),
+            "defaults": settings.defaults,
+            "show_all_navigation": settings.show_all_navigation,
+            "cached": false,
         })))
-    })
+    }))
+}
+
+/// The onboarding setup payload: instant from the probe disk cache, or live off the main thread.
+fn setup_answer(panel: &Panel, fresh: bool) -> Answer {
+    let base = match setup::base(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones) {
+        Ok(base) => base,
+        Err(error) => return Answer::Now(respond(Err(error))),
+    };
+    let home = panel.roots.home.clone();
+    let state_dir = panel.state_dir.clone();
+    if !fresh
+        && let Some(cached) = crate::connections::load_cached(&state_dir)
+    {
+        crate::connections::refresh_in_background(state_dir, home);
+        return Answer::Now(respond(Ok(base.into_state(cached, true))));
+    }
+    Answer::Later(Box::new(move || {
+        let probes = crate::connections::probe_and_cache(&state_dir, &home);
+        respond(Ok(base.into_state(probes, false)))
+    }))
 }
 
 pub(crate) fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {

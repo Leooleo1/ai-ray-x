@@ -15,7 +15,7 @@ interface BatchViewProps {
 
 /** The last answer or failure in a conversation. */
 function outcome(messages: BotMessage[]): BotMessage | undefined {
-  return [...messages].reverse().find((m) => m.author === 'bot' || m.kind === 'failed' || m.kind === 'stopped')
+  return [...messages].reverse().find((m) => m.author === 'bot' || m.kind === 'failed' || m.kind === 'stopped' || m.kind === 'interrupted')
 }
 
 /** One question asked to several bots: one column per bot, each with its answer and what it read. */
@@ -74,9 +74,10 @@ function Column({ bot, thread, nav }: ColumnProps) {
             {bot.step?.target && <code className="passo-alvo">{bot.step.target}</code>}
           </p>
         )}
-        {!working && reply && <Markdown text={reply.text} />}
+        {!working && reply && <Markdown text={[reply.text, reply.question].filter(Boolean).join('\n\n')} />}
         {!working && last?.kind === 'failed' && <p className="nota failed">{last.data.error}</p>}
         {!working && last?.kind === 'stopped' && <p className="nota">{t.stoppedNote}</p>}
+        {!working && last?.kind === 'interrupted' && <p className="nota">{t.interruptedNote}</p>}
       </div>
       <footer>
         <small>{reply ? `${t.readWord} ${compact(reply.read_tokens)} tokens` : ''}</small>

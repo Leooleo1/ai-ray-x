@@ -235,6 +235,7 @@ export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' 
 export interface BotReply {
   text: string
   proposal: string | null
+  question?: string
   to?: BotNote[]
   open?: Place[]
   /** Commands the AI asks raiox to run, each with why raiox refuses it, if it does. */
@@ -284,7 +285,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'interrupted' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked' | 'access_changed' | 'waiting_cancelled'
   data: {
     text?: string
     proposal?: string
@@ -296,6 +297,7 @@ export interface BotMessage {
     body?: string
     /** A suggestion sent on: which answer and which project. */
     answer_ms?: number
+    waiting?: 'proposal' | 'command' | 'question'
     project?: string
     /** A draft: its id, the changed files and the secrets files kept out. */
     draft?: string
@@ -307,6 +309,8 @@ export interface BotMessage {
     ms?: number
     /** A side question and its answer: outside the conversation's session. */
     aside?: boolean
+    /** After an access change: whether it now has full access. */
+    full?: boolean
     /** What applying, undoing or discarding a draft touched. */
     paths?: string[]
     /** A command raiox ran, and whether the person had allowed it for the project. */
@@ -340,6 +344,13 @@ export interface BotMessage {
     /** A Dev/Infra audit message and the CLI that ran it. */
     audit?: boolean
     auditor_agent?: BotAgent
+    /** Recovered state of a turn interrupted when raiox closed. */
+    session?: string | null
+    trail?: Trail | null
+    retry_text?: string | null
+    full_access?: boolean
+    /** Marked on the ask appended when the person clicked Continue. */
+    continued?: boolean
   }
 }
 
@@ -411,6 +422,10 @@ export interface Bot {
   trail?: Trail | null
   /** When the running turn started. */
   started_ms?: number | null
+  /** Timestamp of the latest message in the main conversation. */
+  last_ms?: number | null
+  /** Short one-line preview of the latest sentence in the main conversation. */
+  last_line?: string | null
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]
@@ -421,9 +436,18 @@ export interface Bot {
 export interface BotCandidate {
   project: string
   name: string
-  agent: BotAgent
+  agent: BotAgent | null
   requests: number
   last_ms: number
+}
+
+export type FirstUseMission = 'chat' | 'approval' | 'task' | 'link' | 'usage'
+export type FirstUseMilestone = FirstUseMission | 'desk' | 'flow' | 'delivery' | 'wiki' | 'turn'
+
+export interface FirstUseProgress {
+  legacy: boolean
+  dismissed: boolean
+  completed: FirstUseMilestone[]
 }
 
 export interface BotsState {
@@ -439,6 +463,10 @@ export interface BotsState {
   requests?: ChatRequest[]
   /** Detected Python 3 command for the built-in self-improving agent template, or null when missing. */
   rsi_python?: string | null
+  /** Whether this machine can install Python 3 automatically from the panel. */
+  rsi_python_can_install?: boolean
+  progress?: FirstUseProgress
+  show_all_navigation?: boolean
   max_text: number
 }
 
@@ -480,11 +508,12 @@ export interface Channel {
   members: { bot: string; handle: string }[]
   /** Each member's conversation for this channel. */
   threads: Record<string, string>
+  working?: boolean
   messages: ChannelItem[]
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
+export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'continue' | 'retry' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -518,6 +547,9 @@ export interface Connection {
 export interface SettingsState {
   connections: Connection[]
   defaults: Record<string, { model: string | null; effort: string | null }>
+  /** True when the CLI probe came from the disk cache and is refreshing in the background. */
+  cached?: boolean
+  show_all_navigation?: boolean
 }
 
 export interface UsageRow {
@@ -549,6 +581,8 @@ export interface LocalProject {
 export interface SetupState {
   done: boolean
   ais: Connection[]
+  /** True when `ais` came from the disk probe cache and is refreshing in the background. */
+  ais_cached?: boolean
   clone_to: string
   clones: { running: string[]; failed: Record<string, string> }
   /** CLIs being installed (or installed) from the panel since it started. */
@@ -573,9 +607,21 @@ export function fetchInstalls(): Promise<Record<string, CliInstall>> {
   return request<Record<string, CliInstall>>('/api/setup/install')
 }
 
-/** Opens a terminal with the CLI's own sign-in, which goes on in the browser. */
-export function signInCli(id: string): Promise<{ opened: boolean }> {
-  return request<{ opened: boolean }>('/api/setup/sign_in', { id })
+/** Starts the CLI's own sign-in in the default browser (or a terminal fallback). */
+export function signInCli(id: string): Promise<{ opened: boolean; mode?: 'browser' | 'terminal' }> {
+  return request<{ opened: boolean; mode?: 'browser' | 'terminal' }>('/api/setup/sign_in', { id })
+}
+
+export interface CliTestResult {
+  ok: boolean
+  duration_ms: number
+  reply?: string | null
+  error?: string | null
+}
+
+/** Sends a minimal prompt without tools to confirm a CLI responds end-to-end (desktop only). */
+export function testCli(id: string): Promise<CliTestResult> {
+  return request<CliTestResult>('/api/setup/test', { id })
 }
 
 export interface GitHubRepo {
@@ -668,8 +714,8 @@ async function request<T>(path: string, body?: Record<string, unknown>): Promise
   return data
 }
 
-export function fetchSetup(): Promise<SetupState> {
-  return request<SetupState>('/api/setup')
+export function fetchSetup(fresh = false): Promise<SetupState> {
+  return request<SetupState>(fresh ? '/api/setup?fresh=1' : '/api/setup')
 }
 
 export function fetchGitHub(): Promise<GitHubState> {
@@ -678,6 +724,10 @@ export function fetchGitHub(): Promise<GitHubState> {
 
 export function cloneRepo(repo: string): Promise<SetupState> {
   return request<SetupState>('/api/setup/clone', { repo })
+}
+
+export function createSetupProject(name: string): Promise<{ project: LocalProject; setup: SetupState }> {
+  return request<{ project: LocalProject; setup: SetupState }>('/api/setup/create_project', { name })
 }
 
 export function finishSetup(): Promise<{ done: boolean }> {
@@ -1138,8 +1188,8 @@ export function botMemories(id: string): Promise<Memories> {
   return request<Memories>('/api/bot/memories', { id })
 }
 
-export function fetchSettings(): Promise<SettingsState> {
-  return request<SettingsState>('/api/settings')
+export function fetchSettings(fresh = false): Promise<SettingsState> {
+  return request<SettingsState>(fresh ? '/api/settings?fresh=1' : '/api/settings')
 }
 
 export function saveSettings(change: Record<string, unknown>): Promise<SettingsState> {

@@ -5,10 +5,42 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const FILE: &str = "children.json";
+const MANAGED_BIN_SUBDIR: [&str; 2] = [".raiox", "bin"];
+
+/// Folder where raiox places self-downloaded CLI binaries (such as Codex), inside the user's home.
+pub fn managed_bin_dir() -> Option<PathBuf> {
+    let mut dir = dirs::home_dir()?;
+    for part in MANAGED_BIN_SUBDIR {
+        dir.push(part);
+    }
+    Some(dir)
+}
+
+/// Resolves a managed binary installed by raiox if it exists on disk.
+fn managed_binary(program: &str) -> Option<PathBuf> {
+    if program.contains('/') || program.contains('\\') {
+        return None;
+    }
+    let dir = managed_bin_dir()?;
+    #[cfg(windows)]
+    let candidate = dir.join(if program.ends_with(".exe") { program.to_string() } else { format!("{program}.exe") });
+    #[cfg(not(windows))]
+    let candidate = dir.join(program);
+    candidate.is_file().then_some(candidate)
+}
+
+/// Checks whether a program exists in any directory listed on `PATH`.
+#[cfg(not(windows))]
+fn on_path(program: &str) -> bool {
+    if program.contains('/') {
+        return Path::new(program).is_file();
+    }
+    std::env::var_os("PATH").is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(program).is_file()))
+}
 
 /// Windows: no console window for programs started from the app.
 #[cfg(windows)]
@@ -29,14 +61,23 @@ pub fn command(program: &str) -> Command {
         };
         let found = which::which(program)
             .or_else(|error| alias.map_or(Err(error), which::which))
+            .ok()
+            .or_else(|| managed_binary(program))
             .map(std::path::PathBuf::into_os_string)
-            .unwrap_or_else(|_| program.into());
+            .unwrap_or_else(|| program.into());
         let mut command = Command::new(found);
         command.creation_flags(CREATE_NO_WINDOW);
         command
     }
     #[cfg(not(windows))]
-    Command::new(program)
+    {
+        if !on_path(program)
+            && let Some(managed) = managed_binary(program)
+        {
+            return Command::new(managed);
+        }
+        Command::new(program)
+    }
 }
 
 /// Makes the child lead a group of its own, so stopping it stops what it started too.
@@ -146,9 +187,9 @@ pub fn cleanup(state_dir: &Path) {
     save(state_dir, &HashMap::new());
 }
 
-/// Where the official installers put the AI CLIs (and where Homebrew and npm put theirs).
+/// Where the official installers put the AI CLIs (and where Homebrew, npm and raiox put theirs).
 #[cfg(unix)]
-const CLI_DIRS: [&str; 7] = [".local/bin", ".opencode/bin", ".npm-global/bin", ".bun/bin", ".cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"];
+const CLI_DIRS: [&str; 8] = [".local/bin", ".opencode/bin", ".npm-global/bin", ".bun/bin", ".cargo/bin", ".raiox/bin", "/opt/homebrew/bin", "/usr/local/bin"];
 /// How long the login shell may take to say its PATH.
 #[cfg(unix)]
 const SHELL_WAIT: std::time::Duration = std::time::Duration::from_secs(4);
@@ -204,6 +245,19 @@ pub fn find_clis_like_a_terminal() {
         let path = joined(login_shell_path().into_iter().chain(std::iter::once(current)).chain(known));
         // SAFETY: called at the start of main, before raiox starts any thread.
         unsafe { std::env::set_var("PATH", path) };
+    }
+    #[cfg(windows)]
+    {
+        if let Some(bin) = managed_bin_dir() {
+            let mut entries: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+            if !entries.iter().any(|existing| existing == &bin) {
+                entries.push(bin);
+                if let Ok(path) = std::env::join_paths(entries) {
+                    // SAFETY: called at the start of main, before raiox starts any thread.
+                    unsafe { std::env::set_var("PATH", path) };
+                }
+            }
+        }
     }
 }
 

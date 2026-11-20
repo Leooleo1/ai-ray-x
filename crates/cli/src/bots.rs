@@ -18,23 +18,28 @@ use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
 use crate::threads::{self, MAIN};
 
+mod recover;
 mod review;
 mod turn;
 use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 10] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone"];
+const ASIDE: [&str; 13] = ["failed", "sent", "stopped", "interrupted", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed", "waiting_cancelled"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 
 /// Longest message the person can send to a bot, in characters.
 pub const MAX_TEXT: usize = 4000;
-const CANDIDATES: usize = 24;
+/// Maximum length of a new project folder name created under `~/Projects/`.
+pub const MAX_PROJECT_NAME: usize = 60;
+const CANDIDATES: usize = 200;
 
 /// Serializes writes to the registry: answers finish on their own threads.
 static REGISTRY: Mutex<()> = Mutex::new(());
+/// Serializes a person's decision about a waiting card with approval and command execution.
+static WAITING: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Bot {
@@ -319,18 +324,57 @@ fn bot_id(agent: &str, dir: &Path) -> String {
     format!("{hash:016x}")
 }
 
-/// Projects where the person used Claude Code or Codex, newest first; the
-/// panel offers these for activation. The home folder itself is never one.
+/// Projects where the person used an AI CLI (newest first) followed by local git
+/// folders found by setup, without duplicates. The home folder itself is never one.
 #[derive(Debug, Serialize)]
 pub struct Candidate {
     pub project: String,
     pub name: String,
-    pub agent: String,
+    pub agent: Option<String>,
     pub requests: u64,
     pub last_ms: i64,
 }
 
-pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
+/// Maximum characters kept in a bot card's one-line preview of the main conversation.
+const PREVIEW_CHARS: usize = 140;
+
+/// True when `candidate_dir` is the raiox state folder itself or lives inside it.
+fn inside_state_dir(candidate_dir: &Path, state_dir: &Path) -> bool {
+    let Ok(cand) = candidate_dir.canonicalize() else { return false };
+    let Ok(state) = state_dir.canonicalize() else { return false };
+    cand.starts_with(&state)
+}
+
+/// Cleans a message into one short preview line for the Chats card.
+fn preview_line(text: &str) -> Option<String> {
+    let line = text
+        .lines()
+        .map(|raw| raw.trim().trim_start_matches(['#', '>', '-', '*', '`']).trim())
+        .find(|l| !l.is_empty())?;
+    let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ").replace('`', "");
+    let trimmed = collapsed.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.chars().take(PREVIEW_CHARS).collect())
+}
+
+/// Latest timestamp and one-line preview from the tail of a bot's main conversation.
+fn main_preview(messages: &[Message]) -> (Option<i64>, Option<String>) {
+    let last_ms = messages.last().map(|m| m.ms);
+    let last_line = messages.iter().rev().find_map(|m| {
+        let raw = match m.kind.as_str() {
+            "answer" | "draft" => m.data.pointer("/reply/text").and_then(Value::as_str),
+            "ask" => m.data.get("text").and_then(Value::as_str),
+            "failed" => m.data.get("error").and_then(Value::as_str),
+            _ => None,
+        }?;
+        preview_line(raw)
+    });
+    (last_ms, last_line)
+}
+
+pub fn candidates(store: &Store, home: &Path, state_dir: &Path) -> Result<Vec<Candidate>> {
     let mut statement = store.conn().prepare(
         "SELECT project, source, COUNT(*), MAX(ts_ms) FROM calls
          WHERE is_sub = 0 AND project IS NOT NULL AND project NOT IN ('', '~') AND ts_ms IS NOT NULL
@@ -339,21 +383,109 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
     let rows = statement.query_map([], |r| {
         Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?))
     })?;
-    Ok(rows
-        .flatten()
-        // Hidden folders (.claude, .codex, .config…) hold the tools' own data, not projects.
-        .filter(|(project, agent, ..)| {
-            crate::connections::bot_agents().any(|a| a == agent) && !project.starts_with('.') && home.join(project).is_dir()
-        })
-        .take(CANDIDATES)
-        .map(|(project, agent, requests, last_ms)| Candidate {
+    let mut seen_dirs: HashMap<crate::setup::Identity, Vec<String>> = HashMap::new();
+    let mut list = Vec::new();
+    for (project, agent, requests, last_ms) in rows.flatten() {
+        let dir = home.join(&project);
+        // Hidden, Library/Caches and raiox's own state folder hold tool data, not projects.
+        if !crate::connections::bot_agents().any(|a| a == agent) || crate::setup::is_non_project_path(&project) || inside_state_dir(&dir, state_dir) {
+            continue;
+        }
+        let Some(id) = crate::setup::identity(&dir) else {
+            continue;
+        };
+        let agents = seen_dirs.entry(id).or_default();
+        if agents.contains(&agent) {
+            continue;
+        }
+        agents.push(agent.clone());
+        list.push(Candidate {
             name: project.rsplit('/').next().unwrap_or(&project).to_string(),
             project,
-            agent,
+            agent: Some(agent),
             requests: requests.max(0) as u64,
             last_ms,
-        })
-        .collect())
+        });
+        if list.len() >= CANDIDATES {
+            return Ok(list);
+        }
+    }
+    for project in crate::setup::projects(store, home)? {
+        if list.len() >= CANDIDATES {
+            break;
+        }
+        let dir = home.join(&project.project);
+        if crate::setup::is_non_project_path(&project.project) || inside_state_dir(&dir, state_dir) {
+            continue;
+        }
+        let Some(id) = crate::setup::identity(&dir) else {
+            continue;
+        };
+        if seen_dirs.contains_key(&id) {
+            continue;
+        }
+        seen_dirs.insert(id, Vec::new());
+        list.push(Candidate {
+            project: project.project,
+            name: project.name,
+            agent: None,
+            requests: 0,
+            last_ms: project.last_ms.unwrap_or(0),
+        });
+    }
+    Ok(list)
+}
+
+/// Validates a new project folder name: 1 to 60 ASCII letters, digits, dashes or underscores,
+/// never starting with a dash.
+pub fn valid_project_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    let Some(first) = bytes.next() else { return false };
+    name.len() <= MAX_PROJECT_NAME
+        && (first.is_ascii_alphanumeric() || first == b'_')
+        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// Creates `<home>/Projects/<name>` when valid and not already a non-empty folder.
+/// Returns the relative project path (`Projects/<name>`) and whether this call created the directory.
+pub fn create_project_dir(home: &Path, name: &str) -> Result<(String, bool)> {
+    let name = name.trim();
+    if !valid_project_name(name) {
+        bail!("project name must be 1 to {MAX_PROJECT_NAME} letters, digits, dashes or underscores");
+    }
+    let parent = home.join("Projects");
+    fs::create_dir_all(&parent)?;
+    let target = parent.join(name);
+    let created = if target.exists() {
+        if !target.is_dir() {
+            bail!("Projects/{name} already exists and is not a folder");
+        }
+        if fs::read_dir(&target)?.next().is_some() {
+            bail!("Projects/{name} already exists and is not empty");
+        }
+        false
+    } else {
+        fs::create_dir(&target)?;
+        true
+    };
+    Ok((format!("Projects/{name}"), created))
+}
+
+/// Creates `~/Projects/<name>` and activates a standard bot in it on the chosen AI.
+pub fn create_project(state_dir: &Path, home: &Path, name: &str, agent: &str) -> Result<Bot> {
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
+    }
+    let (project, created) = create_project_dir(home, name)?;
+    match activate(state_dir, home, &project, agent, None) {
+        Ok(bot) => Ok(bot),
+        Err(error) => {
+            if created {
+                let _ = fs::remove_dir(home.join(&project));
+            }
+            Err(error)
+        }
+    }
 }
 
 /// Turns a bot on for one project (a folder under the home, never the home itself).
@@ -425,6 +557,66 @@ pub fn configure(state_dir: &Path, id: &str, model: Option<&str>, effort: Option
             })
             .collect())
     })
+}
+
+/// Scans every bot conversation at panel startup and marks any turn cut off when raiox closed.
+pub fn recover_interrupted(state_dir: &Path) {
+    recover::all(state_dir);
+}
+
+/// Resumes the CLI session recovered from an interrupted turn without re-running completed work.
+pub fn continue_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let bot = find(state_dir, id)?;
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let last = messages.last().filter(|m| m.kind == "interrupted").context("no interrupted turn to continue")?;
+    let session = last
+        .data
+        .get("session")
+        .and_then(Value::as_str)
+        .filter(|s| !s.trim().is_empty())
+        .context("no session to continue")?;
+    if bot.agent == "cursor"
+        && let Some(was_full) = last.data.get("full_access").and_then(Value::as_bool)
+        && was_full != bot.grants.full_access
+    {
+        bail!("access mode changed since the interrupted turn; use Try again instead");
+    }
+    set_thread_session(state_dir, id, thread, Some(session.to_string()))?;
+    crate::live::end(&format!("{id}:{thread}"));
+    let prompt = "(raiox: the app closed in the middle of your turn; continue from where you stopped without redoing what you already did. Answer in the same language as the person's message.)";
+    let asked = Some(said("ask", json!({ "text": "", "continued": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: prompt.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+}
+
+/// Re-sends the question from an interrupted turn as a fresh ask.
+pub fn retry_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let last = messages.last().filter(|m| m.kind == "interrupted").context("no interrupted turn to retry")?;
+    let text = last
+        .data
+        .get("retry_text")
+        .and_then(Value::as_str)
+        .filter(|t| !t.trim().is_empty())
+        .or_else(|| {
+            messages
+                .iter()
+                .rev()
+                .find(|m| m.author == "you" && m.kind == "ask")
+                .and_then(|m| m.data.get("text").and_then(Value::as_str))
+                .filter(|t| !t.trim().is_empty())
+        })
+        .context("no question to retry")?;
+    if last.data.get("aside").and_then(Value::as_bool) == Some(true) {
+        ask_aside(state_dir, jobs, id, thread, text)
+    } else {
+        ask(state_dir, jobs, id, thread, text, &[])
+    }
 }
 
 /// Starts the conversation over: the next message opens a fresh session.
@@ -592,7 +784,8 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let recap = crate::agent_switch::recap(&messages).unwrap_or_default();
     // The first question of a branch carries what was said up to where it branched.
     let branched = crate::fork::branch_recap(&messages).unwrap_or_default();
-    let for_cli = format!("{recap}{branched}{brought}{for_cli}");
+    let access = crate::fork::access_recap(&messages).unwrap_or_default();
+    let for_cli = format!("{recap}{branched}{access}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
@@ -626,8 +819,70 @@ pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread:
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(tag = "waiting", rename_all = "snake_case")]
+pub enum WaitingCard {
+    Proposal,
+    Command { index: usize },
+    Question,
+}
+
+impl WaitingCard {
+    fn key(self) -> (&'static str, Option<usize>) {
+        match self {
+            Self::Proposal => ("proposal", None),
+            Self::Command { index } => ("command", Some(index)),
+            Self::Question => ("question", None),
+        }
+    }
+
+    fn cancelled(self, messages: &[Message], answer_ms: i64) -> bool {
+        let (kind, index) = self.key();
+        messages.iter().any(|message| {
+            message.kind == "waiting_cancelled" && message.data["answer_ms"].as_i64() == Some(answer_ms)
+                && message.data["waiting"].as_str() == Some(kind) && message.data["index"].as_u64() == index.map(|number| number as u64)
+        })
+    }
+
+    fn exists(self, answer: &Message) -> bool {
+        let reply = &answer.data["reply"];
+        match self {
+            Self::Proposal => reply["proposal"].as_str().is_some_and(|text| !text.is_empty()),
+            Self::Question => reply["question"].as_str().is_some_and(|text| !text.is_empty()),
+            Self::Command { index } => reply["run"][index]["command"].is_string() && reply["run"][index]["refused"].is_null(),
+        }
+    }
+}
+
+/// Closes a single waiting card in the conversation without starting a turn.
+pub fn cancel_waiting(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: i64, card: WaitingCard) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    find(state_dir, id)?;
+    let file = threads::chat_file(state_dir, id, thread);
+    let messages = room::read_messages(&file);
+    if card.cancelled(&messages, answer_ms) {
+        return Ok(());
+    }
+    if jobs.thread_of(id).as_deref() == Some(thread) {
+        bail!("the bot is still answering");
+    }
+    let current = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
+    if !current.is_some_and(|answer| answer.ms == answer_ms && answer.author == "bot" && answer.kind == "answer" && card.exists(answer)) {
+        bail!("this waiting card is no longer current");
+    }
+    let (kind, index) = card.key();
+    room::append_messages(&file, vec![said("waiting_cancelled", json!({ "answer_ms": answer_ms, "waiting": kind, "index": index }))])
+}
+
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
 pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
@@ -635,6 +890,9 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
         && !last.is_some_and(|m| m.ms == ms)
     {
         bail!("this proposal is no longer current");
+    }
+    if last.is_some_and(|m| WaitingCard::Proposal.cancelled(&messages, m.ms)) {
+        bail!("this proposal was cancelled");
     }
     let proposal = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
@@ -654,7 +912,8 @@ const MAX_ALLOWED: usize = 40;
 
 /// Runs a command the bot asked for in its latest answer, then lets it go on with the output.
 /// With `always`, that exact command runs without asking from now on in this project.
-pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index: usize, always: bool) -> Result<()> {
+pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>, index: usize, always: bool) -> Result<()> {
+    let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
@@ -663,6 +922,9 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     let last = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
+    if !last.is_some_and(|m| answer_ms.is_none_or(|ms| m.ms == ms) && !(WaitingCard::Command { index }).cancelled(&messages, m.ms)) {
+        bail!("this command request is no longer current");
+    }
     let command = last
         .filter(|m| m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer(&format!("/reply/run/{index}/command")).and_then(Value::as_str))
@@ -686,9 +948,9 @@ pub fn set_talk_model(state_dir: &Path, id: &str, model: Option<&str>) -> Result
 
 /// A turn whose message for the CLI differs from what the conversation shows: a channel's
 /// context goes to the CLI, the person's words to the screen.
-pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<()> {
+pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<std::thread::JoinHandle<Option<Message>>> {
     let asked = Some(said("ask", json!({ "text": shown, "channel": channel })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+    start_turn(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
 /// Runs a Dev/Infra audit in `thread` using `audit_agent` (which may differ from the bot's own CLI).
@@ -767,7 +1029,28 @@ pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
     // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
-    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))
+    let full_changed = grants.full_access != bot.grants.full_access;
+    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))?;
+    // Cursor keeps a resumed session in the mode it began in (ask mode stays read-only, agent mode
+    // keeps writing), so its conversations start new sessions, carrying what was said.
+    if bot.agent == "cursor" && full_changed {
+        restart_sessions(state_dir, id, json!({ "full": grants.full_access }))?;
+    }
+    Ok(())
+}
+
+/// Every conversation of a bot starts a new CLI session on its next question, after a mark.
+fn restart_sessions(state_dir: &Path, id: &str, data: Value) -> Result<()> {
+    let conversations = std::iter::once(MAIN.to_string()).chain(threads::list(state_dir, id).into_iter().map(|t| t.id));
+    for thread in conversations {
+        if thread_session(state_dir, &find(state_dir, id)?, &thread)?.is_none() {
+            continue;
+        }
+        set_thread_session(state_dir, id, &thread, None)?;
+        crate::live::end(&format!("{id}:{thread}"));
+        room::append_messages(&threads::chat_file(state_dir, id, &thread), vec![note("access_changed", data.clone())])?;
+    }
+    Ok(())
 }
 
 pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
@@ -821,6 +1104,10 @@ pub fn remember(state_dir: &Path, id: &str, thread: &str, answer_ms: i64) -> Res
 }
 
 fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<()> {
+    start_turn(state_dir, jobs, id, thread, turn).map(|_| ())
+}
+
+fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> Result<std::thread::JoinHandle<Option<Message>>> {
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
@@ -839,14 +1126,14 @@ fn start(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn) -> R
         return Err(error);
     }
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
-    std::thread::spawn(move || {
-        turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
+    Ok(std::thread::spawn(move || {
+        let answer = turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
         jobs.finish(&bot.id);
         crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
         crate::push::after_turn(&state_dir, &bot, &thread);
         crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
-    });
-    Ok(())
+        answer
+    }))
 }
 
 /// Everything the panel shows about bots.
@@ -855,6 +1142,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .into_iter()
         .map(|bot| {
             let messages = room::read_messages(&chat_file(state_dir, &bot.id));
+            let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
                 .into_iter()
                 .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
@@ -880,6 +1168,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "step": jobs.step_of(&bot.id),
                 "trail": jobs.trail_of(&bot.id),
                 "started_ms": jobs.started_of(&bot.id),
+                "last_ms": last_ms,
+                "last_line": last_line,
                 "messages": messages,
                 "threads": side,
                 "pins": crate::pins::list(state_dir, &bot.id),
@@ -894,15 +1184,19 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .filter(|k| k.bots && settings.is_enabled(k.id))
         .map(|k| json!({ "id": k.id, "name": k.name }))
         .collect();
+    let requests = crate::requests::list(state_dir);
     Ok(json!({
         "bots": bots,
-        "candidates": candidates(store, home)?,
+        "candidates": candidates(store, home, state_dir)?,
         "agents": agents,
         "links": crate::links::list(state_dir),
         "batches": crate::batches::list(state_dir),
         "channels": crate::channels::state(state_dir),
-        "requests": crate::requests::list(state_dir),
+        "requests": requests,
         "rsi_python": crate::rsi::python(),
+        "rsi_python_can_install": crate::install::can_install_python(),
+        "progress": crate::progress::state(state_dir, !requests.is_empty()),
+        "show_all_navigation": settings.show_all_navigation,
         "max_text": MAX_TEXT,
     }))
 }
@@ -928,6 +1222,50 @@ mod tests {
         room::append_messages(&threads::chat_file(&dir, "b1", MAIN), messages).unwrap();
         let error = approve(&dir, &dir, &Jobs::default(), "b1", MAIN, Some(100)).unwrap_err();
         assert!(error.to_string().contains("no longer current"), "{error:#}");
+    }
+
+    #[test]
+    fn cancelling_a_card_only_writes_one_local_note_and_blocks_the_cancelled_action() {
+        let home = temp_dir("cancel-waiting");
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        let jobs = Jobs::default();
+        let file = threads::chat_file(&state, &bot.id, MAIN);
+        let reply = json!({ "proposal": "Rename the helper", "question": "Which name?", "run": [{ "command": "git status" }] });
+        room::append_messages(&file, vec![Message { ms: 100, author: "bot".into(), kind: "answer".into(), data: json!({ "reply": reply }) }]).unwrap();
+        for _ in 0..2 {
+            cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Proposal).unwrap();
+        }
+        assert!(approve(&state, &home, &jobs, &bot.id, MAIN, Some(100)).unwrap_err().to_string().contains("cancelled"));
+        assert!(cancel_waiting(&state, &jobs, &bot.id, MAIN, 99, WaitingCard::Question).is_err());
+        cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Question).unwrap();
+        cancel_waiting(&state, &jobs, &bot.id, MAIN, 100, WaitingCard::Command { index: 0 }).unwrap();
+        assert!(run_command(&state, &jobs, &bot.id, MAIN, Some(100), 0, false).is_err());
+        assert!(!jobs.is_busy(&bot.id));
+        let messages = room::read_messages(&file);
+        assert_eq!(messages.len(), 4);
+        assert_eq!(messages[1..].iter().map(|m| m.kind.as_str()).collect::<Vec<_>>(), vec!["waiting_cancelled"; 3]);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn a_cursor_bot_starts_new_sessions_when_its_full_access_changes() {
+        let home = temp_dir("cursor-acesso");
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let cursor = activate(&state, &home, "Projects/app", "cursor", None).unwrap();
+        let claude = activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        for bot in [&cursor, &claude] {
+            set_session(&state, &bot.id, Some("s-ask".into())).unwrap();
+            room::append_messages(&threads::chat_file(&state, &bot.id, MAIN), vec![said("ask", json!({ "text": "create the .env" }))]).unwrap();
+            set_grants(&state, &bot.id, &json!({ "full_access": true })).unwrap();
+        }
+        let marks = |id: &str| room::read_messages(&threads::chat_file(&state, id, MAIN)).iter().filter(|m| m.kind == "access_changed").count();
+        assert_eq!((find(&state, &cursor.id).unwrap().session, marks(&cursor.id)), (None, 1), "Cursor's ask-mode session is left behind");
+        assert_eq!((find(&state, &claude.id).unwrap().session.as_deref(), marks(&claude.id)), (Some("s-ask"), 0), "Claude Code takes its mode on each turn");
+        set_grants(&state, &cursor.id, &json!({ "devices": false })).unwrap();
+        assert_eq!(marks(&cursor.id), 1, "only a change of full access restarts");
     }
 
     #[test]
@@ -985,6 +1323,115 @@ mod tests {
         let remaining: Vec<_> = fs::read_dir(crate::uploads::dir(&state, &bot.id)).into_iter().flatten().flatten().collect();
         assert!(remaining.is_empty(), "failed ask must not leave orphan upload files");
         jobs.finish(&bot.id);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn candidates_include_local_git_folders_after_usage_without_duplicates() {
+        let home = temp_dir("candidates-git");
+        let state = home.join("raiox-state");
+        fs::create_dir_all(home.join("Projects/used-app/.git")).unwrap();
+        fs::create_dir_all(home.join("Projects/fresh-repo/.git")).unwrap();
+        fs::create_dir_all(home.join("Projects/plain-dir")).unwrap();
+        fs::create_dir_all(home.join("Projects/.secret/.git")).unwrap();
+        fs::create_dir_all(home.join(".hidden/.git")).unwrap();
+        fs::create_dir_all(home.join("Library/Caches/raiox")).unwrap();
+        fs::create_dir_all(home.join("Caches/scratch")).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        let store = Store::open_in_memory().unwrap();
+        for (id, project, ts) in [
+            ("c1", "Projects/used-app", 5000),
+            ("c2", "Library/Caches/raiox", 9000),
+            ("c3", "Caches/scratch", 8500),
+            ("c4", "Projects/.secret", 8000),
+            ("c5", ".hidden", 7500),
+            ("c6", "raiox-state", 7000),
+        ] {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO calls(id, source, file, session, project, model, is_sub, ts_ms, input, cache_read, cache_write_5m, cache_write_1h, output, thinking, web_searches, seq, segment, is_first)
+                     VALUES(?1, 'claude', 'f1', 's1', ?2, 'm', 0, ?3, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1)",
+                    rusqlite::params![id, project, ts],
+                )
+                .unwrap();
+        }
+        let list = candidates(&store, &home, &state).unwrap();
+        let names: Vec<&str> = list.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["used-app", "fresh-repo"], "usage projects come first, git projects after, excluding hidden/cache/state dirs");
+        assert_eq!(list[0].agent.as_deref(), Some("claude"));
+        assert_eq!(list[0].requests, 1);
+        assert_eq!(list[1].agent, None);
+        assert_eq!(list[1].requests, 0);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn main_preview_extracts_last_timestamp_and_clean_line() {
+        assert_eq!(main_preview(&[]), (None, None));
+        let mut first = said("ask", json!({ "text": "  First question  " }));
+        first.ms = 1000;
+        let mut second = note("answer", json!({ "reply": { "text": "   \n## Resumo do `fix`   aqui\nSegunda linha" } }));
+        second.ms = 2000;
+        let mut third = note("remembered", json!({}));
+        third.ms = 3000;
+        let (last_ms, last_line) = main_preview(&[first, second, third]);
+        assert_eq!(last_ms, Some(3000));
+        assert_eq!(last_line.as_deref(), Some("Resumo do fix aqui"));
+
+        let long = "a".repeat(PREVIEW_CHARS + 20);
+        let mut fourth = said("ask", json!({ "text": long }));
+        fourth.ms = 4000;
+        let (last_ms, last_line) = main_preview(&[fourth]);
+        assert_eq!(last_ms, Some(4000));
+        assert_eq!(last_line.as_deref().map(|s| s.chars().count()), Some(PREVIEW_CHARS));
+    }
+
+    #[test]
+    fn project_name_validation_accepts_safe_names_only() {
+        assert!(valid_project_name("my-app"));
+        assert!(valid_project_name("MyApp_2"));
+        assert!(valid_project_name("_scratch"));
+        assert!(valid_project_name(&"a".repeat(MAX_PROJECT_NAME)));
+        assert!(!valid_project_name(""));
+        assert!(!valid_project_name(&"a".repeat(MAX_PROJECT_NAME + 1)));
+        assert!(!valid_project_name("-flag"));
+        assert!(!valid_project_name("../escape"));
+        assert!(!valid_project_name("a/b"));
+        assert!(!valid_project_name("with space"));
+        assert!(!valid_project_name("dot.name"));
+    }
+
+    #[test]
+    fn create_project_creates_folder_and_refuses_non_empty() {
+        let home = temp_dir("create-project");
+        let state = home.join(".state");
+
+        // Fresh project folder is created and activated.
+        let bot = create_project(&state, &home, "My_App-1", "claude").unwrap();
+        assert_eq!(bot.name, "My_App-1");
+        assert!(home.join("Projects/My_App-1").is_dir());
+        assert_eq!(list(&state).len(), 1);
+
+        // An existing empty folder is accepted.
+        fs::create_dir_all(home.join("Projects/empty-dir")).unwrap();
+        let bot2 = create_project(&state, &home, "empty-dir", "codex").unwrap();
+        assert_eq!(bot2.name, "empty-dir");
+
+        // An existing non-empty folder is refused.
+        fs::create_dir_all(home.join("Projects/busy-dir")).unwrap();
+        fs::write(home.join("Projects/busy-dir/README.md"), "hi").unwrap();
+        let err = create_project(&state, &home, "busy-dir", "claude").unwrap_err();
+        assert!(err.to_string().contains("not empty"), "{err:#}");
+
+        // A file at the same path is refused.
+        fs::write(home.join("Projects/taken-file"), "x").unwrap();
+        assert!(create_project(&state, &home, "taken-file", "claude").is_err());
+
+        // An unsupported agent is refused without creating the folder.
+        assert!(create_project(&state, &home, "bad-agent", "copilot").is_err());
+        assert!(!home.join("Projects/bad-agent").exists());
+
         let _ = fs::remove_dir_all(&home);
     }
 }

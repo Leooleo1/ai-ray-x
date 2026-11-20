@@ -18,10 +18,9 @@ import { SettingsPage, type Tab as SettingsTab } from './components/SettingsPage
 import { AskMany } from './components/chat/AskMany'
 import { BatchView } from './components/chat/BatchView'
 import type { ChatNav } from './components/chat/nav'
-import { TipToast } from './components/TipToast'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
-import { CONSUMPTION, type ChatView, keepConsumption, Sidebar, type Tab } from './components/Sidebar'
+import { CONSUMPTION, type ChatView, keepConsumption, lastConsumption, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
@@ -31,13 +30,14 @@ import { CommandPalette } from './components/CommandPalette'
 import { Notices } from './components/Notices'
 import { flushSync } from 'react-dom'
 import { Flows } from './components/Flows'
+import { waitingOf } from './components/chat/waiting'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SIDEBAR_KEY = 'raiox.sidebar'
 const SOURCE_LABELS: Record<string, string> = { claude: 'Claude Code', codex: 'Codex' }
 const PATHS: Record<Tab, string[]> = {
-  xray: ['/'],
+  xray: ['/raio-x'],
   usage: ['/uso', '/usage'],
   efficiency: ['/eficiencia', '/efficiency'],
   agents: ['/agentes', '/agents'],
@@ -85,10 +85,10 @@ function chatPath(view: ChatView): string {
   return `${EXCHANGE_PATH}/${encodeURIComponent(view.slice(6))}`
 }
 
-function tabFromPath(): Tab {
+function tabFromPath(homeTab: Tab): Tab {
   const path = window.location.pathname
   if (path.startsWith(BOTS_PATH) || path.startsWith(EXCHANGE_PATH) || path.startsWith(GROUP_PATH) || path.startsWith(CHANNEL_PATH)) return 'agents'
-  return (Object.keys(PATHS) as Tab[]).find((tab) => tab !== 'xray' && PATHS[tab].includes(path)) ?? 'xray'
+  return (Object.keys(PATHS) as Tab[]).find((tab) => PATHS[tab].includes(path)) ?? homeTab
 }
 
 type State = { kind: 'loading' } | { kind: 'failed'; message: string } | { kind: 'unpaired'; message: string | null } | { kind: 'ready'; report: Report; at: Date }
@@ -156,7 +156,7 @@ export function App() {
   }
   if (!state.report.setup.done || setupOpen) {
     const finish = (firstBot: string | null) => {
-      history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : '/')
+      history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : BOTS_PATH)
       // Done now, before the next report arrives with it.
       setState({ ...state, report: { ...state.report, setup: { done: true } } })
       setSetupOpen(false)
@@ -179,7 +179,10 @@ interface DashboardProps {
 }
 
 function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
-  const [tab, setTab] = useState<Tab>(tabFromPath)
+  const bots = useBots(report.bots)
+  const progress = bots.state.progress
+  const homeTab = progress?.legacy === false ? 'agents' : 'xray'
+  const [tab, setTab] = useState<Tab>(() => tabFromPath(homeTab))
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -218,22 +221,21 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   }, [])
   // Which Settings tab opens: Connections from the menu, another when a chat card sends the person there.
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('conexoes')
-  const bots = useBots(report.bots)
   useEffect(() => {
     const onBack = () => {
-      setTab(tabFromPath())
+      setTab(tabFromPath(homeTab))
       setChat(chatFromPath())
     }
     window.addEventListener('popstate', onBack)
     return () => window.removeEventListener('popstate', onBack)
-  }, [])
+  }, [homeTab])
   // A page change cross-fades the content (the sidebar stays put), where the browser can.
   const swap = (change: () => void) => {
     if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return change()
     document.startViewTransition(() => flushSync(change))
   }
   const go = (next: Tab) => {
-    if (next !== tab) history.pushState(null, '', PATHS[next][0])
+    if (next !== tab) history.pushState(null, '', next === 'xray' && homeTab === 'xray' ? '/' : PATHS[next][0])
     keepConsumption(next)
     if (next === tab) return setTab(next)
     swap(() => setTab(next))
@@ -250,7 +252,6 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   }
   const sources = [...report.sources].sort((a, b) => totalTokens(b) - totalTokens(a))
   const main = sources[0]
-  if (!main) return <div className="tela-estado">{t.noLogs}</div>
   const total = sources.reduce((sum, s) => sum + totalTokens(s), 0)
   const days = plateDays(report)
   const activeDays = days.filter((d) => d.tokens > 0).length
@@ -263,7 +264,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const openBatch = chat.startsWith('grupo:') ? bots.state.batches.find((b) => `grupo:${b.id}` === chat) : undefined
   const channels = bots.state.channels ?? []
   const openChannel = chat.startsWith('canal:') ? channels.find((c) => `canal:${c.id}` === chat) : undefined
-  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: bots.state.bots.some((b) => b.busy && b.busy_thread === c.threads[b.id]) }))
+  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: c.working || bots.state.bots.some((b) => b.busy && b.busy_thread === c.threads[b.id]) }))
   const nav: ChatNav = {
     openBot: (id) => {
       setFocus(null)
@@ -280,6 +281,26 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     openChannel: (id) => openChat(`canal:${id}`),
   }
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
+  const hasViewedUsage = progress?.completed.includes('usage')
+  const trackUsage = progress?.legacy === false && !progress.dismissed && !hasViewedUsage
+  const { act } = bots
+  useEffect(() => {
+    if (trackUsage && CONSUMPTION.includes(tab)) void act('view_usage', {})
+  }, [act, tab, trackUsage])
+  const startChat = () => {
+    const first = bots.state.bots[0]
+    if (first) nav.openBot(first.id)
+    else nav.add()
+  }
+  const findApproval = () => {
+    const proposal = bots.state.bots.flatMap(waitingOf).find((item) => item.kind === 'proposal')
+    if (proposal) nav.openMessage(proposal.bot.id, proposal.thread, proposal.ms)
+    else startChat()
+  }
+  const openSettings = (next: SettingsTab) => {
+    setSettingsTab(next)
+    go('settings')
+  }
   const heading = HEADINGS[tab]
   return (
     <div className={`app ${sidebarCollapsed ? 'recolhida' : ''} ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
@@ -294,13 +315,22 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         onToggle={toggleSidebar}
         onTab={(next) => {
           setSettingsTab('conexoes')
-          go(next)
+          // Conversations always lands on the overview of the bots, also from inside a conversation.
+          if (next === 'agents') openChat('bots')
+          else go(next)
         }}
         onChat={openChat}
-        onSettings={(next) => {
-          setSettingsTab(next)
-          go('settings')
+        onSettings={openSettings}
+        progress={progress}
+        showAllNavigation={bots.state.show_all_navigation ?? false}
+        missions={{
+          chat: startChat,
+          approval: findApproval,
+          task: () => go('desk'),
+          link: () => openSettings('fios'),
+          usage: () => go(lastConsumption()),
         }}
+        onDismissMissions={() => act('dismiss_missions', {})}
         onSetup={onSetup}
         onSearch={() => setPaletteOpen(true)}
       />
@@ -341,12 +371,12 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'flows' && <Flows bots={bots} pick={flowPick} />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
-        {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
+        {tab === 'wiki' && <WikiView bots={bots.state.bots} onSaved={bots.refresh} />}
         {tab === 'efficiency' && <EfficiencyView report={report} bots={bots} nav={nav} onGo={go} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />
         )}
-        {tab === 'xray' && (
+        {tab === 'xray' && (main ? (
           <main className="grade">
             <Hero
               total={total}
@@ -361,10 +391,9 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
             <RowsCard className="projetos" title={t.projects} hint={t.projectsHint} rows={projects} />
             <SecretsCard totals={secretTotals(report)} />
           </main>
-        )}
+        ) : <p className="tela-estado">{t.noLogs}</p>)}
         </div>
       </div>
-      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
       <Notices />
       {paletteOpen && (
         <CommandPalette

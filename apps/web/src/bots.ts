@@ -37,7 +37,7 @@ export function useBots(initial: BotsState): Bots {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => setState(initial), [initial])
 
-  const busy = state.bots.some((bot) => bot.busy)
+  const busy = state.bots.some((bot) => bot.busy) || state.channels.some((channel) => channel.working)
   useEffect(() => {
     if (!busy) return undefined
     const timer = window.setInterval(() => {

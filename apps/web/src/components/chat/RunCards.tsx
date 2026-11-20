@@ -10,10 +10,11 @@ interface RunRequestCardProps {
   live: boolean
   busy: boolean
   onRun: (always: boolean) => void
+  onCancel: () => void
 }
 
 /** A command the AI asks to run: the exact words, and Run or Run and always allow. */
-export function RunRequestCard({ request, live, busy, onRun }: RunRequestCardProps) {
+export function RunRequestCard({ request, live, busy, onRun, onCancel }: RunRequestCardProps) {
   if (!live && !request.refused) return null
   return (
     <div className="comando">
@@ -33,6 +34,9 @@ export function RunRequestCard({ request, live, busy, onRun }: RunRequestCardPro
           </button>
           <button type="button" className="link" disabled={busy} onClick={() => onRun(true)}>
             {t.runAlways}
+          </button>
+          <button type="button" className="link" disabled={busy} onClick={onCancel}>
+            {t.cancel}
           </button>
           <span className="nota">{t.runWhere}</span>
         </span>

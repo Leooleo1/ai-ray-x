@@ -6,6 +6,7 @@ import { Markdown } from '../Markdown'
 import { DraftCard, type DraftState } from './DraftCard'
 import { TurnChanges } from './TurnChanges'
 import { CarriedBlock } from './Carry'
+import type { CancellableKind } from './waiting'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { ShotBlock, UploadedImages } from './ShotBlock'
 import { TrailView } from './TrailView'
@@ -60,8 +61,10 @@ interface BotLineProps {
   thread?: string
   turnUndone?: boolean
   onTurnUndo?: () => void
-  /** The latest answer: the commands it asks for can still run. */
-  runnable: boolean
+  /** The latest answer can still be waiting for a decision. */
+  waiting: boolean
+  cancelled: (kind: CancellableKind, index?: number) => boolean
+  onCancel: (kind: CancellableKind, index?: number) => void
   onRun: (index: number, always: boolean) => void
   /** Already kept in ai-memory as a decision of the project. */
   remembered: boolean
@@ -75,9 +78,13 @@ interface BotLineProps {
   reviewState: 'none' | 'pending' | 'done'
   reviewerName: string
   onReview: (reviewer: string) => void
+  /** Latest interrupted turn when the bot is idle: offers Continue / Try again. */
+  resumable?: boolean
+  onContinue?: () => void
+  onRetry?: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, waiting, cancelled, onCancel, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -157,6 +164,12 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       </p>
     )
   }
+  if (message.kind === 'waiting_cancelled') {
+    return <p className="linha-sistema">{t.youCancelled}</p>
+  }
+  if (message.author === 'you' && message.data.continued) {
+    return <p className="linha-sistema">{t.continuedLine}</p>
+  }
   if (message.author === 'you') {
     const fromMail = message.data.via === 'ai-memory'
     const images = message.data.images ?? []
@@ -193,6 +206,43 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
+  if (message.kind === 'interrupted') {
+    const trail = message.data.trail
+    const hasTrail = Boolean(trail && (trail.items.length > 0 || trail.partial))
+    const cursorModeChanged = bot.agent === 'cursor' && typeof message.data.full_access === 'boolean' && message.data.full_access !== Boolean(bot.grants?.full_access)
+    const canContinue = Boolean(message.data.session) && !cursorModeChanged
+    const canRetry = Boolean(message.data.retry_text)
+    return (
+      <div className="interrompido" id={`msg-${message.ms}`}>
+        {hasTrail && trail && (
+          <div className="interrompido-trabalho">
+            {trail.items.length > 0 && <TrailView trail={trail} live={false} />}
+            {trail.partial && <p className="interrompido-parcial">{trail.partial}</p>}
+          </div>
+        )}
+        <div className="interrompido-barra">
+          <span className="linha-sistema">{t.interruptedNote}</span>
+          {resumable && (canContinue || canRetry) && (
+            <span className="interrompido-acoes">
+              {canContinue && onContinue && (
+                <button type="button" className="projeto-acao cheio" onClick={onContinue}>
+                  {t.continueTurn}
+                </button>
+              )}
+              {canRetry && onRetry && (
+                <button type="button" className={canContinue ? 'acao-texto' : 'projeto-acao cheio'} onClick={onRetry}>
+                  {t.retryTurn}
+                </button>
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+  if (message.kind === 'access_changed') {
+    return <p className="linha-sistema">{message.data.full ? t.accessChangedFull : t.accessChangedAsk}</p>
+  }
   if (message.kind === 'forked') {
     return <p className="linha-sistema">{t.forkedLine}</p>
   }
@@ -211,7 +261,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       <div className={`linha de-agente bolha-linha ${message.data.aside ? 'pergunta-lateral' : ''}`} id={`msg-${message.ms}`}>
         <div className="corpo">
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
-          {reply && (
+          {reply?.text && (
             <div className="bolha">
               <Markdown text={reply.text} color={face.color} />
             </div>
@@ -279,7 +329,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               )}
             </div>
           ))}
-          {reply?.proposal && (
+          {reply?.proposal && !cancelled('proposal') && (
             <div className="proposta" id={approvable ? 'esperando-aprovacao' : undefined}>
               <span className="proposta-rotulo">{t.proposal}</span>
               <Markdown text={reply.proposal} />
@@ -287,6 +337,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                 <span className="acao">
                   <button className="cheio" disabled={bot.busy} onClick={onApprove}>
                     {t.approveEdit}
+                  </button>
+                  <button type="button" className="link" disabled={bot.busy} onClick={() => onCancel('proposal')}>
+                    {t.cancel}
                   </button>
                   <span className="nota">{t.draftScope}</span>
                 </span>
@@ -303,8 +356,19 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               {reviewState === 'pending' && <span className="nota revisando">{t.reviewing.replace('{a}', reviewerName)}</span>}
             </div>
           )}
+          {reply?.question && (waiting && !cancelled('question') ? (
+            <div className="proposta">
+              <span className="proposta-rotulo">{t.waitingKinds.question}</span>
+              <Markdown text={reply.question} />
+              <span className="acao">
+                <span className="nota">{t.waitingReplyHint}</span>
+                <button type="button" className="link" disabled={bot.busy} onClick={() => onCancel('question')}>{t.cancel}</button>
+              </span>
+            </div>
+          ) : <Markdown text={reply.question} />)}
           {reply?.run?.map((request, index) => (
-            <RunRequestCard key={request.command} request={request} live={runnable} busy={bot.busy} onRun={(always) => onRun(index, always)} />
+            <RunRequestCard key={request.command} request={request} live={waiting && !cancelled('command', index)} busy={bot.busy}
+              onRun={(always) => onRun(index, always)} onCancel={() => onCancel('command', index)} />
           ))}
           {reply?.to?.map((note) => {
             const done = sent.has(`${message.ms}|${note.project}`)

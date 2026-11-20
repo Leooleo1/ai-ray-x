@@ -10,6 +10,7 @@ import { Markdown } from './Markdown'
 import type { ChatNav } from './chat/nav'
 import { TrailView } from './chat/TrailView'
 import { useFollowBottom } from './chat/useFollowBottom'
+import { cancelledWaiting, latestAnswer, pendingProposal } from './chat/waiting'
 import './channel.css'
 
 /** What the live row shows of a member's path. */
@@ -53,14 +54,14 @@ export function ChannelView({ channel, bots, nav, onDeleted }: ChannelViewProps)
                 </button>
               ))}
             </span>
-            <button type="button" className={`canal-apagar ${deleting ? 'confirmar' : ''}`} onClick={() => void remove()} onBlur={() => setDeleting(false)}>
+            <button type="button" className={`canal-apagar ${deleting ? 'confirmar' : ''}`} disabled={channel.working} onClick={() => void remove()} onBlur={() => setDeleting(false)}>
               {deleting ? t.channelDeleteSure : t.channelDelete}
             </button>
           </header>
           <div className="chat-mensagens" ref={list}>
             {channel.messages.length === 0 && <p className="canal-vazio">{t.channelEmpty.replace('{lead}', lead ? `@${lead.handle}` : '')}</p>}
             {channel.messages.map((item, index) => (
-              <Line key={`${item.message.ms}-${index}`} item={item} bots={bots} nav={nav} handleOf={handleOf} passed={passed} channel={channel.id} />
+              <Line key={`${item.message.ms}-${index}`} item={item} bots={bots} nav={nav} handleOf={handleOf} passed={passed} channel={channel} />
             ))}
             {working.map((m) => (
               <div key={m.bot.id} className="linha de-agente canal-ao-vivo" aria-live="polite">
@@ -81,11 +82,13 @@ export function ChannelView({ channel, bots, nav, onDeleted }: ChannelViewProps)
               {t.newBelow}
             </button>
           )}
+          {channel.working && <p className="linha-sistema" role="status">{t.channelRoundWorking}</p>}
           <Composer
             draftKey={`canal:${channel.id}`}
             placeholder={t.channelCompose}
             maxLength={bots.state.max_text}
             busy={false}
+            blocked={channel.working}
             onSend={post}
             onStop={() => undefined}
           />
@@ -102,12 +105,14 @@ interface LineProps {
   nav: ChatNav
   handleOf: (id: string) => string
   passed: (answer: number, index: number) => boolean
-  channel: string
+  channel: Channel
 }
 
 /** One message of the channel: the person's, a pass, or a member's answer with its requests. */
 function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
   const { message } = item
+  if (message.kind === 'waiting_cancelled') return <p className="linha-sistema">{t.youCancelled}</p>
+  if (item.bot === null && message.kind === 'failed') return <p className="linha-sistema">{`@${handleOf(message.data.from ?? '')}: ${message.data.error ?? ''}`}</p>
   if (item.bot === null && message.kind === 'carried') return <CarriedBlock message={message} />
   if (item.bot === null && message.kind === 'pass') {
     const to = typeof message.data.to === 'string' ? message.data.to : ''
@@ -130,10 +135,16 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
   const bot = bots.state.bots.find((b) => b.id === item.bot)
   if (!bot) return null
   const face = faceForBot(bot)
+  const thread = item.thread ?? 'main'
+  const messages = bot.threads.find((entry) => entry.id === thread)?.messages ?? bot.messages
+  const proposal = messages[pendingProposal(messages)]?.ms === message.ms
+  const question = messages[latestAnswer(messages)]?.ms === message.ms && !cancelledWaiting(messages, message.ms, 'question')
+  const cancel = (waiting: 'proposal' | 'question') => void bots.act('cancel_waiting', { id: bot.id, thread, answer_ms: message.ms, waiting })
   const handle = `@${handleOf(bot.id)}`
   if (message.kind !== 'answer') {
     if (message.kind === 'failed') return <p className="linha-sistema">{`${handle}: ${message.data.error ?? ''}`}</p>
     if (message.kind === 'stopped') return <p className="linha-sistema">{`${handle}: ${t.stoppedNote}`}</p>
+    if (message.kind === 'interrupted') return <p className="linha-sistema">{`${handle}: ${t.interruptedNote}`}</p>
     return null
   }
   const reply = message.data.reply
@@ -147,16 +158,27 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
           <small>{[bot.name, AGENT_LABEL[bot.agent], bot.persona?.role].filter(Boolean).join(' · ')}</small>
         </span>
         <div className="bolha">
-          <Markdown text={reply.text} color={face.color} />
+          <Markdown text={[reply.text, question ? null : reply.question].filter(Boolean).join('\n\n')} color={face.color} />
         </div>
-        {reply.proposal && (
+        {question && reply.question && (
+          <div className="proposta">
+            <span className="proposta-rotulo">{t.waitingKinds.question}</span>
+            <Markdown text={reply.question} />
+            <span className="acao">
+              <button type="button" className="vidro-btn" onClick={() => nav.openMessage(bot.id, thread, message.ms)}>{t.deskOpen}</button>
+              <button type="button" className="link" disabled={bot.busy} onClick={() => cancel('question')}>{t.cancel}</button>
+            </span>
+          </div>
+        )}
+        {reply.proposal && !cancelledWaiting(messages, message.ms, 'proposal') && (
           <div className="proposta">
             <span className="proposta-rotulo">{t.proposal}</span>
             <Markdown text={reply.proposal} />
             <span className="acao">
-              <button type="button" className="vidro-btn" onClick={() => nav.openMessage(bot.id, item.thread ?? 'main', message.ms)}>
+              <button type="button" className="vidro-btn" onClick={() => nav.openMessage(bot.id, thread, message.ms)}>
                 {t.channelOpenToApprove}
               </button>
+              {proposal && <button type="button" className="link" disabled={bot.busy} onClick={() => cancel('proposal')}>{t.cancel}</button>}
             </span>
           </div>
         )}
@@ -171,7 +193,7 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
                   {t.channelPassedShort}
                 </span>
               ) : (
-                <button type="button" className="cheio" onClick={() => void bots.act('channel_pass', { channel, id: bot.id, answer_ms: message.ms, index })}>
+                <button type="button" className="cheio" disabled={channel.working} onClick={() => void bots.act('channel_pass', { channel: channel.id, id: bot.id, answer_ms: message.ms, index })}>
                   {t.channelPass.replace('{to}', `@${ask.project}`)}
                 </button>
               )}

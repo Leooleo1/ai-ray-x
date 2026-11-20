@@ -11,7 +11,7 @@ import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
 import { CarryMenu } from './chat/Carry'
 import { PreviewPanel } from './chat/PreviewPanel'
-import { latestAnswer, pendingProposal } from './chat/waiting'
+import { cancelledWaiting, latestAnswer, pendingProposal } from './chat/waiting'
 import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
 import { BotLine } from './chat/BotLine'
@@ -264,15 +264,20 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               message={message}
               previous={messages[index - 1]}
               approvable={index === pending}
-              runnable={index === pendingRun}
+              waiting={index === pendingRun}
+              cancelled={(kind, which) => cancelledWaiting(messages, message.ms, kind, which)}
+              onCancel={(waiting, which) => void bots.act('cancel_waiting', { id: bot.id, thread: current, answer_ms: message.ms, waiting, index: which })}
               partners={partners}
               reviewState={reviewState(message.ms)}
               reviewerName={reviewerOf(message.ms)}
               onReview={(reviewer) => void bots.act('review', { id: bot.id, thread: current, answer_ms: message.ms, reviewer })}
               remembered={kept.has(message.ms)}
               onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
-              onWiki={() => wikiFromAnswer(bot.id, current, message.ms).then(() => true, () => false)}
-              onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, index: which, always })}
+              onWiki={() => wikiFromAnswer(bot.id, current, message.ms).then(() => {
+                bots.refresh()
+                return true
+              }, () => false)}
+              onRun={(which, always) => void bots.act('run', { id: bot.id, thread: current, answer_ms: message.ms, index: which, always })}
               onApprove={() => void bots.act('approve', { id: bot.id, thread: current, answer_ms: message.ms })}
               sent={sent}
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
@@ -286,6 +291,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
+              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !bot.busy}
+              onContinue={() => void bots.act('continue', { id: bot.id, thread: current })}
+              onRetry={() => void bots.act('retry', { id: bot.id, thread: current })}
             />
             ),
           )}
@@ -384,6 +392,3 @@ function useInbox(bot: Bot) {
   }, [bot.id, bot.busy])
   return { value, clear: () => setValue(null) }
 }
-
-/** The answer whose proposal can still be approved: the latest one, if nothing but failures came after it. */
-/** The latest answer, when nothing came after it: the commands it asks for can still run. */

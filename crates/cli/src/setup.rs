@@ -83,24 +83,34 @@ fn origin(dir: &Path) -> Option<String> {
 
 /// The same folder under two spellings (Projects, projects) has one identity.
 #[cfg(unix)]
-type Identity = (u64, u64);
+pub(crate) type Identity = (u64, u64);
 #[cfg(not(unix))]
-type Identity = PathBuf;
+pub(crate) type Identity = PathBuf;
 
 #[cfg(unix)]
-fn identity(path: &Path) -> Option<Identity> {
+pub(crate) fn identity(path: &Path) -> Option<Identity> {
     use std::os::unix::fs::MetadataExt;
     fs::metadata(path).ok().filter(|m| m.is_dir()).map(|m| (m.dev(), m.ino()))
 }
 
 #[cfg(not(unix))]
-fn identity(path: &Path) -> Option<Identity> {
+pub(crate) fn identity(path: &Path) -> Option<Identity> {
     path.canonicalize().ok().filter(|p| p.is_dir())
+}
+
+/// System, cache or hidden folder names that are never user projects.
+const NON_PROJECT_SEGMENTS: [&str; 3] = ["library", "caches", "appdata"];
+
+/// True when a home-relative path points into a hidden, Library or Caches folder.
+pub(crate) fn is_non_project_path(project: &str) -> bool {
+    project.split(['/', '\\']).any(|seg| {
+        seg.starts_with('.') || NON_PROJECT_SEGMENTS.iter().any(|bad| seg.eq_ignore_ascii_case(bad))
+    })
 }
 
 fn label(home: &Path, dir: &Path) -> Option<String> {
     let rest = dir.strip_prefix(home).ok()?.to_string_lossy().into_owned();
-    (!rest.is_empty() && !rest.starts_with('.')).then_some(rest)
+    (!rest.is_empty() && !is_non_project_path(&rest)).then_some(rest)
 }
 
 /// Projects with Claude Code or Codex usage, plus git checkouts in the usual folders.
@@ -122,7 +132,7 @@ pub fn projects(store: &Store, home: &Path) -> Result<Vec<Project>> {
         last_ms: None,
     };
     for (project, source, count, last) in rows.flatten() {
-        if project.starts_with('.') || !home.join(&project).is_dir() {
+        if is_non_project_path(&project) || !home.join(&project).is_dir() {
             continue;
         }
         let entry = by_label.entry(project.clone()).or_insert_with(|| empty(&project));
@@ -183,17 +193,74 @@ pub fn finish(state_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Everything the setup screens need except GitHub (which goes to the network).
-pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<Value> {
+/// Fast local snapshot for `/api/setup` so the server can probe CLIs off the main loop when needed.
+pub struct SetupBase {
+    pub projects: Vec<Project>,
+    pub clone_to: String,
+    pub done: bool,
+    pub clones: Value,
+    pub usage: Vec<(u64, u64)>,
+    pub settings: crate::settings::Settings,
+}
+
+impl SetupBase {
+    /// Builds the `/api/setup` payload from cached or freshly probed CLI statuses.
+    pub fn into_state(self, probes: Vec<crate::connections::Probe>, ais_cached: bool) -> Value {
+        json!({
+            "done": self.done,
+            "ais": crate::connections::statuses(probes, &self.usage, &self.settings),
+            "ais_cached": ais_cached,
+            "clone_to": self.clone_to,
+            "clones": self.clones,
+            "installs": crate::install::state(),
+            "projects": self.projects,
+        })
+    }
+}
+
+pub fn base(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<SetupBase> {
     let projects = projects(store, home)?;
     let parent = clone_parent(home, &projects);
+    Ok(SetupBase {
+        clone_to: label(home, &parent).unwrap_or_else(|| "Projects".into()),
+        projects,
+        done: is_done(state_dir),
+        clones: clones.snapshot(),
+        usage: crate::connections::usage_all(store),
+        settings: crate::settings::Settings::load(state_dir),
+    })
+}
+
+/// Everything the setup screens need except GitHub (which goes to the network).
+/// Uses the disk probe cache when available and refreshes in the background.
+pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<Value> {
+    let b = base(store, home, state_dir, clones)?;
+    let (probes, ais_cached) = match crate::connections::load_cached(state_dir) {
+        Some(cached) => {
+            crate::connections::refresh_in_background(state_dir.to_path_buf(), home.to_path_buf());
+            (cached, true)
+        }
+        None => (crate::connections::probe_and_cache(state_dir, home), false),
+    };
+    Ok(b.into_state(probes, ais_cached))
+}
+
+/// Creates `~/Projects/<name>` from the onboarding project step and returns both the new
+/// project entry and the refreshed setup state.
+pub fn create_project(store: &Store, home: &Path, state_dir: &Path, clones: &Clones, name: &str) -> Result<Value> {
+    let trimmed = name.trim();
+    let (project, _) = crate::bots::create_project_dir(home, trimmed)?;
+    let created = Project {
+        project,
+        name: trimmed.to_string(),
+        github: None,
+        claude: 0,
+        codex: 0,
+        last_ms: None,
+    };
     Ok(json!({
-        "done": is_done(state_dir),
-        "ais": crate::connections::detect(store, home, &crate::settings::Settings::load(state_dir)),
-        "clone_to": label(home, &parent).unwrap_or_else(|| "Projects".into()),
-        "clones": clones.snapshot(),
-        "installs": crate::install::state(),
-        "projects": projects,
+        "project": created,
+        "setup": state(store, home, state_dir, clones)?,
     }))
 }
 
@@ -292,5 +359,20 @@ mod tests {
         assert!(!valid_part("-flag"));
         assert!(!valid_part("a b"));
         assert!(!valid_part(""));
+    }
+
+    #[test]
+    fn create_project_makes_folder_and_returns_entry() {
+        let home = std::env::temp_dir().join(format!("raiox-setup-create-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&home);
+        fs::create_dir_all(&home).unwrap();
+        let state_dir = home.join(".state");
+        let store = Store::open_in_memory().unwrap();
+        let res = create_project(&store, &home, &state_dir, &Clones::default(), "first-app").unwrap();
+        assert_eq!(res["project"]["project"], "Projects/first-app");
+        assert_eq!(res["project"]["name"], "first-app");
+        assert!(home.join("Projects/first-app").is_dir());
+        assert!(create_project(&store, &home, &state_dir, &Clones::default(), "../bad").is_err());
+        let _ = fs::remove_dir_all(&home);
     }
 }

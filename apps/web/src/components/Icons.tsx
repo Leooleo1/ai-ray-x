@@ -16,6 +16,8 @@ export type IconName =
   | 'ask-many'
   | 'plus'
   | 'sliders'
+  | 'close'
+  | 'check'
   | 'hash'
   | 'sidebar-collapse'
   | 'sidebar-expand'
@@ -47,6 +49,8 @@ const STROKES: Record<IconName, string[]> = {
   'ask-many': ['M4 12h5', 'M9 12l4-6 7-2', 'M9 12h11', 'M9 12l4 6 7 2'],
   plus: ['M12 5v14', 'M5 12h14'],
   sliders: ['M4 7h9M17 7h3', 'M4 17h3M11 17h9', 'M15 5v4', 'M9 15v4'],
+  close: ['M6 6l12 12', 'M6 18 18 6'],
+  check: ['m5 12 4 4L19 6'],
   hash: ['M10 4.5L8 19.5', 'M16 4.5l-2 15', 'M5 9.5h14', 'M4.5 14.5h14'],
   'sidebar-collapse': ['M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z', 'M9.5 4v16', 'M15.5 9.5 13 12l2.5 2.5'],
   'sidebar-expand': ['M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z', 'M9.5 4v16', 'M13.5 9.5 16 12l-2.5 2.5'],

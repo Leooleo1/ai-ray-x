@@ -29,6 +29,9 @@ pub struct Settings {
     /// A new version of the app installs itself once no AI is answering (off unless turned on).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub auto_update: bool,
+    /// Keeps every sidebar section visible while first-use milestones are still pending.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub show_all_navigation: bool,
 }
 
 /// The languages the panel speaks.
@@ -92,8 +95,33 @@ pub fn update(state_dir: &Path, input: &Value) -> Result<Settings> {
         None => current.auto_update,
         Some(value) => value.as_bool().context("auto_update is true or false")?,
     };
-    let next = Settings { enabled, defaults, language, auto_update };
+    let show_all_navigation = match input.get("show_all_navigation") {
+        None => current.show_all_navigation,
+        Some(value) => value.as_bool().context("show_all_navigation is true or false")?,
+    };
+    let next = Settings { enabled, defaults, language, auto_update, show_all_navigation };
     next.save(state_dir)?;
     crate::app_update::set_auto(next.auto_update);
     Ok(next)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn showing_all_navigation_persists_and_leaves_other_settings_in_place() {
+        let state = std::env::temp_dir().join(format!("raiox-navigation-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&state);
+        assert!(!Settings::load(&state).show_all_navigation);
+        update(&state, &json!({ "show_all_navigation": true })).unwrap();
+        update(&state, &json!({ "language": "pt-BR" })).unwrap();
+        assert!(Settings::load(&state).show_all_navigation);
+        update(&state, &json!({ "show_all_navigation": false })).unwrap();
+        let settings = Settings::load(&state);
+        assert!(!settings.show_all_navigation);
+        assert_eq!(settings.language.as_deref(), Some("pt-BR"));
+        let _ = fs::remove_dir_all(state);
+    }
 }

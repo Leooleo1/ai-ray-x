@@ -2,19 +2,34 @@
 //! and what raiox can do with it (read its logs for the x-ray, run it as a
 //! bot). Only how someone is signed in is read, never who (no e-mail).
 
-use std::path::Path;
-use std::process::Stdio;
+use std::collections::{BTreeMap, HashSet};
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use anyhow::{bail, Context, Result};
 use raiox_core::Store;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::settings::Settings;
 
 /// A CLI that does not answer `--version` in this long is treated as missing.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(4);
+/// Maximum time allowed for the "Test now" minimal prompt health check.
+const TEST_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(40);
+/// Disk cache of the last CLI probe, storing only version and sign-in status (never account identity).
+const PROBE_CACHE_FILE: &str = "cli_probes.json";
+/// Minimal prompt used by "Test now" to confirm the CLI answers end-to-end.
+const TEST_PROMPT: &str = "Reply only: ok";
+/// Characters kept from a failed test command's error output.
+const TEST_ERROR_TAIL: usize = 240;
+/// Tool-less opencode permission override for the "Test now" health check.
+const OPENCODE_TEST_CONFIG: &str = r#"{"permission":{"bash":"deny","edit":"deny","read":"deny","webfetch":"deny","external_directory":"deny"}}"#;
 
 pub struct Known {
     pub id: &'static str,
@@ -149,10 +164,25 @@ fn usage(store: &Store, source: &str) -> (u64, u64) {
 }
 
 /// What running a CLI tells: its version, and whether (and how) it is signed in.
-#[derive(Default)]
+/// Deliberately omits e-mail, username, organization or tokens.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Probe {
-    version: Option<String>,
-    sign_in: (Option<bool>, Option<String>, Option<String>),
+    pub version: Option<String>,
+    pub logged_in: Option<bool>,
+    pub method: Option<String>,
+    pub plan: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProbeCache {
+    checked_ms: i64,
+    probes: BTreeMap<String, Probe>,
+}
+
+static REFRESHING: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+
+fn refreshing() -> std::sync::MutexGuard<'static, HashSet<PathBuf>> {
+    REFRESHING.get_or_init(Default::default).lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Every known CLI's version and sign-in, checked all at once (some take most of a second each).
@@ -163,13 +193,62 @@ pub fn probe_all(home: &Path) -> Vec<Probe> {
             .map(|k| {
                 scope.spawn(move || {
                     let version = version(k.binary);
-                    let sign_in = if version.is_some() { sign_in(k.id, home) } else { (Some(false), None, None) };
-                    Probe { version, sign_in }
+                    let (logged_in, method, plan) = if version.is_some() { sign_in(k.id, home) } else { (Some(false), None, None) };
+                    Probe { version, logged_in, method, plan }
                 })
             })
             .collect();
         checks.into_iter().map(|check| check.join().unwrap_or_default()).collect()
     })
+}
+
+/// Reads the last saved CLI probe from disk, aligned with `KNOWN`.
+pub fn load_cached(state_dir: &Path) -> Option<Vec<Probe>> {
+    let raw = fs::read_to_string(state_dir.join(PROBE_CACHE_FILE)).ok()?;
+    let cache: ProbeCache = serde_json::from_str(&raw).ok()?;
+    Some(KNOWN.iter().map(|k| cache.probes.get(k.id).cloned().unwrap_or_default()).collect())
+}
+
+/// Saves the latest CLI probe to disk atomically, storing only version, sign-in state, method and plan.
+pub fn save_cached(state_dir: &Path, probes: &[Probe]) {
+    let entries: BTreeMap<String, Probe> = KNOWN.iter().zip(probes).map(|(k, p)| (k.id.to_string(), p.clone())).collect();
+    let cache = ProbeCache { checked_ms: crate::room::now_ms(), probes: entries };
+    let Ok(body) = serde_json::to_string_pretty(&cache) else { return };
+    if fs::create_dir_all(state_dir).is_err() {
+        return;
+    }
+    let file = state_dir.join(PROBE_CACHE_FILE);
+    let temp = file.with_extension("tmp");
+    if fs::write(&temp, body + "\n").is_ok() {
+        let _ = fs::rename(temp, file);
+    }
+}
+
+/// Probes all known CLIs and updates the disk cache.
+pub fn probe_and_cache(state_dir: &Path, home: &Path) -> Vec<Probe> {
+    let probes = probe_all(home);
+    save_cached(state_dir, &probes);
+    probes
+}
+
+/// Triggers a deduplicated background probe that refreshes the disk cache without blocking the caller.
+pub fn refresh_in_background(state_dir: PathBuf, home: PathBuf) {
+    {
+        let mut active = refreshing();
+        if !active.insert(state_dir.clone()) {
+            return;
+        }
+    }
+    std::thread::spawn(move || {
+        struct Guard(PathBuf);
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                refreshing().remove(&self.0);
+            }
+        }
+        let _guard = Guard(state_dir.clone());
+        probe_and_cache(&state_dir, &home);
+    });
 }
 
 /// Sessions and requests of each known CLI in the index (fast; needs the store).
@@ -189,7 +268,7 @@ pub fn statuses(probes: Vec<Probe>, usage: &[(u64, u64)], settings: &Settings) -
         .zip(probes)
         .zip(usage)
         .map(|((k, probe), &(sessions, requests))| {
-            let Probe { version, sign_in: (logged_in, method, plan) } = probe;
+            let Probe { version, logged_in, method, plan } = probe;
             let installed = version.is_some();
             Status {
                 id: k.id,
@@ -211,6 +290,167 @@ pub fn statuses(probes: Vec<Probe>, usage: &[(u64, u64)], settings: &Settings) -
         .collect()
 }
 
+/// Outcome of the "Test now" minimal prompt health check for one AI CLI.
+#[derive(Debug, Serialize)]
+pub struct TestResult {
+    pub ok: bool,
+    pub duration_ms: u64,
+    pub reply: Option<String>,
+    pub error: Option<String>,
+}
+
+fn cheapest_antigravity_model() -> Option<String> {
+    let models = crate::bot_usage::antigravity_models();
+    models
+        .iter()
+        .find(|m| m.contains("flash") && m.ends_with("-low"))
+        .or_else(|| models.iter().find(|m| m.contains("flash")))
+        .cloned()
+}
+
+/// Builds the tool-less, cheapest-model command and stdin payload for "Test now".
+fn test_command(id: &str, home: &Path, dir: &Path) -> Result<(Command, String)> {
+    if !bot_agents().any(|a| a == id) {
+        bail!("raiox cannot test {id}");
+    }
+    match id {
+        "claude" => {
+            let mut cmd = crate::procs::command("claude");
+            cmd.current_dir(dir).args([
+                "-p",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--no-session-persistence",
+                "--model",
+                "haiku",
+                "--output-format",
+                "text",
+            ]);
+            Ok((cmd, TEST_PROMPT.to_string()))
+        }
+        "codex" => {
+            let mut cmd = crate::procs::command("codex");
+            cmd.current_dir(dir).args([
+                "exec",
+                "--json",
+                "--skip-git-repo-check",
+                "-c",
+                "sandbox_mode=\"read-only\"",
+                "-c",
+                "model_reasoning_effort=\"low\"",
+                "-",
+            ]);
+            Ok((cmd, TEST_PROMPT.to_string()))
+        }
+        "cursor" => {
+            let mut cmd = crate::procs::command("cursor-agent");
+            cmd.current_dir(dir)
+                .args(["-p", "--output-format", "stream-json", "--mode", "ask", "--trust", "--workspace"])
+                .arg(dir);
+            Ok((cmd, TEST_PROMPT.to_string()))
+        }
+        "opencode" => {
+            let mut cmd = crate::procs::command("opencode");
+            cmd.current_dir(dir)
+                .env("PWD", dir)
+                .env("OPENCODE_CONFIG_CONTENT", OPENCODE_TEST_CONFIG)
+                .args(["run", "--standalone", "--format", "json", "--agent", "plan"]);
+            if sign_in("opencode", home).0 != Some(true) {
+                cmd.args(["-m", crate::bot_clis::OPENCODE_FREE[0]]);
+            }
+            Ok((cmd, TEST_PROMPT.to_string()))
+        }
+        "antigravity" => {
+            let mut cmd = crate::procs::command("agy");
+            cmd.current_dir(dir)
+                .env("PWD", dir)
+                .args(["--input-format", "stream-json", "--output-format", "stream-json", "--sandbox", "--mode", "plan"]);
+            if let Some(model) = cheapest_antigravity_model() {
+                cmd.args(["--model", &model]);
+            }
+            Ok((cmd, crate::bot_clis::antigravity_input(TEST_PROMPT, false)))
+        }
+        _ => bail!("raiox cannot test {id}"),
+    }
+}
+
+fn short_error(text: &str) -> String {
+    let trimmed = text.trim();
+    let start = trimmed.char_indices().rev().nth(TEST_ERROR_TAIL).map_or(0, |(i, _)| i);
+    trimmed[start..].lines().last().unwrap_or(trimmed).trim().to_string()
+}
+
+fn parse_test_reply(id: &str, out: &str) -> Result<String> {
+    match id {
+        "claude" => {
+            let trimmed = out.trim();
+            if trimmed.is_empty() {
+                bail!("Claude Code gave no answer");
+            }
+            Ok(trimmed.to_string())
+        }
+        "codex" => crate::bot_run::parse_codex_text(out),
+        "cursor" => crate::bot_run::parse_cursor_text(out),
+        "opencode" => crate::bot_clis::parse_opencode(out).map(|r| r.text),
+        "antigravity" => crate::bot_clis::parse_antigravity(out).map(|r| r.text),
+        _ => bail!("unknown CLI {id}"),
+    }
+}
+
+/// Sends a minimal prompt ("Reply only: ok") without tools to confirm the CLI works end-to-end.
+pub fn test_cli(id: &str, home: &Path) -> Result<TestResult> {
+    let dir = std::env::temp_dir();
+    let (mut cmd, prompt) = test_command(id, home, &dir)?;
+    let started = Instant::now();
+    let mut child = match cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return Ok(TestResult {
+                ok: false,
+                duration_ms: started.elapsed().as_millis() as u64,
+                reply: None,
+                error: Some(format!("could not start {id}: {error}")),
+            });
+        }
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(prompt.as_bytes());
+    }
+    let out = loop {
+        match child.try_wait().context("could not wait on CLI")? {
+            Some(_) => break child.wait_with_output().context("could not read CLI output")?,
+            None if started.elapsed() < TEST_TIMEOUT => std::thread::sleep(POLL),
+            None => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Ok(TestResult {
+                    ok: false,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    reply: None,
+                    error: Some(format!("timed out after {} s", TEST_TIMEOUT.as_secs())),
+                });
+            }
+        }
+    };
+    let duration_ms = started.elapsed().as_millis() as u64;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        let reason = if !stderr.trim().is_empty() { short_error(&stderr) } else { short_error(&stdout) };
+        return Ok(TestResult {
+            ok: false,
+            duration_ms,
+            reply: None,
+            error: Some(if reason.is_empty() { format!("exit {}", out.status.code().unwrap_or(-1)) } else { reason }),
+        });
+    }
+    match parse_test_reply(id, &stdout) {
+        Ok(reply) => Ok(TestResult { ok: true, duration_ms, reply: Some(reply.chars().take(80).collect()), error: None }),
+        Err(error) => Ok(TestResult { ok: false, duration_ms, reply: None, error: Some(format!("{error:#}")) }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,5 +468,50 @@ mod tests {
         conn.execute("INSERT INTO credential VALUES ('x')", []).unwrap();
         assert!(opencode_signed_in(&db));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn probe_cache_round_trips_only_non_personal_fields() {
+        let dir = std::env::temp_dir().join(format!("raiox-probe-cache-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        assert!(load_cached(&dir).is_none());
+
+        let mut probes = vec![Probe::default(); KNOWN.len()];
+        probes[0] = Probe {
+            version: Some("2.1.0".into()),
+            logged_in: Some(true),
+            method: Some("claudeai".into()),
+            plan: Some("max".into()),
+        };
+        save_cached(&dir, &probes);
+
+        let raw = fs::read_to_string(dir.join(PROBE_CACHE_FILE)).unwrap();
+        assert!(!raw.contains("email") && !raw.contains("account"), "cache must not store personal account fields");
+        let loaded = load_cached(&dir).unwrap();
+        assert_eq!(loaded.len(), KNOWN.len());
+        assert_eq!(loaded[0], probes[0]);
+        assert_eq!(loaded[1], Probe::default());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_command_configures_minimal_toolless_flags() {
+        let dir = std::env::temp_dir();
+        let (claude, prompt) = test_command("claude", &dir, &dir).unwrap();
+        let args: Vec<String> = claude.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert_eq!(prompt, TEST_PROMPT);
+        assert!(args.contains(&"haiku".to_string()));
+        assert!(args.contains(&"--strict-mcp-config".to_string()));
+        assert!(args.contains(&"--no-session-persistence".to_string()));
+        assert!(args.windows(2).any(|w| w[0] == "--tools" && w[1].is_empty()));
+
+        let (codex, _) = test_command("codex", &dir, &dir).unwrap();
+        let cargs: Vec<String> = codex.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert!(cargs.contains(&"sandbox_mode=\"read-only\"".to_string()));
+        assert!(cargs.contains(&"model_reasoning_effort=\"low\"".to_string()));
+
+        assert!(test_command("copilot", &dir, &dir).is_err());
+        assert!(test_command("rm -rf", &dir, &dir).is_err());
     }
 }

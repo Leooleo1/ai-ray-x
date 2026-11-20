@@ -2,7 +2,7 @@
 //! themselves (a RAIOX-TASK line). A task runs in its bot's "Tasks"
 //! conversation, from a fresh session each time. When the turn ends it is
 //! done, or it waits for the person when the bot asks for something (a
-//! proposal, a draft, a command). With "pick tasks up" on, the scheduler
+//! proposal, a draft, a command or a question). With "pick tasks up" on, the scheduler
 //! starts each idle bot's next task by itself. Each card shows what its task
 //! cost in tokens.
 
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::bots::{self, Jobs};
+use crate::progress::{self, Milestone};
 use crate::{room, threads};
 
 const FILE: &str = "tarefas.json";
@@ -148,6 +149,8 @@ pub fn add_with(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &s
         board.tasks.push(task);
         Ok(())
     })?;
+    let milestones: &[Milestone] = if from == "person" { &[Milestone::Desk, Milestone::Task] } else { &[Milestone::Desk] };
+    progress::record(state_dir, milestones);
     Ok(id)
 }
 
@@ -203,7 +206,7 @@ fn outcome(answer: &room::Message) -> Status {
     let reply = answer.data.get("reply");
     let asks = |key: &str| reply.and_then(|r| r.get(key)).is_some_and(|v| !v.is_null() && v.as_array().is_none_or(|a| !a.is_empty()));
     match answer.kind.as_str() {
-        "answer" if !asks("proposal") && !asks("run") => Status::Done,
+        "answer" if !asks("proposal") && !asks("run") && !asks("question") => Status::Done,
         _ => Status::Waiting,
     }
 }
@@ -242,7 +245,7 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
         let Ok(thread) = task_thread(state_dir, &task.bot) else { continue };
         let messages = room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread));
         let since = task.started_ms.unwrap_or(0);
-        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped"));
+        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted"));
         let Some(ended) = ended else { continue };
         let status = if task.isolated { copy_outcome(ended) } else { outcome(ended) };
         let (at, tokens) = (ended.ms, spent(&messages, since));
@@ -400,6 +403,7 @@ mod tests {
         assert_eq!(outcome(&message("answer", json!({ "text": "feito", "proposal": null, "run": [] }))), Status::Done);
         assert_eq!(outcome(&message("answer", json!({ "text": "x", "proposal": "mudar a.ts" }))), Status::Waiting);
         assert_eq!(outcome(&message("answer", json!({ "text": "x", "run": [{ "command": "npm test" }] }))), Status::Waiting);
+        assert_eq!(outcome(&message("answer", json!({ "question": "Which version?" }))), Status::Waiting);
         assert_eq!(outcome(&message("draft", json!({}))), Status::Waiting);
         assert_eq!(outcome(&message("failed", json!({}))), Status::Waiting);
     }

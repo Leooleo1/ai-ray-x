@@ -203,7 +203,7 @@ pub fn save_from(state_dir: &Path, input: &Value) -> Result<String> {
     let enabled = input.get("enabled").and_then(Value::as_bool).unwrap_or(false);
     let id = text_of(input, "id");
     let now = room::now_ms();
-    change(state_dir, |flows| {
+    let saved = change(state_dir, |flows| {
         if let Some(flow) = flows.iter_mut().find(|f| !id.is_empty() && f.id == id) {
             if flow.run.as_ref().is_some_and(|run| matches!(run.status, RunStatus::Running | RunStatus::Waiting)) && flow.steps != steps {
                 bail!("stop the run before changing the steps");
@@ -221,7 +221,9 @@ pub fn save_from(state_dir: &Path, input: &Value) -> Result<String> {
         let id = format!("f{now:x}");
         flows.push(Flow { id: id.clone(), name, enabled, trigger, steps, checked_ms: now, threads: BTreeMap::new(), run: None, runs: Vec::new() });
         Ok(id)
-    })
+    })?;
+    crate::progress::record(state_dir, &[crate::progress::Milestone::Flow]);
+    Ok(saved)
 }
 
 pub fn delete(state_dir: &Path, id: &str) -> Result<()> {

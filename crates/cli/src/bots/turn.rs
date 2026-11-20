@@ -3,6 +3,7 @@
 //! on with the output, a few times at most. A command the person approves
 //! by hand starts a turn the same way.
 
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -11,6 +12,7 @@ use serde_json::json;
 
 use super::{drafted, find, list, note, said, set_thread_session, Bot, Jobs, Persona};
 use crate::bot_run::{self, Mode, Reply};
+use crate::progress::{self, Milestone};
 use crate::room::{self, Message};
 use crate::{commands, drafts};
 
@@ -86,12 +88,44 @@ impl Setup {
     }
 }
 
-/// Runs the turn and writes each step of it into the conversation file.
-pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, session: Option<String>) {
+fn turn_milestones(message: &Message) -> &'static [Milestone] {
+    if !matches!(message.kind.as_str(), "answer" | "draft") {
+        return &[];
+    }
+    let reply = &message.data["reply"];
+    let asks_to_run = reply["run"].as_array().is_some_and(|runs| runs.iter().any(|run| run["refused"].is_null()));
+    if reply["proposal"].is_string() || reply["question"].is_string() || asks_to_run || message.data["files"].as_array().is_some_and(|files| !files.is_empty()) {
+        &[Milestone::Turn, Milestone::Desk]
+    } else {
+        &[Milestone::Turn]
+    }
+}
+
+/// Writes the turn to the conversation and returns the last answer of a channel turn.
+pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, session: Option<String>) -> Option<Message> {
     let file = crate::threads::chat_file(state_dir, &bot.id, thread);
-    let say = |message: Message| {
-        let _ = room::append_messages(&file, vec![message]);
-    };
+    let in_channel = turn.asked.as_ref().is_some_and(|asked| asked.data["channel"].is_string());
+    let answer = RefCell::new(None);
+    let completed = Cell::new(&[][..]);
+    run_turn(state_dir, jobs, bot, thread, turn, session, |message| {
+        let milestones = turn_milestones(&message);
+        let reply = (in_channel && message.kind == "answer").then(|| message.clone());
+        if room::append_messages(&file, vec![message]).is_ok() {
+            if !milestones.is_empty() {
+                completed.set(milestones);
+            }
+            if let Some(reply) = reply {
+                answer.replace(Some(reply));
+            }
+        }
+    });
+    if !completed.get().is_empty() {
+        progress::record(state_dir, completed.get());
+    }
+    answer.into_inner()
+}
+
+fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, session: Option<String>, say: impl Fn(Message)) {
     // An approved edit happens in the bot's working copy of the project, never in the project itself.
     let work = match (turn.mode, &turn.home) {
         (Mode::Edit, Some(home)) => match drafts::prepare(state_dir, home, &bot.id, &bot.dir) {
@@ -101,6 +135,16 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         _ => None,
     };
     let setup = Setup::new(state_dir, bot, &turn.text, turn.mode);
+    let _active = super::recover::ActiveGuard::enter(
+        &setup.scratch,
+        &super::recover::ActiveTurn {
+            thread: thread.to_string(),
+            agent: bot.agent.clone(),
+            full_access: bot.grants.full_access,
+            keep_session: turn.keep_session && bot_run::keeps_session(turn.mode) && work.is_none(),
+            started_ms: room::now_ms(),
+        },
+    );
     crate::preview::clear_ai_dir(state_dir, &bot.id);
     let mut text = match turn.mode {
         Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),

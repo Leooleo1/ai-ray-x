@@ -258,6 +258,7 @@ fn answer_text(message: &room::Message, pt: bool) -> String {
     let extra = match message.kind.as_str() {
         "failed" => format!("{} {}", words(pt, "Failed:", "Falhou:"), message.data["error"].as_str().unwrap_or("")),
         "stopped" => words(pt, "Stopped.", "Parado.").to_string(),
+        "interrupted" => words(pt, "The turn stopped when raiox closed.", "O turno parou quando o raiox fechou.").to_string(),
         "draft" => words(pt, "(a draft waits in raiox to be applied)", "(um rascunho espera no raiox para ser aplicado)").to_string(),
         _ if reply["proposal"].as_str().is_some_and(|p| !p.is_empty()) => format!("{} {}", words(pt, "(proposal to approve in raiox:", "(proposta para aprovar no raiox:"), reply["proposal"].as_str().unwrap_or("").replace('`', "") + ")"),
         _ => String::new(),
@@ -274,7 +275,7 @@ fn finished(state_dir: &Path, jobs: &Jobs, waiting: Vec<Waiting>, pt: bool) -> (
             return (done, still);
         }
         let messages = room::read_messages(&threads::chat_file(state_dir, &w.bot, &w.thread));
-        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= w.since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped"));
+        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= w.since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted"));
         match ended {
             Some(message) => done.push(answer_text(message, pt)),
             None if now - w.since < GIVE_UP_MS => still.push(w),

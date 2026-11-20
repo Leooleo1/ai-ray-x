@@ -808,6 +808,16 @@
   white-space: normal;
 }
 
+.bv-ia-nota.ok {
+  color: var(--ok);
+}
+
+.bv-ia-acoes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Starting free, above the list when no AI is ready yet. */
 .bv-gratis {
   display: flex;
@@ -835,6 +845,43 @@
   color: var(--nevoa);
   font-size: 13px;
   line-height: 18px;
+}
+
+/* Creating a first project directly from the Projects step when none exists yet. */
+.bv-novo-projeto {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--raio-painel);
+  background: var(--vidro-7);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.bv-novo-projeto-topo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bv-novo-projeto-topo b {
+  font: 500 14px/18px var(--sans);
+}
+
+.bv-novo-projeto-topo small {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.bv-novo-projeto-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.bv-novo-projeto-linha .bv-busca {
+  flex: 1 1 180px;
 }
 
 /* The welcome's picture: one of raiox's plush characters, its dark backdrop fading into the page. */
