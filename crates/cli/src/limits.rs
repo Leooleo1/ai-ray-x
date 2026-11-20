@@ -132,6 +132,25 @@ fn codex_from(text: &str, now: i64) -> Option<Value> {
     Some(out)
 }
 
+/// Claude Code's config file: `$CLAUDE_CONFIG_DIR/.claude.json` when set, else `~/.claude.json`.
+pub fn claude_config(home: &Path) -> PathBuf {
+    std::env::var_os("CLAUDE_CONFIG_DIR").map_or_else(|| home.join(".claude.json"), |dir| PathBuf::from(dir).join(".claude.json"))
+}
+
+/// The use Claude Code keeps in its own config (`cachedUsageUtilization`, refreshed while it runs, in the
+/// terminal too), with when it fetched it. Only the two windows are read; nothing about the account.
+fn claude_from_config(text: &str, now: i64) -> Option<(Value, i64)> {
+    let config: Value = serde_json::from_str(text).ok()?;
+    let cached = config.get("cachedUsageUtilization")?;
+    let side = |key: &str| {
+        let part = cached.pointer(&format!("/utilization/{key}"))?;
+        let resets = part["resets_at"].as_str().and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).map(|at| at.timestamp());
+        Some(window(part["utilization"].as_f64()?, resets, now))
+    };
+    let fetched = cached["fetchedAtMs"].as_i64()? / 1000;
+    Some((json!({ "five_hour": side("five_hour")?, "week": side("seven_day")? }), fetched))
+}
+
 /// The newest `rate_limit_event` in a Claude Code stream.
 fn claude_from(text: &str, now: i64) -> Option<Value> {
     let info = text.lines().rev().filter(|line| line.contains("\"rate_limit_event\"")).find_map(|line| {
@@ -178,7 +197,7 @@ fn codex_days(codex: &Path) -> Vec<PathBuf> {
 }
 
 /// Each AI's plan, as far as raiox can tell: `{ agent: { five_hour, week, read_at } }`.
-pub fn state(state_dir: &Path, codex: &Path) -> Value {
+pub fn state(state_dir: &Path, codex: &Path, claude_config: &Path) -> Value {
     let now = crate::room::now_ms() / 1000;
     let mut out = serde_json::Map::new();
     let rollout = |p: &Path| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("rollout-") && n.ends_with(".jsonl"));
@@ -201,10 +220,16 @@ pub fn state(state_dir: &Path, codex: &Path) -> Value {
         out.insert("codex".into(), limits);
     }
     let stream = |p: &Path| p.extension().and_then(|e| e.to_str()) == Some("out") || p.file_name().and_then(|n| n.to_str()) == Some("out.txt");
-    let claude_reading = newest_files(&state_dir.join("bots"), &stream).into_iter().find_map(|file| {
+    let from_turns = newest_files(&state_dir.join("bots"), &stream).into_iter().find_map(|file| {
         let text = fs::read_to_string(&file).ok()?;
         claude_from(&text, now).map(|limits| (limits, modified(&file)))
     });
+    // What Claude Code itself last fetched (terminal included) beats an older turn of raiox's.
+    let from_config = fs::read_to_string(claude_config).ok().and_then(|text| claude_from_config(&text, now));
+    let claude_reading = match (from_turns, from_config) {
+        (Some(turns), Some(config)) => Some(if config.1 >= turns.1 { config } else { turns }),
+        (turns, config) => turns.or(config),
+    };
     if let Some((mut limits, at)) = claude_reading {
         limits["read_at"] = json!(at);
         limits["old"] = json!(now - at > SECS_PER_WEEK);
@@ -233,6 +258,16 @@ mod tests {
         assert_eq!((limits["five_hour"]["used"].as_f64(), limits["week"]["used"].as_f64()), (Some(4.0), Some(24.0)));
         assert_eq!((limits["plan"].as_str(), limits["live"].as_bool()), (Some("Plus"), Some(true)));
         assert!(codex_live_from(&json!({ "error": "signed out" }), NOW).is_none());
+    }
+
+    #[test]
+    fn claude_code_keeps_its_windows_in_its_config() {
+        let config = r#"{"oauthAccount":{"emailAddress":"x"},"cachedUsageUtilization":{"fetchedAtMs":1795159000000,"accountUuid":"u","utilization":{"five_hour":{"utilization":7,"resets_at":"2026-11-21T02:19:59.754954+00:00"},"seven_day":{"utilization":91,"resets_at":"2026-11-22T10:59:59+00:00"}}}}"#;
+        let (limits, at) = claude_from_config(config, NOW).unwrap();
+        assert_eq!((limits["five_hour"]["used"].as_f64(), limits["week"]["used"].as_f64(), at), (Some(7.0), Some(91.0), 1_795_159_000));
+        let keys: Vec<&String> = limits.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["five_hour", "week"], "nothing about the account");
+        assert!(claude_from_config("{}", NOW).is_none());
     }
 
     #[test]
