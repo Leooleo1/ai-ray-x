@@ -156,6 +156,14 @@ the cuts with Apply, Memo says what was kept and points to ai-memory pages
 with the same title or untouched for months, which you can delete. They can also
 float a tip now and then; each one can be muted.
 
+**Self-improving agent.** Under Add a project (on the computer only; requires
+Python 3), raiox includes an embedded template that creates a local folder in
+`~/Projects/<name>`, activates a bot on the CLI you pick, and starts by asking
+which niche you want to optimize. It runs a closed loop of hypotheses, A/B
+experiments (simulated or from real CSV exports such as X Analytics), guardrail
+checks and statistical promotion into versioned playbooks; inside a folder with
+its `.raiox-rsi` marker, the engine's subcommands run without asking for a click.
+
 **ai-memory.** With [ai-memory](https://github.com/akitaonrails/ai-memory)
 installed, raiox keeps a pinned page per project (`raiox/equipe.md`) with who
 works there and what each AI did last, and every bot reads its own project's

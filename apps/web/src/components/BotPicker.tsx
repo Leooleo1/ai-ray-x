@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Bot, BotAgent, BotsState } from '../api'
+import { IS_REMOTE, type Bot, type BotAgent, type BotsState } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
@@ -50,8 +50,14 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
   const [query, setQuery] = useState('')
   // The project whose AI choice is open, when more than one CLI is on.
   const [choosing, setChoosing] = useState<string | null>(null)
+  const [rsiOpen, setRsiOpen] = useState(false)
+  const [rsiName, setRsiName] = useState(t.rsiDefaultName)
+  const [rsiAgent, setRsiAgent] = useState<BotAgent | null>(null)
+  const [rsiCreating, setRsiCreating] = useState(false)
   const all = rows(bots.state)
   const agents = bots.state.agents.map((a) => a.id)
+  const chosenRsiAgent = rsiAgent && agents.includes(rsiAgent) ? rsiAgent : agents[0] ?? null
+  const hasPython = Boolean(bots.state.rsi_python)
   const mine = all.filter((row) => row.bots.length > 0)
   const needle = query.trim().toLowerCase()
   const others = all.filter((row) => row.bots.length === 0 && (!needle || `${row.name} ${row.project}`.toLowerCase().includes(needle)))
@@ -62,6 +68,18 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
     const next = await bots.act('activate', { project: row.project, agent })
     const created = next?.bots.find((b) => !before.has(b.id))
     if (created) onOpen(created.id)
+  }
+  const createRsi = async () => {
+    if (!chosenRsiAgent || !hasPython || !rsiName.trim() || rsiCreating) return
+    setRsiCreating(true)
+    const before = new Set(bots.state.bots.map((b) => b.id))
+    try {
+      const next = await bots.act('rsi_create', { name: rsiName.trim(), agent: chosenRsiAgent, lang: locale })
+      const created = next?.bots.find((b) => !before.has(b.id))
+      if (created) onOpen(created.id)
+    } finally {
+      setRsiCreating(false)
+    }
   }
   const turnOn = (row: Row) => (agents.length === 1 ? void activate(row, agents[0]) : setChoosing(choosing === row.project ? null : row.project))
   return (
@@ -131,6 +149,73 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
           {t.addProject}
           <small>{t.addProjectHint}</small>
         </h2>
+        {!IS_REMOTE && (
+          <div className="rsi-modelo">
+            <div className="rsi-modelo-topo">
+              <span className="projeto-nome">
+                <b>{t.rsiTitle}</b>
+                <small>{t.rsiHint}</small>
+              </span>
+              <button
+                type="button"
+                className={`projeto-acao ${rsiOpen ? '' : 'cheio'}`}
+                disabled={agents.length === 0 || !hasPython}
+                aria-expanded={rsiOpen}
+                onClick={() => setRsiOpen(!rsiOpen)}
+              >
+                {rsiOpen ? t.close : t.rsiCreate}
+              </button>
+            </div>
+            {!hasPython && <p className="nota failed">{t.rsiNoPython}</p>}
+            {rsiOpen && (
+              <form
+                className="rsi-modelo-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void createRsi()
+                }}
+              >
+                <label className="rsi-campo">
+                  <span>{t.rsiFolder}</span>
+                  <input
+                    value={rsiName}
+                    maxLength={48}
+                    placeholder={t.rsiDefaultName}
+                    onChange={(event) => setRsiName(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  />
+                </label>
+                {agents.length > 1 && (
+                  <div className="rsi-campo">
+                    <span>{t.pickAi}</span>
+                    <span className="projeto-ias" role="radiogroup" aria-label={t.pickAi}>
+                      {agents.map((agent) => (
+                        <button
+                          key={agent}
+                          type="button"
+                          role="radio"
+                          aria-checked={chosenRsiAgent === agent}
+                          className={`projeto-acao ${chosenRsiAgent === agent ? 'cheio' : ''}`}
+                          onClick={() => setRsiAgent(agent)}
+                        >
+                          {AGENT_LABEL[agent]}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                )}
+                <div className="rsi-acoes">
+                  <button
+                    type="submit"
+                    className="projeto-acao cheio"
+                    disabled={!hasPython || !chosenRsiAgent || !rsiName.trim() || rsiCreating}
+                  >
+                    {rsiCreating ? t.rsiCreating : t.rsiCreate}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
         <input className="projetos-busca" value={query} placeholder={t.searchProjects} aria-label={t.searchProjects} onChange={(event) => setQuery(event.target.value)} />
         {agents.length === 0 && <p className="nota">{t.noAgentsOn}</p>}
         {shown.length === 0 && <p className="nota">{t.noCandidates}</p>}

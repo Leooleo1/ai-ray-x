@@ -43,6 +43,10 @@ Intel Macs and Linux: [build from source](docs/building.md).
 - **A team**: channels with a free router, a wiki every AI reads, routines,
   and Ray, Diet and Memo, three built-in helpers that answer from your logs
   at no cost.
+- **Self-improving agent**: a built-in project template under Add a project
+  that interviews you for a niche, tracks real experiments (including free X
+  Analytics CSV exports) and evolves versioned playbooks through a statistical
+  gate.
 - **Anywhere**: your phone (pairing by QR) or Telegram.
 
 Every feature, in detail: [docs/features.md](docs/features.md).

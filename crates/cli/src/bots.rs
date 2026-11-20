@@ -773,6 +773,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         "batches": crate::batches::list(state_dir),
         "channels": crate::channels::state(state_dir),
         "requests": crate::requests::list(state_dir),
+        "rsi_python": crate::rsi::python(),
         "max_text": MAX_TEXT,
     }))
 }

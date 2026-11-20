@@ -305,7 +305,7 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
     // Read again: the person may have changed the list or the grant while the bot was answering.
     let now = find(state_dir, &bot.id).ok()?;
-    let safe = |command: &str| now.grants.auto_run && commands::check(command).is_ok_and(|words| crate::safe_commands::runs_alone(&words));
+    let safe = |command: &str| now.grants.auto_run && commands::check(command).is_ok_and(|words| crate::safe_commands::runs_alone(&words, &bot.dir));
     reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
 }
 

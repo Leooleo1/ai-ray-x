@@ -292,6 +292,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())
         }
+        "rsi_create" => {
+            crate::rsi::create(state_dir, &panel.roots.home, jobs, field("name"), field("agent"), input.get("lang").and_then(Value::as_str))?;
+            Ok(())
+        }
         "deactivate" => {
             let dir = bots::dir_of(state_dir, field("id"));
             bots::deactivate(state_dir, jobs, field("id"))?;
