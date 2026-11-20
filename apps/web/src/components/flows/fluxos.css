@@ -2,8 +2,8 @@
    lightning of the trigger is the one warm accent; a run lights each node as it passes. */
 .fluxos {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: var(--vao);
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
   min-height: 0;
 }
 
@@ -48,10 +48,14 @@
   font-size: 13px;
 }
 
-/* The list of workflows. */
-.cartao.fluxo-lista {
-  gap: 8px;
-  padding: 12px;
+/* The list: a quiet column on the frame, no card around it. */
+.fluxo-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 16px 4px 0;
+  box-shadow: inset -1px 0 0 var(--fio);
 }
 
 .fluxo-criar {
@@ -59,17 +63,19 @@
   align-items: center;
   gap: 8px;
   height: 36px;
+  margin-bottom: 8px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--raio-item);
   background: transparent;
-  color: var(--giz);
+  color: var(--nevoa);
   font: 500 14px/18px var(--sans);
   cursor: pointer;
 }
 
 .fluxo-criar:hover {
   background: var(--vidro-7);
+  color: var(--giz);
 }
 
 .fluxo-lista ul {
@@ -89,21 +95,22 @@
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 10px;
+  padding: 9px 10px;
   border: 0;
   border-radius: var(--raio-item);
   background: transparent;
-  color: var(--giz);
+  color: var(--nevoa);
   text-align: left;
   cursor: pointer;
 }
 
 .fluxo-lista li button:hover {
-  background: rgb(255 255 255 / 4%);
+  color: var(--giz);
 }
 
 .fluxo-lista li button.ativo {
   background: var(--vidro-7);
+  color: var(--giz);
 }
 
 .fluxo-lista b {
@@ -143,10 +150,15 @@
   background: var(--brasa);
 }
 
-/* The stage: the name and the run button on top, the board below. */
-.cartao.fluxo-palco {
-  gap: 0;
-  padding: 0;
+/* The stage: the dotted board itself, the name and Run on it, no inner card. */
+.fluxo-palco {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--raio-painel);
+  background-image: radial-gradient(rgb(255 255 255 / 6%) 1px, transparent 1.2px);
+  background-size: 22px 22px;
 }
 
 .fluxo-topo {
@@ -154,21 +166,21 @@
   flex: none;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  box-shadow: inset 0 -1px 0 var(--fio);
+  padding: 4px 4px 4px 0;
 }
 
 .fluxo-nome {
   flex: 1;
   min-width: 0;
-  height: 34px;
-  padding: 0 8px;
+  height: 40px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--raio-item);
   outline: 0;
   background: transparent;
   color: var(--giz);
-  font: 500 16px/20px var(--sans);
+  font: 500 20px/24px var(--sans);
+  letter-spacing: -0.01em;
 }
 
 .fluxo-nome:hover,
@@ -192,8 +204,6 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: none;
-  background-image: radial-gradient(rgb(255 255 255 / 7%) 1px, transparent 1.2px);
-  background-size: 22px 22px;
 }
 
 /* An empty board: the lightning, what to do, one button. */
@@ -224,145 +234,134 @@
   width: 48px;
   height: 48px;
   place-items: center;
-  border-radius: 14px;
+  border-radius: 50%;
   background: rgb(229 181 76 / 12%);
   box-shadow: inset 0 0 0 1px rgb(229 181 76 / 22%);
   color: var(--alerta);
 }
 
-/* The chain: nodes hanging one under the other on a thin wire. */
+/* The signature: one line from the trigger down, each stop's icon sitting on it. The line
+   behind a stop the run has passed turns green; the stop being run glows amber, the one
+   waiting for the person glows ember. */
 .fluxo-corrente {
+  --fluxo-icone: 40px;
+  --fluxo-vao: 28px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: min(460px, 100% - 32px);
-  margin: 0 auto;
-  padding: 40px 0 24px;
-}
-
-.fluxo-elo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-.fluxo-fio {
-  width: 1px;
-  height: 28px;
-  background: rgb(255 255 255 / 16%);
+  width: min(620px, 100% - 20px);
+  margin: 0 0 0 10px;
+  padding: 32px 0 24px;
 }
 
 .fluxo-no {
-  width: 100%;
-  border-radius: var(--raio-painel);
-  background: #111116;
-  box-shadow: var(--sombra-card);
-  transition: box-shadow 200ms ease;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--fluxo-icone) minmax(0, 1fr);
+  column-gap: 16px;
+  padding-bottom: var(--fluxo-vao);
 }
 
-.fluxo-no.running {
-  box-shadow: inset 0 0 0 1px rgb(229 181 76 / 45%), 0 0 0 4px rgb(229 181 76 / 6%);
+.fluxo-no::before {
+  position: absolute;
+  top: var(--fluxo-icone);
+  bottom: 0;
+  left: calc(var(--fluxo-icone) / 2);
+  width: 1px;
+  background: rgb(255 255 255 / 14%);
+  content: '';
 }
 
-.fluxo-no.waiting {
-  box-shadow: inset 0 0 0 1px rgb(232 117 74 / 55%), 0 0 0 4px rgb(232 117 74 / 8%);
+.fluxo-no.ultimo::before {
+  display: none;
 }
 
-.fluxo-no.failed {
-  box-shadow: inset 0 0 0 1px rgb(232 117 74 / 35%);
+.fluxo-no.done::before {
+  background: rgb(95 208 138 / 45%);
+}
+
+.fluxo-no-icone {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: var(--fluxo-icone);
+  height: var(--fluxo-icone);
+  place-items: center;
+  border-radius: 50%;
+  background: #141419;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.fluxo-no:first-child .fluxo-no-icone {
+  background: #1d1a12;
+  box-shadow: inset 0 0 0 1px rgb(229 181 76 / 30%);
+  color: var(--alerta);
+}
+
+.fluxo-no.done .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1px rgb(95 208 138 / 55%);
+}
+
+.fluxo-no.running .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1.5px var(--alerta), 0 0 0 5px rgb(229 181 76 / 10%);
+  animation: fluxo-pulsa 1.6s ease-in-out infinite;
+}
+
+.fluxo-no.waiting .fluxo-no-icone,
+.fluxo-no.failed .fluxo-no-icone {
+  box-shadow: inset 0 0 0 1.5px var(--brasa), 0 0 0 5px rgb(232 117 74 / 10%);
+}
+
+@keyframes fluxo-pulsa {
+  50% {
+    box-shadow: inset 0 0 0 1.5px var(--alerta), 0 0 0 9px rgb(229 181 76 / 4%);
+  }
+}
+
+.fluxo-no-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-top: 9px;
 }
 
 .fluxo-no-topo {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .fluxo-no-cabeca {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 12px;
+  flex: 0 1 auto;
   min-width: 0;
-  padding: 14px 16px;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  overflow: hidden;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--giz);
+  font: 500 16px/22px var(--sans);
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.fluxo-no-icone {
-  display: grid;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 10px;
+.fluxo-no-cabeca:hover,
+.fluxo-no.aberto .fluxo-no-cabeca {
   background: var(--vidro-7);
-  color: var(--giz);
-}
-
-.fluxo-no:first-child .fluxo-no-icone {
-  background: rgb(229 181 76 / 12%);
-  color: var(--alerta);
-}
-
-.fluxo-no-texto {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.fluxo-no-texto small {
-  color: var(--nevoa);
-  font: 11px/14px var(--mono);
-}
-
-.fluxo-no-texto b {
-  overflow: hidden;
-  font: 500 14px/20px var(--sans);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fluxo-no-estado {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-left: auto;
-  border-radius: 50%;
-}
-
-.fluxo-no.done .fluxo-no-estado {
-  background: var(--ok);
-}
-
-.fluxo-no.running .fluxo-no-estado {
-  background: var(--alerta);
-  animation: fluxo-pulsa 1.4s ease-in-out infinite;
-}
-
-.fluxo-no.waiting .fluxo-no-estado,
-.fluxo-no.failed .fluxo-no-estado {
-  background: var(--brasa);
-}
-
-@keyframes fluxo-pulsa {
-  50% {
-    opacity: 0.35;
-  }
 }
 
 .fluxo-no-tirar {
   display: grid;
   flex: none;
-  width: 28px;
-  height: 28px;
-  margin-right: 10px;
+  width: 24px;
+  height: 24px;
   place-items: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--nevoa);
   cursor: pointer;
@@ -380,8 +379,8 @@
 }
 
 .fluxo-no-tirar svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -390,7 +389,7 @@
 
 .fluxo-no-falta,
 .fluxo-no-resultado {
-  margin: -6px 16px 14px 62px;
+  margin: 0;
   color: var(--nevoa);
   font-size: 13px;
   line-height: 19px;
@@ -403,9 +402,8 @@
 .fluxo-no-resultado {
   display: -webkit-box;
   overflow: hidden;
-  white-space: pre-line;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .fluxo-no-resultado.falhou {
@@ -416,7 +414,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: -4px 16px 14px 62px;
+  margin-top: 6px;
 }
 
 /* A node's editor. */
@@ -424,7 +422,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 0 16px 16px;
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px var(--fio);
 }
 
 .fluxo-campo {
@@ -489,24 +491,41 @@
   gap: 8px;
 }
 
-/* Adding a step: a + on the wire, then the three kinds. */
+/* Adding a step: the last stop on the line is a dashed ring with a +. */
+.fluxo-elo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .fluxo-mais {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px 0 10px;
+  gap: 16px;
+  padding: 0 10px 0 0;
   border: 0;
   border-radius: 999px;
-  background: #111116;
-  box-shadow: var(--sombra-card);
+  background: transparent;
   color: var(--nevoa);
-  font: 500 13px/18px var(--sans);
+  font: 500 14px/20px var(--sans);
   cursor: pointer;
+}
+
+.fluxo-mais-icone {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px dashed rgb(255 255 255 / 22%);
+  border-radius: 50%;
 }
 
 .fluxo-mais:hover {
   color: var(--giz);
+}
+
+.fluxo-mais:hover .fluxo-mais-icone {
+  border-color: rgb(255 255 255 / 45%);
 }
 
 .fluxo-novo-passo {
@@ -546,7 +565,7 @@
   justify-content: space-between;
   gap: 12px;
   margin-top: auto;
-  padding: 12px 16px;
+  padding: 12px 4px 4px 10px;
   color: var(--nevoa);
   font-size: 12px;
 }
@@ -564,8 +583,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .cartao.fluxo-lista {
+  .fluxo-lista {
     max-height: 200px;
+    padding-right: 0;
+    box-shadow: inset 0 -1px 0 var(--fio);
   }
 
   .fluxo-topo {
@@ -574,7 +595,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fluxo-no.running .fluxo-no-estado {
+  .fluxo-no.running .fluxo-no-icone {
     animation: none;
   }
 }

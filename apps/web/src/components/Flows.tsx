@@ -78,7 +78,7 @@ export function Flows({ bots }: { bots: Bots }) {
   const scheduled = draft?.trigger && draft.trigger.kind !== 'manual'
   return (
     <main className="fluxos">
-      <aside className="cartao fluxo-lista">
+      <aside className="fluxo-lista">
         <button type="button" className="fluxo-criar" onClick={() => void create()}>
           <FlowIcon name="plus" />
           {t.flowNew}
@@ -98,7 +98,7 @@ export function Flows({ bots }: { bots: Bots }) {
         </ul>
         {flows.length === 0 && <p className="fluxo-vazio">{t.flowNone}</p>}
       </aside>
-      <section className="cartao fluxo-palco">
+      <section className="fluxo-palco">
         {draft && flow ? (
           <>
             <header className="fluxo-topo">

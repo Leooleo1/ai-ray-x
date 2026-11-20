@@ -4,10 +4,10 @@ export type NodeState = 'idle' | 'running' | 'waiting' | 'done' | 'failed'
 
 interface FlowNodeProps {
   icon: ReactNode
-  /** Small, above the title: "Trigger", "Step 2". */
+  /** Read aloud only: "Trigger", "Step 2" (the order is already on the line). */
   label: string
   title: string
-  /** What is missing, said in the node until it is filled. */
+  /** What is missing, said under the title until it is filled. */
   missing?: string | null
   state?: NodeState
   open: boolean
@@ -18,32 +18,32 @@ interface FlowNodeProps {
   footer?: ReactNode
   onRemove?: () => void
   removeLabel?: string
+  /** The last node has no line going on below it. */
+  last?: boolean
 }
 
-/** One node of the chain: its icon, what it is, and its editor when open. */
-export function FlowNode({ icon, label, title, missing, state = 'idle', open, onToggle, children, footer, onRemove, removeLabel }: FlowNodeProps) {
+/** One stop on the line: its icon sits on the line, its title and result beside it, its editor below. */
+export function FlowNode({ icon, label, title, missing, state = 'idle', open, onToggle, children, footer, onRemove, removeLabel, last = false }: FlowNodeProps) {
   return (
-    <section className={`fluxo-no ${state} ${open ? 'aberto' : ''} ${missing ? 'incompleto' : ''}`}>
-      <div className="fluxo-no-topo">
-        <button type="button" className="fluxo-no-cabeca" aria-expanded={open} onClick={onToggle}>
-          <span className="fluxo-no-icone">{icon}</span>
-          <span className="fluxo-no-texto">
-            <small>{label}</small>
-            <b>{title}</b>
-          </span>
-          {state !== 'idle' && <i className="fluxo-no-estado" aria-hidden="true" />}
-        </button>
-        {onRemove && (
-          <button type="button" className="fluxo-no-tirar" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 7l10 10M17 7L7 17" />
-            </svg>
+    <section className={`fluxo-no ${state} ${open ? 'aberto' : ''} ${last ? 'ultimo' : ''}`} aria-label={`${label}: ${title}`}>
+      <span className="fluxo-no-icone">{icon}</span>
+      <div className="fluxo-no-corpo">
+        <div className="fluxo-no-topo">
+          <button type="button" className="fluxo-no-cabeca" aria-expanded={open} onClick={onToggle}>
+            {title}
           </button>
-        )}
+          {onRemove && (
+            <button type="button" className="fluxo-no-tirar" aria-label={removeLabel} title={removeLabel} onClick={onRemove}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7L7 17" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {missing && !open && <p className="fluxo-no-falta">{missing}</p>}
+        {footer}
+        {open && <div className="fluxo-no-editor">{children}</div>}
       </div>
-      {missing && !open && <p className="fluxo-no-falta">{missing}</p>}
-      {open && <div className="fluxo-no-editor">{children}</div>}
-      {footer}
     </section>
   )
 }
