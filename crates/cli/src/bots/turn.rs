@@ -101,6 +101,16 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         _ => None,
     };
     let setup = Setup::new(state_dir, bot, &turn.text, turn.mode);
+    let _active = super::recover::ActiveGuard::enter(
+        &setup.scratch,
+        &super::recover::ActiveTurn {
+            thread: thread.to_string(),
+            agent: bot.agent.clone(),
+            full_access: bot.grants.full_access,
+            keep_session: turn.keep_session && bot_run::keeps_session(turn.mode) && work.is_none(),
+            started_ms: room::now_ms(),
+        },
+    );
     crate::preview::clear_ai_dir(state_dir, &bot.id);
     let mut text = match turn.mode {
         Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),

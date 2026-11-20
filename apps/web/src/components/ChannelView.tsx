@@ -134,6 +134,7 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
   if (message.kind !== 'answer') {
     if (message.kind === 'failed') return <p className="linha-sistema">{`${handle}: ${message.data.error ?? ''}`}</p>
     if (message.kind === 'stopped') return <p className="linha-sistema">{`${handle}: ${t.stoppedNote}`}</p>
+    if (message.kind === 'interrupted') return <p className="linha-sistema">{`${handle}: ${t.interruptedNote}`}</p>
     return null
   }
   const reply = message.data.reply

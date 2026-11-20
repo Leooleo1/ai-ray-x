@@ -242,7 +242,7 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
         let Ok(thread) = task_thread(state_dir, &task.bot) else { continue };
         let messages = room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread));
         let since = task.started_ms.unwrap_or(0);
-        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped"));
+        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted"));
         let Some(ended) = ended else { continue };
         let status = if task.isolated { copy_outcome(ended) } else { outcome(ended) };
         let (at, tokens) = (ended.ms, spent(&messages, since));

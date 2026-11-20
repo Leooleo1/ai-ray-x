@@ -286,6 +286,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
+              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !bot.busy}
+              onContinue={() => void bots.act('continue', { id: bot.id, thread: current })}
+              onRetry={() => void bots.act('retry', { id: bot.id, thread: current })}
             />
             ),
           )}

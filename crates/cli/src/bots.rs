@@ -18,13 +18,14 @@ use crate::bot_run::{self, Mode};
 use crate::room::{self, Message};
 use crate::threads::{self, MAIN};
 
+mod recover;
 mod review;
 mod turn;
 use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 11] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed"];
+const ASIDE: [&str; 12] = ["failed", "sent", "stopped", "interrupted", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -510,6 +511,66 @@ pub fn configure(state_dir: &Path, id: &str, model: Option<&str>, effort: Option
             })
             .collect())
     })
+}
+
+/// Scans every bot conversation at panel startup and marks any turn cut off when raiox closed.
+pub fn recover_interrupted(state_dir: &Path) {
+    recover::all(state_dir);
+}
+
+/// Resumes the CLI session recovered from an interrupted turn without re-running completed work.
+pub fn continue_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let bot = find(state_dir, id)?;
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let last = messages.last().filter(|m| m.kind == "interrupted").context("no interrupted turn to continue")?;
+    let session = last
+        .data
+        .get("session")
+        .and_then(Value::as_str)
+        .filter(|s| !s.trim().is_empty())
+        .context("no session to continue")?;
+    if bot.agent == "cursor"
+        && let Some(was_full) = last.data.get("full_access").and_then(Value::as_bool)
+        && was_full != bot.grants.full_access
+    {
+        bail!("access mode changed since the interrupted turn; use Try again instead");
+    }
+    set_thread_session(state_dir, id, thread, Some(session.to_string()))?;
+    crate::live::end(&format!("{id}:{thread}"));
+    let prompt = "(raiox: the app closed in the middle of your turn; continue from where you stopped without redoing what you already did. Answer in the same language as the person's message.)";
+    let asked = Some(said("ask", json!({ "text": "", "continued": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: prompt.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+}
+
+/// Re-sends the question from an interrupted turn as a fresh ask.
+pub fn retry_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
+    let last = messages.last().filter(|m| m.kind == "interrupted").context("no interrupted turn to retry")?;
+    let text = last
+        .data
+        .get("retry_text")
+        .and_then(Value::as_str)
+        .filter(|t| !t.trim().is_empty())
+        .or_else(|| {
+            messages
+                .iter()
+                .rev()
+                .find(|m| m.author == "you" && m.kind == "ask")
+                .and_then(|m| m.data.get("text").and_then(Value::as_str))
+                .filter(|t| !t.trim().is_empty())
+        })
+        .context("no question to retry")?;
+    if last.data.get("aside").and_then(Value::as_bool) == Some(true) {
+        ask_aside(state_dir, jobs, id, thread, text)
+    } else {
+        ask(state_dir, jobs, id, thread, text, &[])
+    }
 }
 
 /// Starts the conversation over: the next message opens a fresh session.

@@ -76,6 +76,8 @@ pub fn run(panel: Panel, port: u16, open_browser: bool) -> Result<()> {
 /// One panel per state folder: another raiox already serving the same data refuses this one.
 pub fn start(panel: Panel, port: u16) -> Result<(String, u16)> {
     crate::procs::claim_panel(&panel.state_dir)?;
+    // Conversations whose turn was cut when the panel closed get a note; nothing runs on its own.
+    bots::recover_interrupted(&panel.state_dir);
     let server = Server::http(("127.0.0.1", port)).map_err(|e| anyhow!("cannot listen on 127.0.0.1:{port}: {e}"))?;
     let port = server.server_addr().to_ip().map(|addr| addr.port()).ok_or_else(|| anyhow!("no TCP address"))?;
     let token = session_token();
@@ -473,6 +475,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "stop" => jobs.stop(field("id")),
         "correct" => jobs.correct(field("id"), field("text")),
+        "continue" => bots::continue_turn(state_dir, jobs, field("id"), thread),
+        "retry" => bots::retry_turn(state_dir, jobs, field("id"), thread),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
             bots::configure(state_dir, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)

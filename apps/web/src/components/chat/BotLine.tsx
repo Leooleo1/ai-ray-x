@@ -75,9 +75,13 @@ interface BotLineProps {
   reviewState: 'none' | 'pending' | 'done'
   reviewerName: string
   onReview: (reviewer: string) => void
+  /** Latest interrupted turn when the bot is idle: offers Continue / Try again. */
+  resumable?: boolean
+  onContinue?: () => void
+  onRetry?: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, runnable, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -157,6 +161,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
       </p>
     )
   }
+  if (message.author === 'you' && message.data.continued) {
+    return <p className="linha-sistema">{t.continuedLine}</p>
+  }
   if (message.author === 'you') {
     const fromMail = message.data.via === 'ai-memory'
     const images = message.data.images ?? []
@@ -192,6 +199,40 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   }
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
+  }
+  if (message.kind === 'interrupted') {
+    const trail = message.data.trail
+    const hasTrail = Boolean(trail && (trail.items.length > 0 || trail.partial))
+    const cursorModeChanged = bot.agent === 'cursor' && typeof message.data.full_access === 'boolean' && message.data.full_access !== Boolean(bot.grants?.full_access)
+    const canContinue = Boolean(message.data.session) && !cursorModeChanged
+    const canRetry = Boolean(message.data.retry_text)
+    return (
+      <div className="interrompido" id={`msg-${message.ms}`}>
+        {hasTrail && trail && (
+          <div className="interrompido-trabalho">
+            {trail.items.length > 0 && <TrailView trail={trail} live={false} />}
+            {trail.partial && <p className="interrompido-parcial">{trail.partial}</p>}
+          </div>
+        )}
+        <div className="interrompido-barra">
+          <span className="linha-sistema">{t.interruptedNote}</span>
+          {resumable && (canContinue || canRetry) && (
+            <span className="interrompido-acoes">
+              {canContinue && onContinue && (
+                <button type="button" className="projeto-acao cheio" onClick={onContinue}>
+                  {t.continueTurn}
+                </button>
+              )}
+              {canRetry && onRetry && (
+                <button type="button" className={canContinue ? 'acao-texto' : 'projeto-acao cheio'} onClick={onRetry}>
+                  {t.retryTurn}
+                </button>
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+    )
   }
   if (message.kind === 'access_changed') {
     return <p className="linha-sistema">{message.data.full ? t.accessChangedFull : t.accessChangedAsk}</p>

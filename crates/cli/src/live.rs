@@ -88,10 +88,16 @@ fn message(text: &str) -> String {
     json!({ "type": "user", "message": { "role": "user", "content": text } }).to_string() + "\n"
 }
 
+/// Path of a live Claude Code conversation's stdout log inside its scratch folder.
+pub fn out_file(scratch: &Path, conversation: &str) -> PathBuf {
+    let name = format!("{:x}", hash(&[conversation]));
+    scratch.join(format!("live-{name}.out"))
+}
+
 fn spawn(conversation: &str, target: &Target, scratch: &Path, setup: u64) -> Result<Live> {
     fs::create_dir_all(scratch)?;
-    let name = format!("{:x}", hash(&[conversation]));
-    let (out, err) = (scratch.join(format!("live-{name}.out")), scratch.join(format!("live-{name}.err")));
+    let out = out_file(scratch, conversation);
+    let err = out.with_extension("err");
     let mut command = bot_run::claude_command(target, Mode::Talk);
     command.args(["--input-format", "stream-json"]);
     let mut child = command
