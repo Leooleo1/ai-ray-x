@@ -257,7 +257,7 @@
 /* In the macOS app the title bar is gone: its three buttons sit over the sidebar's top, so the
    mark moves right of them (or below them, on the collapsed rail). */
 .janela-mac .lateral:not(.recolhida) .lado-topo {
-  padding-left: 72px;
+  padding-left: 88px;
 }
 
 .janela-mac .lateral.recolhida {
