@@ -122,9 +122,21 @@
 }
 
 .mesa-raia-vazia {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   color: var(--nevoa);
   font: 13px/18px var(--sans);
+}
+
+.mesa-raia-vazia p {
+  margin: 0;
+}
+
+.mesa-raia-vazia .arte-vazia {
+  width: 100%;
+  max-width: 260px;
+  align-self: center;
 }
 
 .mesa-raia-itens {

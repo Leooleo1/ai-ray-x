@@ -73,7 +73,7 @@ export function TipToast({ bots, report, nav, raised, folded }: TipToastProps) {
       onMouseLeave={fold}
     >
       <header>
-        <Avatar agent={face} size={28} state="idle" />
+        <img className="dica-retrato" src={face.art} alt="" />
         <span>
           <b style={{ color: face.color }}>{face.name}</b>
           <small>{t.tipFree}</small>

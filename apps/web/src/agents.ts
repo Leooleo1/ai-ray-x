@@ -14,6 +14,8 @@ export interface Agent {
   role: string
   color: string
   avatar: AvatarDefinition
+  /** Its plush portrait, for the larger places (a tip's card). */
+  art: string
 }
 
 const pt = locale === 'pt-BR'
@@ -25,6 +27,7 @@ export const AGENTS: Record<AgentId, Agent> = {
     role: pt ? 'lê os registros e mostra o que pesa' : 'reads the logs and shows what weighs',
     color: '#b4a3f5',
     avatar: raio as AvatarDefinition,
+    art: '/mascotes/ajudante-raio.webp',
   },
   dieta: {
     id: 'dieta',
@@ -32,6 +35,7 @@ export const AGENTS: Record<AgentId, Agent> = {
     role: pt ? 'sugere cortes, nunca aplica sozinha' : 'suggests cuts, never applies them',
     color: '#5fd08a',
     avatar: dieta as AvatarDefinition,
+    art: '/mascotes/ajudante-dieta.webp',
   },
   memo: {
     id: 'memo',
@@ -39,5 +43,6 @@ export const AGENTS: Record<AgentId, Agent> = {
     role: pt ? 'guarda as lições no ai-memory' : 'keeps the lessons in ai-memory',
     color: '#d9c29a',
     avatar: memo as AvatarDefinition,
+    art: '/mascotes/ajudante-memo.webp',
   },
 }

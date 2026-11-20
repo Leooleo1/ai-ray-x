@@ -93,7 +93,12 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
       )}
       <Rhythm items={ofProject} selected={day} onPick={setDay} />
       <section className="entregas-diario" aria-label={t.deliveriesTitle}>
-        {items.length === 0 && <p className="entregas-vazio">{t.deliveriesEmpty}</p>}
+        {items.length === 0 && (
+          <div className="entregas-vazio-arte">
+            <img className="arte-vazia" src="/mascotes/vazio-entregas.webp" alt="" />
+            <p className="entregas-vazio">{t.deliveriesEmpty}</p>
+          </div>
+        )}
         {items.length > 0 && shown.length === 0 && <p className="entregas-vazio">{t.deliveriesNoMatch}</p>}
         {days.map(({ start, items: dayItems }) => (
           <div key={start} className="entregas-dia">

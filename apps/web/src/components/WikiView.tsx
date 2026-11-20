@@ -99,7 +99,8 @@ export function WikiView({ bots }: { bots: Bot[] }) {
         {loadingPage && <p className="wiki-vazio">{t.wikiLoading}</p>}
         {!loadingPage && !draft && (
           <div className="wiki-convite">
-            <p>{t.wikiPick}</p>
+            {pages?.length === 0 && <img className="arte-vazia" src="/mascotes/vazio-wiki.webp" alt="" />}
+            <p>{pages?.length === 0 ? t.wikiEmpty : t.wikiPick}</p>
           </div>
         )}
         {!loadingPage && draft && (

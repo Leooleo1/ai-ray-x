@@ -2725,3 +2725,14 @@ textarea:focus-visible {
     box-shadow: none;
   }
 }
+
+/* A plush illustration for an empty place (public/mascotes): its dark backdrop fades into the panel. */
+.arte-vazia {
+  display: block;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  mask-image: radial-gradient(ellipse 60% 62% at 50% 50%, #000 62%, transparent 100%);
+  pointer-events: none;
+  user-select: none;
+}

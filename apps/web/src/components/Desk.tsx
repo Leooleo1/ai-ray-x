@@ -85,7 +85,7 @@ export function Desk({ bots, nav }: DeskProps) {
         <Lane status="todo" title={t.boardTodo} count={placed('todo').length} empty={emptyOr(t.deskTodoEmpty)}>
           {placed('todo').map(card)}
         </Lane>
-        <Lane status="doing" title={t.boardDoing} tone="cobalto" count={live.length + doing.length} empty={t.deskDoingEmpty}>
+        <Lane status="doing" title={t.boardDoing} tone="cobalto" count={live.length + doing.length} empty={t.deskDoingEmpty} emptyArt="/mascotes/vazio-mesa.webp">
           {live.map(({ bot, doing: task }) => (
             <WorkCard key={bot.id} bot={bot} bots={bots} nav={nav} now={now} task={task?.task.title} />
           ))}

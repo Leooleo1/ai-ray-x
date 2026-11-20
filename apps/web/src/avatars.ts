@@ -24,16 +24,16 @@ export interface Face {
 
 export const FINISHES: Finish[] = ['solid', 'flat', 'pixel']
 
-/** Ready-made looks: shape, color and finish in one click. */
-export const TEMPLATES: { shape: string; color: string; finish: Finish }[] = [
-  { shape: 'monitor', color: '#e8754a', finish: 'solid' },
-  { shape: 'monitor', color: '#6f95f2', finish: 'pixel' },
-  { shape: 'chat', color: '#b4a3f5', finish: 'flat' },
-  { shape: 'magnifier', color: '#6f95f2', finish: 'pixel' },
-  { shape: 'shield', color: '#5fd08a', finish: 'solid' },
-  { shape: 'rocket', color: '#ec7fb0', finish: 'pixel' },
-  { shape: 'ghost', color: '#d9c29a', finish: 'flat' },
-  { shape: 'cat', color: '#e8754a', finish: 'pixel' },
+/** Ready-made looks: shape, color and finish in one click, each shown as its plush portrait. */
+export const TEMPLATES: { shape: string; color: string; finish: Finish; art: string }[] = [
+  { shape: 'monitor', color: '#e8754a', finish: 'solid', art: '/mascotes/modelo-monitor-solido.webp' },
+  { shape: 'monitor', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-monitor-pixel.webp' },
+  { shape: 'chat', color: '#b4a3f5', finish: 'flat', art: '/mascotes/modelo-balao-chapado.webp' },
+  { shape: 'magnifier', color: '#6f95f2', finish: 'pixel', art: '/mascotes/modelo-lupa-pixel.webp' },
+  { shape: 'shield', color: '#5fd08a', finish: 'solid', art: '/mascotes/modelo-escudo-solido.webp' },
+  { shape: 'rocket', color: '#ec7fb0', finish: 'pixel', art: '/mascotes/modelo-foguete-pixel.webp' },
+  { shape: 'ghost', color: '#d9c29a', finish: 'flat', art: '/mascotes/modelo-fantasma-chapado.webp' },
+  { shape: 'cat', color: '#e8754a', finish: 'pixel', art: '/mascotes/modelo-gato-pixel.webp' },
 ]
 
 const fromPackage = (id: string): AvatarDefinition[] => {

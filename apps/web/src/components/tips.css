@@ -29,6 +29,15 @@
   gap: 10px;
 }
 
+/* The helper's plush portrait. */
+.dica-retrato {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio-item);
+  object-fit: cover;
+}
+
 .dica-flutuante header span {
   display: flex;
   flex: 1;

@@ -212,6 +212,17 @@
   box-shadow: var(--sombra-card);
 }
 
+.entregas-vazio-arte {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 0 8px;
+}
+
+.entregas-vazio-arte .arte-vazia {
+  width: min(100%, 320px);
+}
+
 .entregas-vazio {
   margin: 0;
   padding: 16px 0;

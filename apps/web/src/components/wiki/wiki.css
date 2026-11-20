@@ -198,7 +198,12 @@
 }
 
 .wiki-convite p {
+  max-width: 44ch;
   margin: 0;
+}
+
+.wiki-convite .arte-vazia {
+  width: min(100%, 320px);
 }
 
 .wiki-folha {
