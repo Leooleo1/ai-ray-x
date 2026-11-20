@@ -327,7 +327,10 @@ pub fn shot(state_dir: &Path, bot: &str, url: &str, width: u32, height: u32) -> 
     let file = shots_dir(state_dir, bot).join(format!("{:x}.png", room::now_ms()));
     fs::create_dir_all(file.parent().context("no screenshot folder")?)?;
     let mut child = crate::procs::command(browser)
+        // No update checks: a Chrome started by raiox that tries to update itself is blocked by macOS
+        // ("raiox was prevented from modifying other apps").
         .args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--disable-threaded-animation", "--no-first-run", "--no-default-browser-check"])
+        .args(["--disable-background-networking", "--disable-component-update"])
         .arg(format!("--virtual-time-budget={SHOT_BUDGET_MS}"))
         .arg(format!("--user-data-dir={}", state_dir.join("chrome-shots").display()))
         .arg(format!("--window-size={width},{height}"))
