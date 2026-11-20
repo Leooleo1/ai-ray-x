@@ -1,13 +1,13 @@
 [package]
 name = "raiox-desktop"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 rust-version = "1.88"
 description = "raiox as a desktop app: the panel in its own window, in the menu bar, with native notifications"
 license = "MIT"
 
 [dependencies]
-raiox = { version = "0.1.7", path = "../cli" }
+raiox = { version = "0.1.8", path = "../cli" }
 anyhow = "1.0.104"
 serde_json = "1.0.154"
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
