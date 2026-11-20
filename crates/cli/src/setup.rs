@@ -83,18 +83,18 @@ fn origin(dir: &Path) -> Option<String> {
 
 /// The same folder under two spellings (Projects, projects) has one identity.
 #[cfg(unix)]
-type Identity = (u64, u64);
+pub(crate) type Identity = (u64, u64);
 #[cfg(not(unix))]
-type Identity = PathBuf;
+pub(crate) type Identity = PathBuf;
 
 #[cfg(unix)]
-fn identity(path: &Path) -> Option<Identity> {
+pub(crate) fn identity(path: &Path) -> Option<Identity> {
     use std::os::unix::fs::MetadataExt;
     fs::metadata(path).ok().filter(|m| m.is_dir()).map(|m| (m.dev(), m.ino()))
 }
 
 #[cfg(not(unix))]
-fn identity(path: &Path) -> Option<Identity> {
+pub(crate) fn identity(path: &Path) -> Option<Identity> {
     path.canonicalize().ok().filter(|p| p.is_dir())
 }
 
@@ -197,6 +197,25 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> R
     }))
 }
 
+/// Creates `~/Projects/<name>` from the onboarding project step and returns both the new
+/// project entry and the refreshed setup state.
+pub fn create_project(store: &Store, home: &Path, state_dir: &Path, clones: &Clones, name: &str) -> Result<Value> {
+    let trimmed = name.trim();
+    let (project, _) = crate::bots::create_project_dir(home, trimmed)?;
+    let created = Project {
+        project,
+        name: trimmed.to_string(),
+        github: None,
+        claude: 0,
+        codex: 0,
+        last_ms: None,
+    };
+    Ok(json!({
+        "project": created,
+        "setup": state(store, home, state_dir, clones)?,
+    }))
+}
+
 /// GitHub through the person's `gh`: who is logged in and their repositories.
 pub fn github() -> Value {
     let installed = quiet("gh", &["--version"]).is_some_and(|o| o.status.success());
@@ -292,5 +311,20 @@ mod tests {
         assert!(!valid_part("-flag"));
         assert!(!valid_part("a b"));
         assert!(!valid_part(""));
+    }
+
+    #[test]
+    fn create_project_makes_folder_and_returns_entry() {
+        let home = std::env::temp_dir().join(format!("raiox-setup-create-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&home);
+        fs::create_dir_all(&home).unwrap();
+        let state_dir = home.join(".state");
+        let store = Store::open_in_memory().unwrap();
+        let res = create_project(&store, &home, &state_dir, &Clones::default(), "first-app").unwrap();
+        assert_eq!(res["project"]["project"], "Projects/first-app");
+        assert_eq!(res["project"]["name"], "first-app");
+        assert!(home.join("Projects/first-app").is_dir());
+        assert!(create_project(&store, &home, &state_dir, &Clones::default(), "../bad").is_err());
+        let _ = fs::remove_dir_all(&home);
     }
 }

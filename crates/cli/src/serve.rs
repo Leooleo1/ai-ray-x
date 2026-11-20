@@ -291,8 +291,18 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Err(reply) => reply,
         },
         (Method::Get, "/api/setup/install") => respond(Ok::<_, anyhow::Error>(crate::install::state())),
-        (Method::Post, "/api/setup/install") => match body(request) {
+        (Method::Post, "/api/setup/install") if !remote => match body(request) {
             Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
+            Err(reply) => reply,
+        },
+        (Method::Post, "/api/setup/create_project") if !remote => match body(request) {
+            Ok(input) => respond(setup::create_project(
+                &panel.store,
+                &panel.roots.home,
+                &panel.state_dir,
+                &panel.clones,
+                input.get("name").and_then(Value::as_str).unwrap_or(""),
+            )),
             Err(reply) => reply,
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
@@ -344,6 +354,11 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
             let bot = bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
             // A new bot finds the team's notes waiting, and the others learn it joined.
+            crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
+            Ok(())
+        }
+        "create_project" => {
+            let bot = bots::create_project(state_dir, &panel.roots.home, field("name"), field("agent"))?;
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())
         }

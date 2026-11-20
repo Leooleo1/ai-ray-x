@@ -1380,6 +1380,7 @@ textarea:focus-visible {
 .chat {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -2381,6 +2382,10 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.rsi-modelo-topo.clicavel {
+  cursor: pointer;
+}
+
 .rsi-modelo-topo .projeto-nome small {
   white-space: normal;
   font-family: var(--sans);
@@ -2425,12 +2430,30 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.rsi-python {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.rsi-python a.acao-texto {
+  text-decoration: none;
+}
+
 .projetos-lista {
   display: flex;
   flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.projetos-ativos {
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 16%) transparent;
 }
 
 .projeto-linha {
@@ -2559,11 +2582,34 @@ textarea:focus-visible {
   .projetos-secao small {
     white-space: normal;
   }
+
+  .cartao.projetos-pagina > .projetos-rolavel {
+    flex: none;
+    min-height: 0;
+    overflow-y: visible;
+  }
+
+  .projetos-ativos {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
 /* A long list must not squeeze the search or the headings. */
 .cartao.projetos-pagina > * {
   flex: none;
+}
+
+/* The candidates list scrolls inside the card so the bottom template card stays visible. */
+.cartao.projetos-pagina > .projetos-rolavel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 140px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 16%) transparent;
 }
 
 /* The way from a number to the cut that shrinks it. */

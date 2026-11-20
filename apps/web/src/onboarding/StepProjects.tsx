@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { type GitHubState, type LocalProject, type SetupState, cloneRepo } from '../api'
+import { type GitHubState, type LocalProject, type SetupState, cloneRepo, createSetupProject } from '../api'
 import { compact } from '../i18n'
 import { Frame } from './parts'
 import { o } from './texts'
@@ -7,6 +7,7 @@ import { o } from './texts'
 const VISIBLE = 8
 /** Bots made in one go; more can be added later from the Bots page. */
 export const MAX_PICK = 6
+const PROJECT_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,59}$/
 
 interface StepProjectsProps {
   setup: SetupState
@@ -27,6 +28,8 @@ function usage(p: LocalProject): string {
 
 export function StepProjects({ setup, github, selected, onSelect, onSetup, onError, onBack, onNext, onSkip }: StepProjectsProps) {
   const [query, setQuery] = useState('')
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
   const needle = query.trim().toLowerCase()
   const matches = setup.projects.filter((p) => !needle || `${p.project} ${p.github ?? ''}`.toLowerCase().includes(needle))
   // Checked projects stay in view even when the search would hide them.
@@ -34,6 +37,7 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
   const hidden = needle ? 0 : setup.projects.length - shown.length
   const local = new Set(setup.projects.flatMap((p) => (p.github ? [p.github] : [])))
   const remote = (github?.repos ?? []).filter((r) => !local.has(r.repo) && (!needle || r.repo.toLowerCase().includes(needle)))
+  const validNewName = PROJECT_NAME_RE.test(newName.trim())
 
   const toggle = (project: string) => {
     if (selected.includes(project)) onSelect(selected.filter((p) => p !== project))
@@ -44,6 +48,23 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
       onSetup(await cloneRepo(repo))
     } catch (failure: unknown) {
       onError(failure instanceof Error ? failure.message : String(failure))
+    }
+  }
+  const create = async () => {
+    const clean = newName.trim()
+    if (!PROJECT_NAME_RE.test(clean) || creating) return
+    setCreating(true)
+    onError('')
+    try {
+      const res = await createSetupProject(clean)
+      const exists = res.setup.projects.some((p) => p.project === res.project.project)
+      onSetup(exists ? res.setup : { ...res.setup, projects: [res.project, ...res.setup.projects] })
+      onSelect(selected.includes(res.project.project) ? selected : [...selected, res.project.project].slice(0, MAX_PICK))
+      setNewName('')
+    } catch (failure: unknown) {
+      onError(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      setCreating(false)
     }
   }
 
@@ -64,23 +85,54 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
         </>
       }
     >
-      <input className="bv-busca" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={o.search} aria-label={o.search} />
-      <ul className="bv-lista">
-        {shown.map((p) => {
-          const checked = selected.includes(p.project)
-          return (
-            <li key={p.project}>
-              <label className={`bv-projeto ${checked ? 'marcado' : ''}`}>
-                <input type="checkbox" checked={checked} disabled={!checked && selected.length >= MAX_PICK} onChange={() => toggle(p.project)} />
-                <span className="bv-check" aria-hidden="true" />
-                <b>{p.name}</b>
-                <span className="bv-mono">{p.github ?? p.project}</span>
-                <span className="bv-mono bv-direita">{usage(p)}</span>
-              </label>
-            </li>
-          )
-        })}
-      </ul>
+      {setup.projects.length === 0 && (
+        <form
+          className="bv-novo-projeto"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void create()
+          }}
+        >
+          <div className="bv-novo-projeto-topo">
+            <b>{o.newProjectTitle}</b>
+            <small>{o.newProjectHint.replace('{name}', newName.trim() || o.newProjectPlaceholder)}</small>
+          </div>
+          <div className="bv-novo-projeto-linha">
+            <input
+              className="bv-busca"
+              value={newName}
+              maxLength={60}
+              placeholder={o.newProjectPlaceholder}
+              aria-label={o.newProjectTitle}
+              onChange={(event) => setNewName(event.target.value.replace(/[^A-Za-z0-9_-]/g, ''))}
+            />
+            <button type="submit" className="bv-btn cheio" disabled={!validNewName || creating}>
+              {creating ? o.newProjectCreating : o.newProjectCreate}
+            </button>
+          </div>
+        </form>
+      )}
+      {(setup.projects.length > 0 || remote.length > 0) && (
+        <input className="bv-busca" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={o.search} aria-label={o.search} />
+      )}
+      {shown.length > 0 && (
+        <ul className="bv-lista">
+          {shown.map((p) => {
+            const checked = selected.includes(p.project)
+            return (
+              <li key={p.project}>
+                <label className={`bv-projeto ${checked ? 'marcado' : ''}`}>
+                  <input type="checkbox" checked={checked} disabled={!checked && selected.length >= MAX_PICK} onChange={() => toggle(p.project)} />
+                  <span className="bv-check" aria-hidden="true" />
+                  <b>{p.name}</b>
+                  <span className="bv-mono">{p.github ?? p.project}</span>
+                  <span className="bv-mono bv-direita">{usage(p)}</span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       {hidden > 0 && <p className="bv-mono bv-mais">{`+${hidden} ${o.moreToSearch}`}</p>}
       {remote.length > 0 && (
         <>

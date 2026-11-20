@@ -423,7 +423,7 @@ export interface Bot {
 export interface BotCandidate {
   project: string
   name: string
-  agent: BotAgent
+  agent: BotAgent | null
   requests: number
   last_ms: number
 }
@@ -441,6 +441,8 @@ export interface BotsState {
   requests?: ChatRequest[]
   /** Detected Python 3 command for the built-in self-improving agent template, or null when missing. */
   rsi_python?: string | null
+  /** Whether this machine can install Python 3 automatically from the panel. */
+  rsi_python_can_install?: boolean
   max_text: number
 }
 
@@ -486,7 +488,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
+export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -680,6 +682,10 @@ export function fetchGitHub(): Promise<GitHubState> {
 
 export function cloneRepo(repo: string): Promise<SetupState> {
   return request<SetupState>('/api/setup/clone', { repo })
+}
+
+export function createSetupProject(name: string): Promise<{ project: LocalProject; setup: SetupState }> {
+  return request<{ project: LocalProject; setup: SetupState }>('/api/setup/create_project', { name })
 }
 
 export function finishSetup(): Promise<{ done: boolean }> {

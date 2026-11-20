@@ -31,7 +31,9 @@ pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 
 /// Longest message the person can send to a bot, in characters.
 pub const MAX_TEXT: usize = 4000;
-const CANDIDATES: usize = 24;
+/// Maximum length of a new project folder name created under `~/Projects/`.
+pub const MAX_PROJECT_NAME: usize = 60;
+const CANDIDATES: usize = 200;
 
 /// Serializes writes to the registry: answers finish on their own threads.
 static REGISTRY: Mutex<()> = Mutex::new(());
@@ -319,13 +321,13 @@ fn bot_id(agent: &str, dir: &Path) -> String {
     format!("{hash:016x}")
 }
 
-/// Projects where the person used Claude Code or Codex, newest first; the
-/// panel offers these for activation. The home folder itself is never one.
+/// Projects where the person used an AI CLI (newest first) followed by local git
+/// folders found by setup, without duplicates. The home folder itself is never one.
 #[derive(Debug, Serialize)]
 pub struct Candidate {
     pub project: String,
     pub name: String,
-    pub agent: String,
+    pub agent: Option<String>,
     pub requests: u64,
     pub last_ms: i64,
 }
@@ -339,21 +341,104 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
     let rows = statement.query_map([], |r| {
         Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?))
     })?;
-    Ok(rows
-        .flatten()
+    let mut seen_dirs: HashMap<crate::setup::Identity, Vec<String>> = HashMap::new();
+    let mut list = Vec::new();
+    for (project, agent, requests, last_ms) in rows.flatten() {
         // Hidden folders (.claude, .codex, .config…) hold the tools' own data, not projects.
-        .filter(|(project, agent, ..)| {
-            crate::connections::bot_agents().any(|a| a == agent) && !project.starts_with('.') && home.join(project).is_dir()
-        })
-        .take(CANDIDATES)
-        .map(|(project, agent, requests, last_ms)| Candidate {
+        if !crate::connections::bot_agents().any(|a| a == agent) || project.starts_with('.') {
+            continue;
+        }
+        let Some(id) = crate::setup::identity(&home.join(&project)) else {
+            continue;
+        };
+        let agents = seen_dirs.entry(id).or_default();
+        if agents.contains(&agent) {
+            continue;
+        }
+        agents.push(agent.clone());
+        list.push(Candidate {
             name: project.rsplit('/').next().unwrap_or(&project).to_string(),
             project,
-            agent,
+            agent: Some(agent),
             requests: requests.max(0) as u64,
             last_ms,
-        })
-        .collect())
+        });
+        if list.len() >= CANDIDATES {
+            return Ok(list);
+        }
+    }
+    for project in crate::setup::projects(store, home)? {
+        if list.len() >= CANDIDATES {
+            break;
+        }
+        let Some(id) = crate::setup::identity(&home.join(&project.project)) else {
+            continue;
+        };
+        if seen_dirs.contains_key(&id) {
+            continue;
+        }
+        seen_dirs.insert(id, Vec::new());
+        list.push(Candidate {
+            project: project.project,
+            name: project.name,
+            agent: None,
+            requests: 0,
+            last_ms: project.last_ms.unwrap_or(0),
+        });
+    }
+    Ok(list)
+}
+
+/// Validates a new project folder name: 1 to 60 ASCII letters, digits, dashes or underscores,
+/// never starting with a dash.
+pub fn valid_project_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    let Some(first) = bytes.next() else { return false };
+    name.len() <= MAX_PROJECT_NAME
+        && (first.is_ascii_alphanumeric() || first == b'_')
+        && bytes.all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// Creates `<home>/Projects/<name>` when valid and not already a non-empty folder.
+/// Returns the relative project path (`Projects/<name>`) and whether this call created the directory.
+pub fn create_project_dir(home: &Path, name: &str) -> Result<(String, bool)> {
+    let name = name.trim();
+    if !valid_project_name(name) {
+        bail!("project name must be 1 to {MAX_PROJECT_NAME} letters, digits, dashes or underscores");
+    }
+    let parent = home.join("Projects");
+    fs::create_dir_all(&parent)?;
+    let target = parent.join(name);
+    let created = if target.exists() {
+        if !target.is_dir() {
+            bail!("Projects/{name} already exists and is not a folder");
+        }
+        if fs::read_dir(&target)?.next().is_some() {
+            bail!("Projects/{name} already exists and is not empty");
+        }
+        false
+    } else {
+        fs::create_dir(&target)?;
+        true
+    };
+    Ok((format!("Projects/{name}"), created))
+}
+
+/// Creates `~/Projects/<name>` and activates a standard bot in it on the chosen AI.
+pub fn create_project(state_dir: &Path, home: &Path, name: &str, agent: &str) -> Result<Bot> {
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
+    }
+    let (project, created) = create_project_dir(home, name)?;
+    match activate(state_dir, home, &project, agent, None) {
+        Ok(bot) => Ok(bot),
+        Err(error) => {
+            if created {
+                let _ = fs::remove_dir(home.join(&project));
+            }
+            Err(error)
+        }
+    }
 }
 
 /// Turns a bot on for one project (a folder under the home, never the home itself).
@@ -925,6 +1010,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         "channels": crate::channels::state(state_dir),
         "requests": crate::requests::list(state_dir),
         "rsi_python": crate::rsi::python(),
+        "rsi_python_can_install": crate::install::can_install_python(),
         "max_text": MAX_TEXT,
     }))
 }
@@ -1026,6 +1112,80 @@ mod tests {
         let remaining: Vec<_> = fs::read_dir(crate::uploads::dir(&state, &bot.id)).into_iter().flatten().flatten().collect();
         assert!(remaining.is_empty(), "failed ask must not leave orphan upload files");
         jobs.finish(&bot.id);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn candidates_include_local_git_folders_after_usage_without_duplicates() {
+        let home = temp_dir("candidates-git");
+        fs::create_dir_all(home.join("Projects/used-app/.git")).unwrap();
+        fs::create_dir_all(home.join("Projects/fresh-repo/.git")).unwrap();
+        fs::create_dir_all(home.join("Projects/plain-dir")).unwrap();
+        fs::create_dir_all(home.join(".hidden/.git")).unwrap();
+        let store = Store::open_in_memory().unwrap();
+        store
+            .conn()
+            .execute(
+                "INSERT INTO calls(id, source, file, session, project, model, is_sub, ts_ms, input, cache_read, cache_write_5m, cache_write_1h, output, thinking, web_searches, seq, segment, is_first)
+                 VALUES('c1', 'claude', 'f1', 's1', 'Projects/used-app', 'm', 0, 5000, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1)",
+                [],
+            )
+            .unwrap();
+        let list = candidates(&store, &home).unwrap();
+        let names: Vec<&str> = list.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["used-app", "fresh-repo"], "usage projects come first, git projects after, without duplicates");
+        assert_eq!(list[0].agent.as_deref(), Some("claude"));
+        assert_eq!(list[0].requests, 1);
+        assert_eq!(list[1].agent, None);
+        assert_eq!(list[1].requests, 0);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn project_name_validation_accepts_safe_names_only() {
+        assert!(valid_project_name("my-app"));
+        assert!(valid_project_name("MyApp_2"));
+        assert!(valid_project_name("_scratch"));
+        assert!(valid_project_name(&"a".repeat(MAX_PROJECT_NAME)));
+        assert!(!valid_project_name(""));
+        assert!(!valid_project_name(&"a".repeat(MAX_PROJECT_NAME + 1)));
+        assert!(!valid_project_name("-flag"));
+        assert!(!valid_project_name("../escape"));
+        assert!(!valid_project_name("a/b"));
+        assert!(!valid_project_name("with space"));
+        assert!(!valid_project_name("dot.name"));
+    }
+
+    #[test]
+    fn create_project_creates_folder_and_refuses_non_empty() {
+        let home = temp_dir("create-project");
+        let state = home.join(".state");
+
+        // Fresh project folder is created and activated.
+        let bot = create_project(&state, &home, "My_App-1", "claude").unwrap();
+        assert_eq!(bot.name, "My_App-1");
+        assert!(home.join("Projects/My_App-1").is_dir());
+        assert_eq!(list(&state).len(), 1);
+
+        // An existing empty folder is accepted.
+        fs::create_dir_all(home.join("Projects/empty-dir")).unwrap();
+        let bot2 = create_project(&state, &home, "empty-dir", "codex").unwrap();
+        assert_eq!(bot2.name, "empty-dir");
+
+        // An existing non-empty folder is refused.
+        fs::create_dir_all(home.join("Projects/busy-dir")).unwrap();
+        fs::write(home.join("Projects/busy-dir/README.md"), "hi").unwrap();
+        let err = create_project(&state, &home, "busy-dir", "claude").unwrap_err();
+        assert!(err.to_string().contains("not empty"), "{err:#}");
+
+        // A file at the same path is refused.
+        fs::write(home.join("Projects/taken-file"), "x").unwrap();
+        assert!(create_project(&state, &home, "taken-file", "claude").is_err());
+
+        // An unsupported agent is refused without creating the folder.
+        assert!(create_project(&state, &home, "bad-agent", "copilot").is_err());
+        assert!(!home.join("Projects/bad-agent").exists());
+
         let _ = fs::remove_dir_all(&home);
     }
 }
