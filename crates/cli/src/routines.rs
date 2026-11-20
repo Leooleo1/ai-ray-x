@@ -169,6 +169,8 @@ pub fn spawn(state_dir: PathBuf, jobs: Jobs) {
         tick(&state_dir, &jobs);
         // The board moves on with the same clock: finished tasks, and the next ones when bots pick them up.
         crate::tasks::tick(&state_dir, &jobs);
+        // Scheduled Dev/Infra audits run on the same clock (only where enabled, respecting free hours).
+        crate::auditor::tick(&state_dir, &jobs);
         std::thread::sleep(TICK);
     });
 }

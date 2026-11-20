@@ -67,6 +67,9 @@ pub struct Bot {
     /// What it may do beyond reading its project (phone, web, MCP, weekly ceiling).
     #[serde(default)]
     pub grants: crate::grants::Grants,
+    /// Built-in Dev/Infra auditor: audits scripts, workflows, routines and skills of this project.
+    #[serde(default, skip_serializing_if = "crate::auditor::Config::is_default")]
+    pub auditor: crate::auditor::Config,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -376,6 +379,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         talk_model: None,
         reviewer: None,
         grants: crate::grants::Grants::default(),
+        auditor: crate::auditor::Config::default(),
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -506,7 +510,7 @@ fn said(kind: &str, data: Value) -> Message {
 /// The person talks to a bot. The answer arrives later, on its own thread.
 /// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
 pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
-    start(state_dir, jobs, id, MAIN, Turn { mode: Mode::Talk, text: prompt.to_string(), asked: Some(said("ask", shown)), home: None, command: None, images: Vec::new() })
+    start(state_dir, jobs, id, MAIN, Turn { mode: Mode::Talk, text: prompt.to_string(), asked: Some(said("ask", shown)), home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
 pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, images: &[String]) -> Result<()> {
@@ -552,7 +556,7 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
-    if let Err(error) = start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", shown)), home: None, command: None, images: paths }) {
+    if let Err(error) = start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", shown)), home: None, command: None, images: paths, keep_session: true, is_audit: false, auditor_agent: None }) {
         crate::uploads::remove(&saved);
         return Err(error);
     }
@@ -574,7 +578,7 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
     let review = last.and_then(|m| review::for_answer(&messages, m.ms)).unwrap_or_default();
     let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}{review}\n\nAnswer in the same language as that earlier answer.");
     let asked = Some(said("approve", json!({ "proposal": proposal })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None, images: Vec::new() })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
 /// Most commands a bot may run without asking, per project.
@@ -601,7 +605,7 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
     } else {
         crate::commands::check(&command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
     }
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command), images: Vec::new() })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command), images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
 
 /// Sets the model the bot talks on (empty: the same as for changes).
@@ -616,7 +620,60 @@ pub fn set_talk_model(state_dir: &Path, id: &str, model: Option<&str>) -> Result
 /// context goes to the CLI, the person's words to the screen.
 pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<()> {
     let asked = Some(said("ask", json!({ "text": shown, "channel": channel })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new() })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+}
+
+/// Runs a Dev/Infra audit in `thread` using `audit_agent` (which may differ from the bot's own CLI).
+/// Always starts in a fresh session, never uses personal MCP servers, and never triggers auto-edit.
+pub(crate) fn run_audit_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, audit_agent: &str, prompt: &str, shown: Value) -> Result<()> {
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    let bot = find(state_dir, id)?;
+    crate::budget::check(state_dir, &bot.name)?;
+    crate::grants::check_week(state_dir, &bot)?;
+    if !jobs.start(id, thread) {
+        bail!("the bot is still answering");
+    }
+    let asked = said("ask", shown);
+    if let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked]) {
+        jobs.finish(id);
+        return Err(error);
+    }
+    let same_agent = audit_agent == bot.agent;
+    let effective = Bot {
+        agent: audit_agent.to_string(),
+        model: if same_agent { bot.model.clone() } else { None },
+        effort: if same_agent { bot.effort.clone() } else { None },
+        talk_model: None,
+        grants: crate::grants::Grants {
+            mcp: false,
+            web: bot.grants.web && crate::grants::web_possible(audit_agent),
+            auto_edit: false,
+            ..bot.grants
+        },
+        ..bot.clone()
+    };
+    let turn = Turn {
+        mode: Mode::Talk,
+        text: prompt.to_string(),
+        asked: None,
+        home: None,
+        command: None,
+        images: Vec::new(),
+        keep_session: false,
+        is_audit: true,
+        auditor_agent: Some(audit_agent.to_string()),
+    };
+    let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
+    std::thread::spawn(move || {
+        turn::run(&state_dir, &jobs, &effective, &thread, turn, None);
+        jobs.finish(&effective.id);
+        // Deliberately skip auto_edit::after_turn: audit fixes always require explicit human approval.
+        crate::push::after_turn(&state_dir, &effective, &thread);
+        crate::team::refresh(&state_dir, vec![effective.dir.clone()]);
+    });
+    Ok(())
 }
 
 /// Asks another bot of the project to review a proposal in this conversation.
@@ -744,6 +801,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "effort": bot.effort,
                 "allowed": bot.allowed,
                 "grants": crate::grants::state(state_dir, &bot),
+                "auditor": crate::auditor::state(state_dir, &bot),
                 "week": crate::room::week_of(store, home, &bot.dir),
                 "talk_model": bot.talk_model,
                 "reviewer": bot.reviewer,

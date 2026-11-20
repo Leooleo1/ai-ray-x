@@ -20,7 +20,7 @@ const ROUTINE_PREFIXES: [&str; 2] = ["Routine · ", "Rotina · "];
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct Delivery {
-    /// "change", "draft", "shot", "routine" or "task".
+    /// "change", "draft", "shot", "routine", "audit" or "task".
     pub kind: &'static str,
     pub bot: String,
     pub thread: String,
@@ -72,15 +72,25 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
     let base = |kind, ms, title: String| Delivery { kind, bot: bot.to_string(), thread: thread.to_string(), ms, title, files: Vec::new(), undone: false, detail: String::new(), tokens: 0 };
     let undone: Vec<&str> = messages.iter().filter(|m| m.kind == "draft_undone").filter_map(|m| m.data["draft"].as_str()).collect();
     let routine = ROUTINE_PREFIXES.iter().find_map(|prefix| title.strip_prefix(prefix));
+    let is_audit_title = title == crate::auditor::THREAD_TITLE;
     messages
         .iter()
         .filter_map(|m| {
             let reply = &m.data["reply"];
             let text = reply["text"].as_str().unwrap_or("");
+            let tokens = reply["read_tokens"].as_u64().unwrap_or(0) + reply["output_tokens"].as_u64().unwrap_or(0);
+            let has_run = reply["run"].as_array().is_some_and(|runs| !runs.is_empty());
             match (m.author.as_str(), m.kind.as_str()) {
                 ("bot", "answer") if m.data["mode"] == "edit" => {
                     let title = reply["proposal"].as_str().filter(|p| !p.is_empty()).unwrap_or(text);
                     Some(Delivery { files: edited(reply), ..base("change", m.ms, cut(title, 140)) })
+                }
+                ("bot", "answer") if (is_audit_title || m.data["audit"].as_bool() == Some(true)) && !has_run => {
+                    let headline = reply["proposal"]
+                        .as_str()
+                        .filter(|p| !p.is_empty())
+                        .unwrap_or(crate::auditor::THREAD_TITLE);
+                    Some(Delivery { detail: cut(text, EXCERPT), tokens, ..base("audit", m.ms, cut(headline, 140)) })
                 }
                 ("bot", "answer") if routine.is_some() => Some(Delivery { detail: cut(text, EXCERPT), ..base("routine", m.ms, routine.unwrap_or("").to_string()) }),
                 ("you", "draft_applied") => {
@@ -160,5 +170,12 @@ mod tests {
         assert_eq!((routine[0].kind, routine[0].title.as_str()), ("routine", "status"));
         let renamed = of_conversation("b", "t1", "Routine · status", &messages[..1]);
         assert_eq!((renamed[0].kind, renamed[0].title.as_str()), ("routine", "status"), "old and new titles both count");
+        let audit_msgs = vec![
+            message(10, "bot", "answer", json!({ "mode": "talk", "audit": true, "reply": { "text": "checking", "run": [{ "command": "npm test" }] } })),
+            message(11, "bot", "answer", json!({ "mode": "talk", "audit": true, "reply": { "text": "Found 1 broken flag", "proposal": "Fix test script", "read_tokens": 300, "output_tokens": 50 } })),
+        ];
+        let audit = of_conversation("b", "t2", crate::auditor::THREAD_TITLE, &audit_msgs);
+        assert_eq!(audit.len(), 1, "intermediate run steps stay out of audit deliveries");
+        assert_eq!((audit[0].kind, audit[0].title.as_str(), audit[0].tokens), ("audit", "Fix test script", 350));
     }
 }

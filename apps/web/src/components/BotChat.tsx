@@ -308,7 +308,18 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
-        {settingsOpen && <BotSettings key={bot.id} bot={bot} bots={bots} onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <BotSettings
+            key={bot.id}
+            bot={bot}
+            bots={bots}
+            onClose={() => setSettingsOpen(false)}
+            onOpenThread={(threadId) => {
+              setSettingsOpen(false)
+              setThread(threadId)
+            }}
+          />
+        )}
         {previewOpen && <PreviewPanel key={bot.id} bot={bot} bots={bots} runSignal={runSignal} onClose={() => setPreviewOpen(false)} />}
         </div>
       </section>

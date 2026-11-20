@@ -323,6 +323,9 @@ export interface BotMessage {
     review?: number
     /** A switch to another AI (its `from` and `to` are CLI ids): the model it went on with. */
     model?: string | null
+    /** A Dev/Infra audit message and the CLI that ran it. */
+    audit?: boolean
+    auditor_agent?: BotAgent
   }
 }
 
@@ -367,6 +370,16 @@ export interface Bot {
     week_choices: number[]
     web_possible: boolean
     mcp_possible: boolean
+  }
+  /** Built-in Dev/Infra auditor: opt-in per project, audits scripts, workflows, routines and skills. */
+  auditor?: {
+    enabled: boolean
+    agent: string | null
+    effective_agent: BotAgent
+    cadence: 'manual' | 'on_change' | 'weekly'
+    thread: string | null
+    last_ms: number | null
+    skipped_ms: number | null
   }
   name: string
   dir: string
@@ -453,7 +466,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create'
 
 export interface InboxMessage {
   id: string
@@ -863,7 +876,7 @@ export function updateApp(): Promise<AppVersion> {
   return request<AppVersion>('/api/app/update', {})
 }
 
-export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'task'
+export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'audit' | 'task'
 
 /** Something a bot produced: a change to its project, a screenshot, a routine's result, a finished task. */
 export interface Delivery {
