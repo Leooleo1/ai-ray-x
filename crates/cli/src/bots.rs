@@ -24,7 +24,7 @@ use turn::Turn;
 
 /// Messages that come between an answer and the person's next step and leave the answer
 /// current: its proposal can still be approved and its commands still run.
-const ASIDE: [&str; 10] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone"];
+const ASIDE: [&str; 11] = ["failed", "sent", "stopped", "house", "remembered", "review", "review_asked", "carried", "shot", "turn_undone", "access_changed"];
 
 /// What a new conversation is called until its first question names it.
 pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
@@ -592,7 +592,8 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let recap = crate::agent_switch::recap(&messages).unwrap_or_default();
     // The first question of a branch carries what was said up to where it branched.
     let branched = crate::fork::branch_recap(&messages).unwrap_or_default();
-    let for_cli = format!("{recap}{branched}{brought}{for_cli}");
+    let access = crate::fork::access_recap(&messages).unwrap_or_default();
+    let for_cli = format!("{recap}{branched}{access}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
     let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
@@ -767,7 +768,28 @@ pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
     // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
-    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))
+    let full_changed = grants.full_access != bot.grants.full_access;
+    update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))?;
+    // Cursor keeps a resumed session in the mode it began in (ask mode stays read-only, agent mode
+    // keeps writing), so its conversations start new sessions, carrying what was said.
+    if bot.agent == "cursor" && full_changed {
+        restart_sessions(state_dir, id, json!({ "full": grants.full_access }))?;
+    }
+    Ok(())
+}
+
+/// Every conversation of a bot starts a new CLI session on its next question, after a mark.
+fn restart_sessions(state_dir: &Path, id: &str, data: Value) -> Result<()> {
+    let conversations = std::iter::once(MAIN.to_string()).chain(threads::list(state_dir, id).into_iter().map(|t| t.id));
+    for thread in conversations {
+        if thread_session(state_dir, &find(state_dir, id)?, &thread)?.is_none() {
+            continue;
+        }
+        set_thread_session(state_dir, id, &thread, None)?;
+        crate::live::end(&format!("{id}:{thread}"));
+        room::append_messages(&threads::chat_file(state_dir, id, &thread), vec![note("access_changed", data.clone())])?;
+    }
+    Ok(())
 }
 
 pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
@@ -928,6 +950,25 @@ mod tests {
         room::append_messages(&threads::chat_file(&dir, "b1", MAIN), messages).unwrap();
         let error = approve(&dir, &dir, &Jobs::default(), "b1", MAIN, Some(100)).unwrap_err();
         assert!(error.to_string().contains("no longer current"), "{error:#}");
+    }
+
+    #[test]
+    fn a_cursor_bot_starts_new_sessions_when_its_full_access_changes() {
+        let home = temp_dir("cursor-acesso");
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let cursor = activate(&state, &home, "Projects/app", "cursor", None).unwrap();
+        let claude = activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        for bot in [&cursor, &claude] {
+            set_session(&state, &bot.id, Some("s-ask".into())).unwrap();
+            room::append_messages(&threads::chat_file(&state, &bot.id, MAIN), vec![said("ask", json!({ "text": "create the .env" }))]).unwrap();
+            set_grants(&state, &bot.id, &json!({ "full_access": true })).unwrap();
+        }
+        let marks = |id: &str| room::read_messages(&threads::chat_file(&state, id, MAIN)).iter().filter(|m| m.kind == "access_changed").count();
+        assert_eq!((find(&state, &cursor.id).unwrap().session, marks(&cursor.id)), (None, 1), "Cursor's ask-mode session is left behind");
+        assert_eq!((find(&state, &claude.id).unwrap().session.as_deref(), marks(&claude.id)), (Some("s-ask"), 0), "Claude Code takes its mode on each turn");
+        set_grants(&state, &cursor.id, &json!({ "devices": false })).unwrap();
+        assert_eq!(marks(&cursor.id), 1, "only a change of full access restarts");
     }
 
     #[test]

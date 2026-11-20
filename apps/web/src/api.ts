@@ -284,7 +284,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched' | 'turn_undone' | 'forked' | 'access_changed'
   data: {
     text?: string
     proposal?: string
@@ -307,6 +307,8 @@ export interface BotMessage {
     ms?: number
     /** A side question and its answer: outside the conversation's session. */
     aside?: boolean
+    /** After an access change: whether it now has full access. */
+    full?: boolean
     /** What applying, undoing or discarding a draft touched. */
     paths?: string[]
     /** A command raiox ran, and whether the person had allowed it for the project. */

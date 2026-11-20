@@ -193,6 +193,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   if (message.kind === 'stopped') {
     return <p className="linha-sistema">{t.stoppedNote}</p>
   }
+  if (message.kind === 'access_changed') {
+    return <p className="linha-sistema">{message.data.full ? t.accessChangedFull : t.accessChangedAsk}</p>
+  }
   if (message.kind === 'forked') {
     return <p className="linha-sistema">{t.forkedLine}</p>
   }
