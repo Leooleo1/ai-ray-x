@@ -1,7 +1,7 @@
 import { Skeleton } from './Skeleton'
 import { notify } from '../notify'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings, type CliInstall, fetchInstalls, installCli, signInCli } from '../api'
+import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings, type CliInstall, type CliTestResult, fetchInstalls, installCli, signInCli, testCli } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -58,16 +58,36 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     fetchGitHub().then(setGithub).catch((failure: unknown) => setError(message(failure)))
   }, [])
   useEffect(() => {
-    fetchSettings().then(setSettings).catch((failure: unknown) => setError(message(failure)))
+    let alive = true
+    fetchSettings(false)
+      .then((next) => {
+        if (!alive) return
+        setSettings(next)
+        // Cached probe arrived instantly; quietly refresh live status in the background.
+        if (next.cached) {
+          fetchSettings(true)
+            .then((fresh) => {
+              if (alive) setSettings(fresh)
+            })
+            .catch(() => undefined)
+        }
+      })
+      .catch((failure: unknown) => {
+        if (alive) setError(message(failure))
+      })
     fetchInstalls().then(setInstalls).catch(() => undefined)
     loadGithub()
+    return () => {
+      alive = false
+    }
   }, [loadGithub])
 
   // Installs and sign-ins started here: followed until they end, then the CLIs are probed again.
   const [installs, setInstalls] = useState<Record<string, CliInstall>>({})
-  const [signingIn, setSigningIn] = useState<Record<string, number>>({})
+  const [signingIn, setSigningIn] = useState<Record<string, { since: number; mode: 'browser' | 'terminal' }>>({})
+  const [tests, setTests] = useState<Record<string, { testing: boolean; result?: CliTestResult }>>({})
   const installing = Object.values(installs).some((job) => job.state === 'running')
-  const waitingSignIn = Object.entries(signingIn).some(([id, since]) => Date.now() - since < SIGN_IN_WAIT_MS && settings?.connections.find((c) => c.id === id)?.logged_in === false)
+  const waitingSignIn = Object.entries(signingIn).some(([id, info]) => Date.now() - info.since < SIGN_IN_WAIT_MS && settings?.connections.find((c) => c.id === id)?.logged_in === false)
   useEffect(() => {
     if (!installing && !waitingSignIn) return undefined
     const timer = window.setInterval(() => {
@@ -75,7 +95,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
         .then((next) => {
           setInstalls(next)
           const ended = Object.entries(next).some(([id, job]) => job.state !== 'running' && installs[id]?.state === 'running')
-          if (ended || waitingSignIn) void fetchSettings().then(setSettings)
+          if (ended || waitingSignIn) void fetchSettings(true).then(setSettings)
         })
         .catch(() => undefined)
     }, FOLLOW_MS)
@@ -88,8 +108,14 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const startSignIn = (id: string) => {
     setError(null)
     signInCli(id)
-      .then(() => setSigningIn((before) => ({ ...before, [id]: Date.now() })))
+      .then((res) => setSigningIn((before) => ({ ...before, [id]: { since: Date.now(), mode: res.mode ?? 'terminal' } })))
       .catch((failure: unknown) => setError(message(failure)))
+  }
+  const startTest = (id: string) => {
+    setTests((before) => ({ ...before, [id]: { testing: true } }))
+    testCli(id)
+      .then((result) => setTests((before) => ({ ...before, [id]: { testing: false, result } })))
+      .catch((failure: unknown) => setTests((before) => ({ ...before, [id]: { testing: false, result: { ok: false, duration_ms: 0, error: message(failure) } } })))
   }
 
   const save = async (change: Record<string, unknown>) => {
@@ -167,8 +193,10 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
               <ConnectionTile
                 key={c.id}
                 connection={c}
-                signingIn={Boolean(signingIn[c.id]) && c.logged_in === false}
+                signingIn={c.logged_in === false ? signingIn[c.id]?.mode : undefined}
                 onSignIn={IS_REMOTE ? undefined : () => startSignIn(c.id)}
+                testState={tests[c.id]}
+                onTest={IS_REMOTE || !c.bots ? undefined : () => startTest(c.id)}
                 defaults={settings?.defaults[c.id] ?? { model: null, effort: null }}
                 onToggle={(on) => void save({ enabled: { [c.id]: on } })}
                 onDefaults={(chosen) => void save({ defaults: { [c.id]: { model: chosen.model ?? '', effort: chosen.effort ?? '' } } })}
@@ -182,7 +210,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
                   key={c.id}
                   connection={c}
                   install={installs[c.id]}
-                  signingIn={Boolean(signingIn[c.id]) && c.logged_in === false}
+                  signingIn={c.logged_in === false ? signingIn[c.id]?.mode : undefined}
                   onInstall={IS_REMOTE || !(c.bots || c.xray) ? undefined : () => startInstall(c.id)}
                   onSignIn={IS_REMOTE ? undefined : () => startSignIn(c.id)}
                   defaults={{ model: null, effort: null }}

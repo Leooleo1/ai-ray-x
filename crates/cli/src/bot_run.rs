@@ -596,6 +596,16 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
     })
 }
 
+/// Text reply extracted from a minimal Codex health test run.
+pub(crate) fn parse_codex_text(out: &str) -> Result<String> {
+    parse_codex(out).map(|r| r.text)
+}
+
+/// Text reply extracted from a minimal Cursor health test run.
+pub(crate) fn parse_cursor_text(out: &str) -> Result<String> {
+    parse_result("cursor", final_result(out)).map(|r| r.text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

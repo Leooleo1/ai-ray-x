@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn devices_cannot_manage_access_or_start_programs() {
         assert!(desk_only(&Method::Post, "/api/remote/pair") && desk_only(&Method::Get, "/api/remote"));
-        assert!(desk_only(&Method::Post, "/api/settings") && desk_only(&Method::Post, "/api/setup/clone") && desk_only(&Method::Post, "/api/setup/install") && desk_only(&Method::Post, "/api/setup/create_project"));
+        assert!(desk_only(&Method::Post, "/api/settings") && desk_only(&Method::Post, "/api/setup/clone") && desk_only(&Method::Post, "/api/setup/install") && desk_only(&Method::Post, "/api/setup/create_project") && desk_only(&Method::Post, "/api/setup/test") && desk_only(&Method::Post, "/api/setup/sign_in"));
         assert!(desk_only(&Method::Post, "/api/bot/preview_start") && desk_only(&Method::Post, "/api/bot/allow") && desk_only(&Method::Post, "/api/bot/auditor") && desk_only(&Method::Post, "/api/bot/rsi_create") && desk_only(&Method::Post, "/api/bot/create_project"));
         assert!(!desk_only(&Method::Get, "/api/settings") && !desk_only(&Method::Post, "/api/bot/approve") && !desk_only(&Method::Get, "/api/bots"));
     }

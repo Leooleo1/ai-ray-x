@@ -128,13 +128,15 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
     if path.starts_with("/api/") && !remote && !authorized(request, token) {
         return Answer::Now(text(401, "missing or wrong session token"));
     }
+    let fresh = request.url().split_once('?').is_some_and(|(_, q)| q.split('&').any(|pair| pair == "fresh=1"));
     match (request.method().clone(), path) {
-        (Method::Get, "/api/settings") => Answer::Later(settings_later(panel)),
+        (Method::Get, "/api/settings") => settings_answer(panel, fresh),
         (Method::Post, "/api/settings") => match body(request).map(|input| crate::settings::update(&panel.state_dir, &input)) {
-            Ok(Ok(_)) => Answer::Later(settings_later(panel)),
+            Ok(Ok(_)) => settings_answer(panel, false),
             Ok(Err(error)) => Answer::Now(respond(Err(error))),
             Err(reply) => Answer::Now(reply),
         },
+        (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
         // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
         (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
@@ -150,11 +152,20 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         // Asks the update server: never on the main loop.
         (Method::Post, "/api/app/check") if !remote => Answer::Later(Box::new(|| respond(crate::app_update::check_now()))),
-        // Opening a terminal can take a moment (or wait on the system): never on the main loop.
-        (Method::Post, "/api/setup/sign_in") => match body(request) {
+        // Sign in may wait briefly for a login URL or open a browser/terminal: never on the main loop.
+        (Method::Post, "/api/setup/sign_in") if !remote => match body(request) {
             Ok(input) => {
                 let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|()| json!({ "opened": true })))))
+                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|out| json!({ "opened": true, "mode": out.mode })))))
+            }
+            Err(reply) => Answer::Now(reply),
+        },
+        // Minimal prompt test to confirm a CLI responds end-to-end: desk-only and off the main loop.
+        (Method::Post, "/api/setup/test") if !remote => match body(request) {
+            Ok(input) => {
+                let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                let home = panel.roots.home.clone();
+                Answer::Later(Box::new(move || respond(crate::connections::test_cli(&id, &home).map(|res| json!(res)))))
             }
             Err(reply) => Answer::Now(reply),
         },
@@ -282,7 +293,6 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             }
             Err(reply) => reply,
         },
-        (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(
                 setup::clone(&panel.store, &panel.roots.home, &panel.clones, input.get("repo").and_then(Value::as_str).unwrap_or(""))
@@ -551,17 +561,51 @@ fn wiki_action(state_dir: &Path, action: &str, input: &Value) -> anyhow::Result<
     Ok(crate::wiki::list(state_dir))
 }
 
-/// The settings page: every known CLI probed now (off the panel's thread), and the person's choices.
-fn settings_later(panel: &Panel) -> Box<dyn FnOnce() -> Reply + Send> {
+/// The settings page: serves cached CLI probes immediately while refreshing in the background,
+/// or probes live off the main thread when `fresh` is requested (or no cache exists yet).
+fn settings_answer(panel: &Panel, fresh: bool) -> Answer {
     let usage = crate::connections::usage_all(&panel.store);
     let settings = crate::settings::Settings::load(&panel.state_dir);
     let home = panel.roots.home.clone();
-    Box::new(move || {
-        respond(Ok(json!({
-            "connections": crate::connections::statuses(crate::connections::probe_all(&home), &usage, &settings),
+    let state_dir = panel.state_dir.clone();
+    if !fresh
+        && let Some(cached) = crate::connections::load_cached(&state_dir)
+    {
+        crate::connections::refresh_in_background(state_dir, home);
+        return Answer::Now(respond(Ok(json!({
+            "connections": crate::connections::statuses(cached, &usage, &settings),
             "defaults": settings.defaults,
+            "cached": true,
+        }))));
+    }
+    Answer::Later(Box::new(move || {
+        let probes = crate::connections::probe_and_cache(&state_dir, &home);
+        respond(Ok(json!({
+            "connections": crate::connections::statuses(probes, &usage, &settings),
+            "defaults": settings.defaults,
+            "cached": false,
         })))
-    })
+    }))
+}
+
+/// The onboarding setup payload: instant from the probe disk cache, or live off the main thread.
+fn setup_answer(panel: &Panel, fresh: bool) -> Answer {
+    let base = match setup::base(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones) {
+        Ok(base) => base,
+        Err(error) => return Answer::Now(respond(Err(error))),
+    };
+    let home = panel.roots.home.clone();
+    let state_dir = panel.state_dir.clone();
+    if !fresh
+        && let Some(cached) = crate::connections::load_cached(&state_dir)
+    {
+        crate::connections::refresh_in_background(state_dir, home);
+        return Answer::Now(respond(Ok(base.into_state(cached, true))));
+    }
+    Answer::Later(Box::new(move || {
+        let probes = crate::connections::probe_and_cache(&state_dir, &home);
+        respond(Ok(base.into_state(probes, false)))
+    }))
 }
 
 pub(crate) fn header<'r>(request: &'r Request, name: &'static str) -> Option<&'r str> {

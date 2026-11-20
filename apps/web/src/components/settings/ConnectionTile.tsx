@@ -1,6 +1,6 @@
-import type { BotAgent, CliInstall, Connection, GitHubState } from '../../api'
+import type { BotAgent, CliInstall, CliTestResult, Connection, GitHubState } from '../../api'
 import { AgentLogo } from '../AgentLogo'
-import { compact, t } from '../../i18n'
+import { compact, locale, t } from '../../i18n'
 import { Command } from '../../onboarding/parts'
 import { modelName } from '../BotSettings'
 import { DefaultPicker } from './DefaultPicker'
@@ -16,6 +16,7 @@ const EFFORTS: Partial<Record<BotAgent, string[]>> = {
 const AGENT_IDS = new Set(['claude', 'codex', 'cursor', 'opencode', 'antigravity'])
 const MONOGRAMS: Record<string, string> = { copilot: 'CP' }
 const lastLine = (log: string) => log.trim().split('\n').pop() ?? ''
+const formatMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace('.', locale === 'pt-BR' ? ',' : '.')} s`)
 
 type Tone = 'ok' | 'alerta' | ''
 
@@ -36,17 +37,19 @@ interface ConnectionTileProps {
   connection: Connection
   /** Its install from the panel, when one was started. */
   install?: CliInstall
-  /** A sign-in window was opened for it and it is not signed in yet. */
-  signingIn?: boolean
+  /** Sign-in flow opened for this CLI while not yet signed in. */
+  signingIn?: 'browser' | 'terminal'
+  testState?: { testing: boolean; result?: CliTestResult }
   onInstall?: () => void
   onSignIn?: () => void
+  onTest?: () => void
   defaults: Defaults
   onToggle: (on: boolean) => void
   onDefaults: (next: Defaults) => void
 }
 
 /** One AI CLI: whether it is here and signed in, what raiox read from it, and the model and effort its bots start on. */
-export function ConnectionTile({ connection: c, install, signingIn = false, onInstall, onSignIn, defaults, onToggle, onDefaults }: ConnectionTileProps) {
+export function ConnectionTile({ connection: c, install, signingIn, testState, onInstall, onSignIn, onTest, defaults, onToggle, onDefaults }: ConnectionTileProps) {
   const status = statusOf(c, install)
   const usable = c.installed && c.logged_in !== false && (c.bots || c.xray)
   const lit = usable && c.enabled
@@ -87,7 +90,14 @@ export function ConnectionTile({ connection: c, install, signingIn = false, onIn
       )}
       {install?.state === 'running' && <p className="cfg-faz cfg-instalando">{lastLine(install.log) || t.installing}</p>}
       {install?.state === 'failed' && !c.installed && <p className="cfg-faz falhou">{t.installStopped}</p>}
-      {signingIn && <p className="cfg-faz">{t.signInOpened}</p>}
+      {signingIn && <p className="cfg-faz">{signingIn === 'browser' ? t.signInBrowser : t.signInOpened}</p>}
+      {testState?.result && (
+        <p className={`cfg-teste ${testState.result.ok ? 'ok' : 'falhou'}`}>
+          {testState.result.ok
+            ? `ok · ${formatMs(testState.result.duration_ms)}`
+            : `${testState.result.error || 'erro'}${testState.result.duration_ms > 0 ? ` · ${formatMs(testState.result.duration_ms)}` : ''}`}
+        </p>
+      )}
       <footer>
         {!c.installed && onInstall && install?.state !== 'running' && (
           <button type="button" className="cfg-btn cheio pequeno" onClick={onInstall}>
@@ -100,6 +110,11 @@ export function ConnectionTile({ connection: c, install, signingIn = false, onIn
           </button>
         )}
         {how && (install?.state === 'failed' || !onInstall || c.installed) && <Command label={how.label} command={how.command} />}
+        {usable && onTest && (
+          <button type="button" className="acao-texto" disabled={testState?.testing} onClick={onTest}>
+            {testState?.testing ? t.testing : t.testNow}
+          </button>
+        )}
         {lit && c.bots && (
           <>
             <small className="cfg-rotulo">{t.startsWith}</small>

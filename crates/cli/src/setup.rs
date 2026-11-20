@@ -183,18 +183,56 @@ pub fn finish(state_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Everything the setup screens need except GitHub (which goes to the network).
-pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<Value> {
+/// Fast local snapshot for `/api/setup` so the server can probe CLIs off the main loop when needed.
+pub struct SetupBase {
+    pub projects: Vec<Project>,
+    pub clone_to: String,
+    pub done: bool,
+    pub clones: Value,
+    pub usage: Vec<(u64, u64)>,
+    pub settings: crate::settings::Settings,
+}
+
+impl SetupBase {
+    /// Builds the `/api/setup` payload from cached or freshly probed CLI statuses.
+    pub fn into_state(self, probes: Vec<crate::connections::Probe>, ais_cached: bool) -> Value {
+        json!({
+            "done": self.done,
+            "ais": crate::connections::statuses(probes, &self.usage, &self.settings),
+            "ais_cached": ais_cached,
+            "clone_to": self.clone_to,
+            "clones": self.clones,
+            "installs": crate::install::state(),
+            "projects": self.projects,
+        })
+    }
+}
+
+pub fn base(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<SetupBase> {
     let projects = projects(store, home)?;
     let parent = clone_parent(home, &projects);
-    Ok(json!({
-        "done": is_done(state_dir),
-        "ais": crate::connections::detect(store, home, &crate::settings::Settings::load(state_dir)),
-        "clone_to": label(home, &parent).unwrap_or_else(|| "Projects".into()),
-        "clones": clones.snapshot(),
-        "installs": crate::install::state(),
-        "projects": projects,
-    }))
+    Ok(SetupBase {
+        clone_to: label(home, &parent).unwrap_or_else(|| "Projects".into()),
+        projects,
+        done: is_done(state_dir),
+        clones: clones.snapshot(),
+        usage: crate::connections::usage_all(store),
+        settings: crate::settings::Settings::load(state_dir),
+    })
+}
+
+/// Everything the setup screens need except GitHub (which goes to the network).
+/// Uses the disk probe cache when available and refreshes in the background.
+pub fn state(store: &Store, home: &Path, state_dir: &Path, clones: &Clones) -> Result<Value> {
+    let b = base(store, home, state_dir, clones)?;
+    let (probes, ais_cached) = match crate::connections::load_cached(state_dir) {
+        Some(cached) => {
+            crate::connections::refresh_in_background(state_dir.to_path_buf(), home.to_path_buf());
+            (cached, true)
+        }
+        None => (crate::connections::probe_and_cache(state_dir, home), false),
+    };
+    Ok(b.into_state(probes, ais_cached))
 }
 
 /// Creates `~/Projects/<name>` from the onboarding project step and returns both the new

@@ -808,6 +808,16 @@
   white-space: normal;
 }
 
+.bv-ia-nota.ok {
+  color: var(--ok);
+}
+
+.bv-ia-acoes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Starting free, above the list when no AI is ready yet. */
 .bv-gratis {
   display: flex;

@@ -522,6 +522,8 @@ export interface Connection {
 export interface SettingsState {
   connections: Connection[]
   defaults: Record<string, { model: string | null; effort: string | null }>
+  /** True when the CLI probe came from the disk cache and is refreshing in the background. */
+  cached?: boolean
 }
 
 export interface UsageRow {
@@ -553,6 +555,8 @@ export interface LocalProject {
 export interface SetupState {
   done: boolean
   ais: Connection[]
+  /** True when `ais` came from the disk probe cache and is refreshing in the background. */
+  ais_cached?: boolean
   clone_to: string
   clones: { running: string[]; failed: Record<string, string> }
   /** CLIs being installed (or installed) from the panel since it started. */
@@ -577,9 +581,21 @@ export function fetchInstalls(): Promise<Record<string, CliInstall>> {
   return request<Record<string, CliInstall>>('/api/setup/install')
 }
 
-/** Opens a terminal with the CLI's own sign-in, which goes on in the browser. */
-export function signInCli(id: string): Promise<{ opened: boolean }> {
-  return request<{ opened: boolean }>('/api/setup/sign_in', { id })
+/** Starts the CLI's own sign-in in the default browser (or a terminal fallback). */
+export function signInCli(id: string): Promise<{ opened: boolean; mode?: 'browser' | 'terminal' }> {
+  return request<{ opened: boolean; mode?: 'browser' | 'terminal' }>('/api/setup/sign_in', { id })
+}
+
+export interface CliTestResult {
+  ok: boolean
+  duration_ms: number
+  reply?: string | null
+  error?: string | null
+}
+
+/** Sends a minimal prompt without tools to confirm a CLI responds end-to-end (desktop only). */
+export function testCli(id: string): Promise<CliTestResult> {
+  return request<CliTestResult>('/api/setup/test', { id })
 }
 
 export interface GitHubRepo {
@@ -672,8 +688,8 @@ async function request<T>(path: string, body?: Record<string, unknown>): Promise
   return data
 }
 
-export function fetchSetup(): Promise<SetupState> {
-  return request<SetupState>('/api/setup')
+export function fetchSetup(fresh = false): Promise<SetupState> {
+  return request<SetupState>(fresh ? '/api/setup?fresh=1' : '/api/setup')
 }
 
 export function fetchGitHub(): Promise<GitHubState> {
@@ -1146,8 +1162,8 @@ export function botMemories(id: string): Promise<Memories> {
   return request<Memories>('/api/bot/memories', { id })
 }
 
-export function fetchSettings(): Promise<SettingsState> {
-  return request<SettingsState>('/api/settings')
+export function fetchSettings(fresh = false): Promise<SettingsState> {
+  return request<SettingsState>(fresh ? '/api/settings?fresh=1' : '/api/settings')
 }
 
 export function saveSettings(change: Record<string, unknown>): Promise<SettingsState> {

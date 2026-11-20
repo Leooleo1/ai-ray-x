@@ -48,16 +48,20 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSetup = useCallback(async (quiet = false) => {
+  const loadSetup = useCallback(async (quiet = false, fresh = false) => {
     if (!quiet) setLoading(true)
     try {
-      const next = await fetchSetup()
+      const next = await fetchSetup(fresh)
       setSetup(next)
       // First load: start with the most recently used project and an AI that is signed in.
       setSelected((current) => (current.length > 0 || !next.projects[0] ? current : [next.projects[0].project]))
       const usable = next.ais.filter(canRunBots)
       const ready = usable[0]
       if (ready) setDesign((current) => (usable.some((ai) => ai.id === current.agent) ? current : { ...current, agent: ready.id as BotAgent }))
+      // Cached probe arrived instantly; quietly refresh in the background once.
+      if (!fresh && next.ais_cached) {
+        fetchSetup(true).then(setSetup).catch(() => undefined)
+      }
     } catch (failure: unknown) {
       setError(errorText(failure))
     } finally {
@@ -106,7 +110,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   }
   const anyAi = setup?.ais.some(canRunBots) ?? false
 
-  const refreshQuietly = useCallback(() => void loadSetup(true), [loadSetup])
+  const refreshQuietly = useCallback(() => void loadSetup(true, true), [loadSetup])
   // Starting free: bots on opencode, on one of its free models.
   const [freeModel, setFreeModel] = useState(false)
   const startFree = useCallback(() => {
@@ -218,7 +222,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
             <StepAis
               setup={setup}
               loading={loading}
-              onCheck={() => void loadSetup()}
+              onCheck={() => void loadSetup(false, true)}
               onRefresh={refreshQuietly}
               onFree={startFree}
               onBack={() => go('profile')}
