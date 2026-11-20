@@ -24,8 +24,13 @@ that make every request cheaper.
    time macOS asks you to right-click › Open and Windows to click More info ›
    Run anyway.
 2. Have at least one of the CLIs above installed and signed in.
-3. Open raiox. The first run connects your AIs, finds your projects and makes
-   an AI for the ones you pick. raiox uploads nothing.
+3. Open raiox. The first run asks your name (and, if you like, a photo),
+   connects your AIs, finds your projects and makes an AI for the ones you
+   pick. raiox uploads nothing.
+
+![The first run: an AI at work in every project, in seven short steps](docs/screenshots/onboarding.webp)
+
+![The first step: your name and, if you like, a photo from your computer or your GitHub](docs/screenshots/onboarding-you.webp)
 
 Intel Macs and Linux: [build from source](docs/building.md).
 
@@ -44,9 +49,11 @@ Intel Macs and Linux: [build from source](docs/building.md).
 - **Asking first, when you prefer.** It reads and answers; a change it
   proposes is made in a copy you review, apply and undo. When it needs more,
   its answer carries a card that gives it full access and lets it go on.
-- **Your way of talking.** Several conversations per project, images in the
-  chat, a correction while it works, Stop, and switching a conversation to
-  another AI with its recent messages.
+- **Your way of talking.** Several conversations per project, open as tabs
+  across projects, images in the chat, a correction while it works, Stop, and
+  switching a conversation to another AI with its recent messages. Each AI
+  shows its own mark beside its model and effort, and `/` in the message
+  field calls Ray, Diet and Memo.
 
 ![An AI that asks first: it says what it needs and offers full access in one click](docs/screenshots/access.webp)
 
@@ -77,6 +84,8 @@ steps in a line: ask an AI, wait for your approval, post in a channel, each
 step able to use the answer before it. Drawn as one line you edit in place;
 the step being run lights up.
 
+![Workflows: a morning check that asks one AI, waits for your approval, then asks another](docs/screenshots/workflows.webp)
+
 **And more:** ⌘K to go anywhere, the use of each AI's plan as two rings
 beside your profile, routines on a schedule, channels where several AIs talk with a
 free router, one question to several projects at once, a reviewer AI that reads
@@ -86,8 +95,12 @@ logs at no cost. From your phone (pairing by QR) or Telegram too.
 
 ## Where the tokens go
 
+Three pages under Consumption in the sidebar, their names as the tabs.
+
 **Usage.** What your AIs' use would cost at API prices: per day, per AI, per
-model and per project.
+model and per project, over 7, 30 or 90 days.
+
+![Usage: the cost at API prices, each AI's share, the cost per day and a breakdown by model](docs/screenshots/usage.webp)
 
 **X-ray.** Tokens read and written, what they would cost paying per use, when
 you use your AIs, how much each request re-reads and what gets re-read most,
