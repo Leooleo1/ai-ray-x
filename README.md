@@ -49,6 +49,15 @@ Every feature, in detail: [docs/features.md](docs/features.md).
 
 ![A chat with a project's AI: the steps it took, what it read, and a proposal waiting for approval](docs/screenshots/chat.webp)
 
+## On by default: Runs without asking
+
+Like a coding CLI in auto mode, each AI runs on its own the commands that only
+read, test, lint, build or install the project's locked dependencies, and starts
+the project's app (installing its dependencies when they are missing) with a
+screenshot. Anything else it asks for (deleting, moving, `git push`, adding a
+package, other scripts) still waits for your click. Turn it off per AI in its
+settings.
+
 ## Off by default: what acts on its own
 
 raiox never changes a project, spends your plan or opens to the internet unless
@@ -56,7 +65,6 @@ you ask it to or turn it on. These switches do, so read them before you flip the
 
 | Switch | What it does | The risk |
 |---|---|---|
-| **Runs without asking** (per AI) | Runs the commands it asks for and starts the project's app (See the app), then shows you a screenshot | Its commands run without your click; raiox still refuses ones that change files, open secrets or chain a shell |
 | **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |

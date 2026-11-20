@@ -36,15 +36,15 @@ pub struct Grants {
     /// Edits without asking: its proposals are approved and their drafts applied by themselves (each can be undone).
     #[serde(default)]
     pub auto_edit: bool,
-    /// Runs without asking: the commands it asks for (those raiox allows at all) run, and the
-    /// project's app starts when it offers See the app.
-    #[serde(default)]
+    /// Runs without asking (on unless turned off): the commands it asks for that only read, check
+    /// or install run with no click, and the project's app starts when it offers See the app.
+    #[serde(default = "yes")]
     pub auto_run: bool,
 }
 
 impl Default for Grants {
     fn default() -> Self {
-        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: false }
+        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: true }
     }
 }
 

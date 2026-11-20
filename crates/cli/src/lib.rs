@@ -11,6 +11,7 @@ pub mod bot_run;
 pub mod app_update;
 pub mod app_start;
 pub mod auto_edit;
+pub mod safe_commands;
 pub mod batches;
 pub mod bot_steps;
 pub mod bot_trail;

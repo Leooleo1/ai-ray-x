@@ -301,11 +301,12 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
 }
 
 /// The first command in the answer that runs without a click: one the person allowed for this
-/// project, or any raiox allows at all when the bot runs without asking.
+/// project, or, for a bot that runs without asking, one that only reads, checks or installs.
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
     // Read again: the person may have changed the list or the grant while the bot was answering.
     let now = find(state_dir, &bot.id).ok()?;
-    reply.run.iter().find(|r| r.refused.is_none() && (now.grants.auto_run || now.allowed.contains(&r.command))).map(|r| r.command.clone())
+    let safe = |command: &str| now.grants.auto_run && commands::check(command).is_ok_and(|words| crate::safe_commands::runs_alone(&words));
+    reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
 }
 
 /// Whether the bot runs without asking now (the grant may change while it answers).
@@ -320,10 +321,16 @@ fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) ->
     let stop = || jobs.should_stop(&bot.id);
     match crate::app_start::start_and_wait(state_dir, &bot.id, &bot.dir, &stop) {
         Ok(url) => {
+            // Its output too: a second command (an API) may have stopped, for a missing .env say.
+            let log = crate::preview::status(state_dir, &bot.id, &bot.dir).ok().and_then(|s| s["log"].as_str().map(str::to_string)).unwrap_or_default();
+            let started = format!(
+                "(raiox started the project's app for the person: it answers at {url}. Its output so far:\n{log}\nIf a command stopped, \
+                 say which and what it needs; a missing secrets file is for the person to fill, from its example if there is one.)"
+            );
             let Some((prompt, files)) = screenshots(state_dir, jobs, bot, std::slice::from_ref(&url), say) else {
-                return Some((format!("raiox started the project's app and it answers at {url}, but could not take a screenshot. Tell the person briefly."), Vec::new()));
+                return Some((format!("{started}\n\nraiox could not take a screenshot. Tell the person briefly."), Vec::new()));
             };
-            Some((format!("(raiox started the project's app for the person: it answers at {url}.)\n\n{prompt}"), files))
+            Some((format!("{started}\n\n{prompt}"), files))
         }
         Err(_) if stop() => None,
         Err(error) => {
