@@ -30,6 +30,8 @@ pub(super) struct Turn {
     pub home: Option<PathBuf>,
     /// A command the person approved, run before the CLI goes on with its output.
     pub command: Option<String>,
+    /// Images the person attached to this message, stored in `<state>/uploads/<bot>`.
+    pub images: Vec<PathBuf>,
 }
 
 /// How this bot's CLI is called, the same for every round of the turn.
@@ -96,15 +98,19 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),
         Mode::Edit => turn.text,
     };
+    let mut images: Vec<PathBuf> = Vec::new();
     if let Some(command) = &turn.command {
         let Some(output) = command_output(jobs, bot, command, false, &say) else { return };
         text = output;
+    } else if !turn.images.is_empty() {
+        let (prompt, files) = attach_images(state_dir, &bot.id, &turn.images, text, &say);
+        text = prompt;
+        images = files;
     }
     // A draft starts a fresh session in its copy; talk continues the conversation's own.
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;
     let mut shots_taken = 0;
-    let mut images: Vec<PathBuf> = Vec::new();
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
         let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
@@ -290,6 +296,34 @@ fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String>
     reply.run.iter().find(|r| r.refused.is_none() && allowed.contains(&r.command)).map(|r| r.command.clone())
 }
 
+/// Hands the person's attached images over to the CLI through `ai_dir`, and tells the CLI where they are.
+fn attach_images(state_dir: &Path, bot: &str, files: &[PathBuf], text: String, say: &dyn Fn(Message)) -> (String, Vec<PathBuf>) {
+    let mut handed = Vec::new();
+    for file in files {
+        match crate::preview::hand_over(state_dir, bot, file) {
+            Ok(path) => handed.push(path),
+            Err(error) => say(note("failed", json!({ "error": format!("raiox could not hand the image over: {error:#}") }))),
+        }
+    }
+    if handed.is_empty() {
+        return (text, Vec::new());
+    }
+    let list: Vec<String> = handed.iter().map(|path| format!("- {}", path.display())).collect();
+    let noun = if handed.len() == 1 { "image" } else { "images" };
+    let pronoun = if handed.len() == 1 { "it" } else { "them" };
+    let header = format!(
+        "(raiox: the person attached {} {noun}:\n{}\nLook at {pronoun} — open each file with your Read tool if you do not see {pronoun} directly.)",
+        handed.len(),
+        list.join("\n"),
+    );
+    let prompt = if text.trim().is_empty() {
+        format!("{header}\n\nLook at the attached {noun} and help the person.")
+    } else {
+        format!("{header}\n\n{text}")
+    };
+    (prompt, handed)
+}
+
 /// Runs a command in the project, shows what it did, and gives the CLI's next prompt
 /// (none when it was refused or the person stopped it).
 fn command_output(jobs: &Jobs, bot: &Bot, command: &str, allowed: bool, say: &dyn Fn(Message)) -> Option<String> {
@@ -310,4 +344,35 @@ fn command_output(jobs: &Jobs, bot: &Bot, command: &str, allowed: bool, say: &dy
         return None;
     }
     Some(prompt)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attach_images_hands_files_over_into_ai_dir_and_mentions_them() {
+        let state = std::env::temp_dir().join(format!("raiox-turn-images-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&state);
+        let uploads = crate::uploads::dir(&state, "b1");
+        std::fs::create_dir_all(&uploads).unwrap();
+        let img = uploads.join("abc1-0001.png");
+        std::fs::write(&img, [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
+
+        crate::preview::clear_ai_dir(&state, "b1");
+        let (prompt, handed) = attach_images(&state, "b1", std::slice::from_ref(&img), "what is this?".into(), &|_| {});
+        assert_eq!(handed.len(), 1);
+        assert_eq!(handed[0], crate::preview::ai_dir(&state, "b1").join("abc1-0001.png"));
+        assert!(handed[0].exists());
+        assert!(prompt.contains(&handed[0].display().to_string()));
+        assert!(prompt.contains("what is this?"));
+
+        // Image-only message still produces a clear instruction for the CLI.
+        crate::preview::clear_ai_dir(&state, "b1");
+        let (prompt_only, handed_only) = attach_images(&state, "b1", &[img], String::new(), &|_| {});
+        assert_eq!(handed_only.len(), 1);
+        assert!(prompt_only.contains("attached image"));
+
+        let _ = std::fs::remove_dir_all(&state);
+    }
 }

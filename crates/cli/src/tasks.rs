@@ -129,7 +129,7 @@ pub fn start(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     // Each task starts clean: the last one's context would only cost tokens here.
     threads::set_session(state_dir, &task.bot, &thread, None)?;
     let started = room::now_ms();
-    bots::ask(state_dir, jobs, &task.bot, &thread, &prompt(&task))?;
+    bots::ask(state_dir, jobs, &task.bot, &thread, &prompt(&task), &[])?;
     change(state_dir, |board| {
         if let Some(t) = board.tasks.iter_mut().find(|t| t.id == id) {
             t.status = Status::Doing;

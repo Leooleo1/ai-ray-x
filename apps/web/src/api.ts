@@ -312,6 +312,8 @@ export interface BotMessage {
     target?: string
     place?: string
     name?: string
+    /** Uploaded images attached to the person's message. */
+    images?: string[]
     /** A review: the reviewing bot and its CLI. */
     reviewer?: string
     agent?: BotAgent
@@ -696,6 +698,10 @@ export function botPreviewShot(id: string, target: 'page' | 'simulator', url: st
 
 export function botShotImage(id: string, name: string): Promise<{ image: string }> {
   return request('/api/bot/shot_image', { id, name })
+}
+
+export function botUploadImage(id: string, name: string): Promise<{ image: string }> {
+  return request('/api/bot/upload_image', { id, name })
 }
 
 /** The phone access: Cloudflare Tunnel settings, as the person left them. */

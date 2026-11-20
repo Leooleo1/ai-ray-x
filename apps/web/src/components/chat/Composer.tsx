@@ -1,11 +1,32 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { t } from '../../i18n'
 
 /** The field grows with the text up to this many pixels, then scrolls. */
 const MAX_HEIGHT = 168
+const MAX_IMAGES = 4
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+const ACCEPT_IMAGES = 'image/png,image/jpeg,image/webp,image/gif'
 
-// Module scope: switching to another bot and back keeps what was typed.
+interface PendingImage {
+  id: string
+  name: string
+  dataUrl: string
+}
+
+// Module scope: switching to another bot and back keeps what was typed and attached.
 const drafts = new Map<string, string>()
+const draftImages = new Map<string, PendingImage[]>()
+let nextImageId = 1
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('unreadable image')))
+    reader.onerror = () => reject(reader.error ?? new Error('unreadable image'))
+    reader.readAsDataURL(file)
+  })
+}
 
 interface ComposerProps {
   /** Whose draft this is (one per chat). */
@@ -13,22 +34,34 @@ interface ComposerProps {
   placeholder: string
   maxLength: number
   busy: boolean
+  /** Lets the person attach up to 4 images by button, paste or drag-and-drop. */
+  allowImages?: boolean
   /** Resolves true when the message went out, so the draft clears. */
-  onSend: (text: string) => Promise<boolean>
+  onSend: (text: string, images?: string[]) => Promise<boolean>
   onStop: () => void
   /** While the bot works in this conversation: sends a correction of its course. */
   onCorrect?: (text: string) => Promise<boolean>
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onStop, onCorrect }: ComposerProps) {
+export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
+  const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
+  const [attachError, setAttachError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const [sending, setSending] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
+  const dragDepth = useRef(0)
 
   useEffect(() => {
     setDraft(drafts.get(draftKey) ?? '')
+    setImages(allowImages ? draftImages.get(draftKey) ?? [] : [])
+    setAttachError(null)
+    setDragging(false)
+    dragDepth.current = 0
     field.current?.focus()
-  }, [draftKey])
+  }, [draftKey, allowImages])
   useEffect(() => {
     drafts.set(draftKey, draft)
     const el = field.current
@@ -36,19 +69,87 @@ export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onSto
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT)}px`
   }, [draft, draftKey])
+  useEffect(() => {
+    if (allowImages) draftImages.set(draftKey, images)
+  }, [allowImages, draftKey, images])
 
   // While the bot works here, what is typed corrects its course instead of asking anew.
   const correcting = busy && onCorrect !== undefined
+  const canAttach = allowImages && !busy && !sending
+
+  const addFiles = async (incoming: FileList | File[]) => {
+    if (!canAttach) return
+    const files = Array.from(incoming)
+    if (files.length === 0) return
+    let error: string | null = null
+    const accepted: File[] = []
+    let remaining = MAX_IMAGES - images.length
+    for (const file of files) {
+      if (!ALLOWED_TYPES.has(file.type)) {
+        error = t.imageBadType
+        continue
+      }
+      if (file.size === 0 || file.size > MAX_IMAGE_BYTES) {
+        error = t.imageTooLarge
+        continue
+      }
+      if (remaining <= 0) {
+        error = t.imageTooMany.replace('{n}', String(MAX_IMAGES))
+        continue
+      }
+      accepted.push(file)
+      remaining -= 1
+    }
+    setAttachError(error)
+    if (accepted.length === 0) return
+    const loaded: PendingImage[] = []
+    for (const file of accepted) {
+      try {
+        const dataUrl = await readAsDataUrl(file)
+        loaded.push({ id: `img-${nextImageId++}`, name: file.name, dataUrl })
+      } catch {
+        setAttachError(t.imageBadType)
+      }
+    }
+    if (loaded.length > 0) {
+      setImages((current) => [...current, ...loaded].slice(0, MAX_IMAGES))
+    }
+  }
+
+  const removeImage = (id: string) => {
+    setImages((current) => current.filter((item) => item.id !== id))
+    setAttachError(null)
+  }
+
   const send = async () => {
+    if (sending) return
     const text = draft.trim()
-    if (!text) return
     if (correcting) {
-      if (await onCorrect(text)) setDraft('')
+      if (!text) return
+      setSending(true)
+      try {
+        if (await onCorrect(text)) setDraft('')
+      } finally {
+        setSending(false)
+      }
       return
     }
     if (busy) return
-    if (await onSend(text)) setDraft('')
+    const attached = allowImages ? images.map((item) => item.dataUrl) : []
+    if (!text && attached.length === 0) return
+    setSending(true)
+    setAttachError(null)
+    try {
+      const ok = attached.length > 0 ? await onSend(text, attached) : await onSend(text)
+      if (ok) {
+        setDraft('')
+        setImages([])
+      }
+    } finally {
+      setSending(false)
+    }
   }
+
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Escape' && busy) {
       event.preventDefault()
@@ -59,43 +160,145 @@ export function Composer({ draftKey, placeholder, maxLength, busy, onSend, onSto
     }
   }
 
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!canAttach) return
+    const pasted: File[] = []
+    for (const item of Array.from(event.clipboardData.items)) {
+      if (item.kind === 'file') {
+        const file = item.getAsFile()
+        if (file) pasted.push(file)
+      }
+    }
+    if (pasted.length === 0) return
+    event.preventDefault()
+    void addFiles(pasted)
+  }
+
+  const onDragEnter = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach || !event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    dragDepth.current += 1
+    setDragging(true)
+  }
+
+  const onDragOver = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach || !event.dataTransfer.types.includes('Files')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const onDragLeave = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach) return
+    event.preventDefault()
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragging(false)
+  }
+
+  const onDrop = (event: DragEvent<HTMLFormElement>) => {
+    if (!canAttach) return
+    event.preventDefault()
+    dragDepth.current = 0
+    setDragging(false)
+    if (event.dataTransfer.files.length > 0) {
+      void addFiles(event.dataTransfer.files)
+    }
+  }
+
+  const hasContent = Boolean(draft.trim()) || (allowImages && images.length > 0)
+
   return (
     <form
-      className="compositor"
+      className={`compositor ${dragging ? 'arrastando' : ''}`}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       onSubmit={(event) => {
         event.preventDefault()
         void send()
       }}
     >
-      <textarea
-        ref={field}
-        rows={1}
-        value={draft}
-        maxLength={maxLength}
-        placeholder={correcting ? t.correctPlaceholder : placeholder}
-        aria-label={correcting ? t.correctPlaceholder : placeholder}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={onKey}
-      />
-      {correcting && draft.trim() ? (
-        <button className="enviar corrigir" type="submit" aria-label={t.correctSend} title={t.correctSend}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3" />
-          </svg>
-        </button>
-      ) : busy ? (
-        <button className="enviar parar" type="button" onClick={onStop} aria-label={t.stop} title={`${t.stop} (Esc)`}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="7" y="7" width="10" height="10" rx="2" />
-          </svg>
-        </button>
-      ) : (
-        <button className="enviar" type="submit" disabled={!draft.trim()} aria-label={t.send}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
-        </button>
+      {allowImages && images.length > 0 && (
+        <div className="compositor-anexos">
+          {images.map((item) => (
+            <div key={item.id} className="compositor-anexo">
+              <img src={item.dataUrl} alt={item.name || t.imageAttached} />
+              <button
+                type="button"
+                className="compositor-anexo-remover"
+                onClick={() => removeImage(item.id)}
+                aria-label={t.removeImage}
+                title={t.removeImage}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
       )}
+      {dragging && <p className="compositor-dica">{t.dropImages}</p>}
+      {attachError && <p className="compositor-erro">{attachError}</p>}
+      <div className="compositor-linha">
+        {allowImages && !correcting && (
+          <>
+            <input
+              ref={picker}
+              type="file"
+              accept={ACCEPT_IMAGES}
+              multiple
+              hidden
+              onChange={(event) => {
+                if (event.target.files) void addFiles(event.target.files)
+                event.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              className="anexar"
+              disabled={!canAttach || images.length >= MAX_IMAGES}
+              onClick={() => picker.current?.click()}
+              aria-label={t.attachImages}
+              title={t.attachImages}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.5 3.5 0 0 1 4.95 4.95l-8.49 8.49a1.5 1.5 0 0 1-2.12-2.12l7.78-7.78" />
+              </svg>
+            </button>
+          </>
+        )}
+        <textarea
+          ref={field}
+          rows={1}
+          value={draft}
+          maxLength={maxLength}
+          placeholder={correcting ? t.correctPlaceholder : placeholder}
+          aria-label={correcting ? t.correctPlaceholder : placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={onKey}
+          onPaste={onPaste}
+        />
+        {correcting && draft.trim() ? (
+          <button className="enviar corrigir" type="submit" disabled={sending} aria-label={t.correctSend} title={t.correctSend}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3" />
+            </svg>
+          </button>
+        ) : busy ? (
+          <button className="enviar parar" type="button" onClick={onStop} aria-label={t.stop} title={`${t.stop} (Esc)`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+          </button>
+        ) : (
+          <button className="enviar" type="submit" disabled={!hasContent || sending} aria-label={t.send}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
+          </button>
+        )}
+      </div>
     </form>
   )
 }
