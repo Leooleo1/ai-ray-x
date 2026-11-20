@@ -103,9 +103,10 @@
 .cfg-heroi-titulo small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Trail: the onboarding's steps, joined by a line that lights up behind each done one. */
@@ -386,7 +387,8 @@
 .cfg-numero small,
 .cfg-faz {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .cfg-estado {
@@ -531,7 +533,8 @@
 .cfg-escolha-titulo {
   padding: 0 4px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .cfg-escolha-grade {
@@ -651,7 +654,8 @@
 
 .cfg-bot-texto small {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .cfg-bot footer {
@@ -734,7 +738,8 @@
 
 .cfg-fios-lista > small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 760px) {
@@ -866,9 +871,10 @@
 .cfg-dicas-titulo small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .cfg-dicas-chaves {

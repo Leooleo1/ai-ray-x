@@ -73,7 +73,7 @@
 .ajustes-campo > span,
 .ajustes-campo > label {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
 }
 
 .ajustes-rodape {
@@ -179,9 +179,10 @@
 .ajustes-combo-lista li button small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .ajustes-campo input,
@@ -253,9 +254,10 @@
   max-width: 100%;
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/12px var(--mono);
+  font: 12px/12px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .ajustes-grade button:hover,
@@ -298,9 +300,10 @@
   border-radius: var(--raio-item);
   background: var(--vidro-7);
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-topo .modelo.ativo {
@@ -570,8 +573,9 @@
 
 .auditor-linha > span {
   color: var(--nevoa);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .auditor-linha .ajustes-campo {
@@ -595,9 +599,10 @@
   min-width: 0;
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .auditor-meta::before {

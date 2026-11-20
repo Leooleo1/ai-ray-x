@@ -115,7 +115,8 @@
 
 .mostrador-rotulo {
   fill: var(--nevoa);
-  font: 8.5px var(--mono);
+  font: 8.5px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Beside the dial */
@@ -273,7 +274,8 @@
 
 .relogio-projetos b {
   color: var(--nevoa);
-  font: 400 11px/16px var(--mono);
+  font: 400 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .relogio-projetos i {

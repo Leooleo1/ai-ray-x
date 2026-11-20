@@ -15,7 +15,8 @@
 
 .aparencia-rotulo {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* The ready-made looks, as plush portraits. */

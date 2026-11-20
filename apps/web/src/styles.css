@@ -71,7 +71,8 @@ textarea:focus-visible {
   height: 100dvh;
   place-items: center;
   color: var(--nevoa);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .app {
@@ -696,8 +697,9 @@ textarea:focus-visible {
   display: flex;
   gap: var(--vao);
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .rodape b {
@@ -891,8 +893,9 @@ textarea:focus-visible {
 
 .apoio {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .destaque {
@@ -1287,8 +1290,9 @@ textarea:focus-visible {
 
 .acao .estado {
   color: var(--giz);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The measured result takes its own line under the action. */
@@ -1299,9 +1303,10 @@ textarea:focus-visible {
 .nota {
   overflow: hidden;
   color: var(--nevoa);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .nota.failed {
@@ -1398,7 +1403,8 @@ textarea:focus-visible {
 
 .presenca {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .presenca.digitando {
@@ -1463,9 +1469,8 @@ textarea:focus-visible {
   gap: 12px;
   margin: 12px 0 8px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* A sentence in the line (the conversation reset, or moved to another AI): normal case. */
@@ -1522,7 +1527,8 @@ textarea:focus-visible {
 
 .hora {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .linha .texto {
@@ -1732,7 +1738,8 @@ textarea:focus-visible {
 .balao.via-memoria small {
   display: block;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Bots: conversation */
@@ -1779,7 +1786,8 @@ textarea:focus-visible {
 .editou,
 .espera {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .bot-meta {
@@ -1792,7 +1800,8 @@ textarea:focus-visible {
 
 .auditor-selo {
   color: var(--cobalto);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .espera {
@@ -2236,7 +2245,8 @@ textarea:focus-visible {
 
 .seletor-texto small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .seletor-marca {
@@ -2452,7 +2462,8 @@ textarea:focus-visible {
 
 .projeto-nome small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .projeto-ias {

@@ -35,7 +35,7 @@ import { Flows } from './components/Flows'
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
 const SIDEBAR_KEY = 'raiox.sidebar'
-const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
+const SOURCE_LABELS: Record<string, string> = { claude: 'Claude Code', codex: 'Codex' }
 const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
   usage: ['/uso', '/usage'],

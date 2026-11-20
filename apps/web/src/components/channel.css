@@ -30,9 +30,10 @@
   border-radius: 999px;
   background: rgb(255 255 255 / 5%);
   color: var(--giz);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
+  font-variant-numeric: tabular-nums;
 }
 
 .canal-membros small {
@@ -75,7 +76,8 @@
 
 .canal-quem b {
   flex: none;
-  font: 500 12px/18px var(--mono);
+  font: 500 12px/18px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .canal-quem small {
@@ -97,7 +99,8 @@
   display: block;
   margin-top: 4px;
   opacity: 0.75;
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .canal-ao-vivo .corpo {
@@ -224,6 +227,7 @@
 
 .canal-rota {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }

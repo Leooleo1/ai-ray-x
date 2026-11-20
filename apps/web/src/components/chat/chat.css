@@ -28,7 +28,8 @@
 
 .chat-vazio > span {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .chat-vazio p {
@@ -711,7 +712,7 @@ form.compositor {
 .modelo-menu li.modelo-grupo {
   padding: 14px 8px 6px;
   color: rgb(255 255 255 / 45%);
-  font: 12px/16px var(--mono);
+  font: 12px/16px var(--sans);
   white-space: nowrap;
 }
 
@@ -854,7 +855,7 @@ form.compositor {
 .conversas-grupo {
   padding: 6px 10px 0;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
 }
 
 .troca-rostos {
@@ -1177,9 +1178,10 @@ form.compositor {
 .rotina-texto small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .rotina-quando {
@@ -1323,7 +1325,8 @@ form.compositor {
 .grupo-meta,
 .grupo-coluna small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1389,12 +1392,14 @@ form.compositor {
   flex: none;
   margin-left: auto;
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .grupo-coluna footer {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .grupo-coluna footer .lado-link {
@@ -1471,9 +1476,10 @@ form.compositor {
 .casa-quem small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .casa p {
@@ -1484,7 +1490,8 @@ form.compositor {
 
 .casa-meta {
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .casa .aprovacoes {
@@ -1526,9 +1533,10 @@ form.compositor {
 .projeto-topo small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .conversas-ia {
@@ -1763,7 +1771,8 @@ form.compositor {
 .grupo-anteriores small {
   flex: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 960px) {
@@ -1824,7 +1833,8 @@ form.compositor {
 
 .rascunho > header small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rascunho ul {
@@ -1867,7 +1877,8 @@ form.compositor {
 .rascunho-arquivo small {
   flex: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rascunho-arquivo svg {
@@ -2054,7 +2065,8 @@ form.compositor {
 
 .rodou-linha small {
   flex: none;
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rodou .ponto {
@@ -2247,9 +2259,10 @@ form.compositor {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .trilha-ponto {
@@ -2331,9 +2344,10 @@ form.compositor {
 .caminho summary {
   width: fit-content;
   color: var(--nevoa);
-  font: 11px/16px var(--mono);
+  font: 12px/16px var(--sans);
   cursor: pointer;
   list-style: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .caminho summary::-webkit-details-marker {
@@ -2392,7 +2406,8 @@ form.compositor {
 .levar-grupo {
   margin: 6px 6px 2px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .levar-painel button {
@@ -2472,7 +2487,8 @@ form.compositor {
   flex: none;
   white-space: nowrap;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .trazido ul {
@@ -2513,7 +2529,8 @@ form.compositor {
 
 .print-ia figcaption {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .print-ia button {

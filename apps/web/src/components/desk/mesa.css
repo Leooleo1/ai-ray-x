@@ -241,10 +241,11 @@
   display: -webkit-box;
   overflow: hidden;
   color: #d2d2da;
-  font: 12px/18px var(--mono);
+  font: 12px/18px var(--sans);
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  font-variant-numeric: tabular-nums;
 }
 
 .mesa-apoio {

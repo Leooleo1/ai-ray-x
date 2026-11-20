@@ -27,10 +27,9 @@
   padding: 0;
   list-style: none;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 12px/14px var(--sans);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .bv-trilho li {
@@ -107,10 +106,9 @@
 
 .bv-legenda {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
+  font: 12px/14px var(--sans);
   text-align: center;
-  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Step card */
@@ -204,7 +202,8 @@
 .bv-rotulo {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/16px var(--sans);
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

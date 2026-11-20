@@ -52,9 +52,10 @@
 .dica-flutuante header small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .dica-flutuante p {

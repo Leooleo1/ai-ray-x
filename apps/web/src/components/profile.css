@@ -82,7 +82,8 @@
 
 .perfil-nome small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .perfil-seta,
@@ -141,7 +142,8 @@
 
 .perfil-quem small {
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+  font: 12px/14px var(--sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .perfil-item {
