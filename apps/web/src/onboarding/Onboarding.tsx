@@ -10,13 +10,16 @@ import { StepAis } from './StepAis'
 import { StepBot } from './StepBot'
 import { StepDone } from './StepDone'
 import { StepGitHub } from './StepGitHub'
+import { StepProfile } from './StepProfile'
 import { StepProjects } from './StepProjects'
 import { StepWires } from './StepWires'
 import { StepWelcome } from './StepWelcome'
 import { o } from './texts'
 
-type Step = 'welcome' | 'ais' | 'github' | 'projects' | 'bot' | 'wires' | 'done'
-const ORDER: Step[] = ['welcome', 'ais', 'github', 'projects', 'bot', 'wires', 'done']
+type Step = 'welcome' | 'profile' | 'ais' | 'github' | 'projects' | 'bot' | 'wires' | 'done'
+const ORDER: Step[] = ['welcome', 'profile', 'ais', 'github', 'projects', 'bot', 'wires', 'done']
+/** The welcome's picture: one of raiox's own characters, waving. */
+const WELCOME_ART = '/mascotes/vazio-conversa.webp'
 /** Wires only make sense between two projects or more. */
 /** The free model a bot made with Start free runs on (opencode's Zen free tier). */
 const OPENCODE_FREE_MODEL = 'opencode/deepseek-v4.1-flash-free'
@@ -164,6 +167,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const mood: AvatarState = loading ? 'thinking' : step === 'done' ? 'happy' : 'idle'
   const titles: Record<Step, [string, string]> = {
     welcome: [o.welcomeTitle, o.welcomeText],
+    profile: [o.profileTitle, o.profileText],
     ais: [o.aisTitle, o.aisText],
     github: [o.githubTitle, o.githubText],
     projects: [o.projectsTitle, o.projectsText],
@@ -195,14 +199,21 @@ export function Onboarding({ onFinish }: OnboardingProps) {
         <aside className="bv-palco">
           <h1>{title}</h1>
           <p>{text}</p>
-          <div className="bv-luz" style={{ backgroundImage: `url(${stageLight(design.color)})` }}>
-            <Avatar agent={face} size={window.matchMedia(PHONE).matches ? STAGE_SIZE_PHONE : STAGE_SIZE} state={mood} followPointer />
-          </div>
-          <span className="bv-legenda">{`${personaOf(design, o.defaultName).name} · ${AGENT_LABEL[design.agent]}`}</span>
+          {step === 'welcome' ? (
+            <div className="bv-luz bv-arte">
+              <img src={WELCOME_ART} alt="" />
+            </div>
+          ) : (
+            <div className="bv-luz" style={{ backgroundImage: `url(${stageLight(design.color)})` }}>
+              <Avatar agent={face} size={window.matchMedia(PHONE).matches ? STAGE_SIZE_PHONE : STAGE_SIZE} state={mood} followPointer />
+            </div>
+          )}
+          {step !== 'welcome' && <span className="bv-legenda">{`${personaOf(design, o.defaultName).name} · ${AGENT_LABEL[design.agent]}`}</span>}
         </aside>
 
         <section className="cartao bv-cartao">
-          {step === 'welcome' && <StepWelcome onNext={() => go('ais')} />}
+          {step === 'welcome' && <StepWelcome onNext={() => go('profile')} />}
+          {step === 'profile' && <StepProfile onBack={() => go('welcome')} onNext={() => go('ais')} />}
           {step === 'ais' && (
             <StepAis
               setup={setup}
@@ -210,7 +221,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
               onCheck={() => void loadSetup()}
               onRefresh={refreshQuietly}
               onFree={startFree}
-              onBack={() => go('welcome')}
+              onBack={() => go('profile')}
               onNext={() => go(anyAi ? 'github' : 'done')}
             />
           )}

@@ -797,10 +797,17 @@ export interface Pairing {
 export interface Profile {
   name: string | null
   github: string | null
+  /** The photo the person chose, as a data URL. */
+  photo: string | null
 }
 
 export function fetchProfile(): Promise<Profile> {
   return request<Profile>('/api/profile')
+}
+
+/** Changes the person's name or photo (a data URL, or null to take it away), or takes their GitHub photo. */
+export function saveProfile(change: { name?: string; photo?: string | null; from_github?: boolean }): Promise<Profile> {
+  return request<Profile>('/api/profile', change)
 }
 
 /** A page of the team's wiki, with this week's reads. */

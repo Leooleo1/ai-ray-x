@@ -240,7 +240,19 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             ))),
             Err(reply) => reply,
         },
-        (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home))),
+        (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
+        // The person's name and photo: from this computer only.
+        (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
+            Ok(input) => {
+                let changed = if input.get("from_github").and_then(Value::as_bool) == Some(true) {
+                    crate::profile::photo_from_github(&panel.roots.home, &panel.state_dir)
+                } else {
+                    crate::profile::save(&panel.state_dir, &input)
+                };
+                respond(changed.map(|()| crate::profile::get(&panel.roots.home, &panel.state_dir)))
+            }
+            Err(reply) => reply,
+        },
         (Method::Get, "/api/setup") => respond(setup::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.clones)),
         (Method::Post, "/api/setup/clone") => match body(request) {
             Ok(input) => respond(

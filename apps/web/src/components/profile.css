@@ -27,6 +27,14 @@
   background: var(--vidro-7);
 }
 
+/* The person's photo, when they chose one on the first run. */
+.perfil-monograma img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .perfil-monograma {
   position: relative;
   display: grid;
