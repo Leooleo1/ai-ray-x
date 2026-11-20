@@ -115,9 +115,12 @@ test, lint, build or install the locked dependencies and, when the AI offers See
 the app, installs missing dependencies, starts the app, waits for its page and
 shows you a screenshot; anything else still waits for your click. "Full access"
 (off unless you turn it on) goes further: the AI works in the project like its
-CLI in auto mode, editing files, running any command (tests, builds, installs,
-git commit, pull and push) and starting the app through See the app, with its
-CLI's own automatic review stopping what is risky. It asks you before something
+CLI in auto mode, editing files (setting up its .env too, without repeating the
+values), running any command (tests, builds, installs, git commit, pull and
+push) and starting the app through See the app, with its CLI's own automatic
+review stopping what is risky. It switches from the mode under the message
+field (or Shift+Tab, as in a coding CLI), and when an AI that asks first needs
+it, its answer carries a card that gives it in one click and lets it go on. It asks you before something
 hard to undo beyond the project, such as a force push or a deploy.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names

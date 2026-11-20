@@ -21,7 +21,8 @@ const VERDICTS: [&str; 3] = ["ok", "concerns", "reject"];
 /// Most commands one answer can ask for.
 const MAX_RUNS: usize = 2;
 /// Places in the panel a bot can point to with a card.
-pub const PLACES: [&str; 6] = ["model", "settings", "memories", "connections", "wires", "app"];
+/// "access" is the one-click card that gives a bot that only reads its full access.
+pub const PLACES: [&str; 7] = ["model", "settings", "memories", "connections", "wires", "app", "access"];
 /// Longest message for another bot, in characters.
 const MAX_NOTE: usize = 1200;
 
@@ -130,6 +131,8 @@ mod tests {
     fn starting_the_app_opens_see_the_app() {
         let m = split("I cannot start servers from a chat.\nRAIOX-OPEN: app\nRAIOX-OPEN: terminal\n");
         assert_eq!(m.open, vec!["app".to_string()], "only the places raiox has");
+        let asked = split("Para editar preciso de acesso total.\nRAIOX-OPEN: access\n");
+        assert_eq!(asked.open, vec!["access".to_string()], "the one-click full access card");
     }
 
     #[test]

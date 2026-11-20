@@ -99,7 +99,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
       setSettingsOpen(false)
       setPreviewOpen(true)
       if (run) setRunSignal((n) => n + 1)
-    } else if (place === 'memories') setMemorySignal((n) => n + 1)
+    } else if (place === 'access') void giveAccess()
+    else if (place === 'memories') setMemorySignal((n) => n + 1)
     else onSettings(place === 'wires' ? 'fios' : 'conexoes')
   }
   const newThread = async () => {
@@ -143,6 +144,11 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
     if (images && images.length > 0) payload.images = images
     return (await bots.act('ask', payload)) !== null
   }
+  /** Full access from the conversation: on, then the AI is told it may go on. */
+  const giveAccess = async () => {
+    if ((await bots.act('grants', { id: bot.id, full_access: true })) !== null) await send(t.accessContinue)
+  }
+  const toggleAccess = () => void bots.act('grants', { id: bot.id, full_access: !bot.grants?.full_access })
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   return (
@@ -305,6 +311,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           allowImages
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id })}
+          access={bot.grants ? { on: bot.grants.full_access, onToggle: toggleAccess } : undefined}
           onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}

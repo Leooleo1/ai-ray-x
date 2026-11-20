@@ -146,8 +146,14 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
             unwired.join(", ")
         )
     };
-    let secrets = "\n\nNever open, print or quote secrets files (.env and its variants, keys, certificates, credential \
-                   stores). If the person asks for one, say raiox keeps them out of reach.";
+    let secrets = if full {
+        "\n\nSecrets files (.env and its variants, keys, credentials) are open to you when the task needs them, for \
+         example creating .env from .env.example so the app runs. Never quote a secret's value in your answer, and ask \
+         the person for real keys you do not have."
+    } else {
+        "\n\nNever open, print or quote secrets files (.env and its variants, keys, certificates, credential \
+         stores). If the person asks for one, say raiox keeps them out of reach."
+    };
     let persona = persona.trim();
     format!("{base}{secrets}{mail}{places}{wire}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
@@ -169,8 +175,9 @@ fn reads_only(project: &str) -> String {
          When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
          {PROPOSAL_MARK} <the change in one line>\n\
          raiox then shows an Approve button; only after approval are you resumed with edit permission. \
-         If the person wants you to work on your own (edit directly, run any command, start the app, git pull or \
-         push), say they can turn on Full access in your settings, and end with one line {OPEN_MARK} settings."
+         If the person wants you to work on your own (edit directly, run any command, start the app, set up .env, \
+         git pull or push), say in one line that you need full access for it and end with one line {OPEN_MARK} access; \
+         raiox shows a card that gives it with one click and lets you go on."
     )
 }
 
@@ -205,12 +212,12 @@ const SECRET_PATTERNS: [&str; 14] = [
     "**/id_rsa*", "**/id_ed25519*", "**/.npmrc", "**/credentials.json",
 ];
 
-/// `--disallowedTools` rules: no reading secrets while talking, and no reading or writing them while
-/// editing or working with full access.
-fn secret_rules(mode: Mode, full: bool) -> Vec<String> {
+/// `--disallowedTools` rules: no reading secrets while talking, and no reading or writing them in a
+/// draft. A bot with full access has none: it may set up the project's .env.
+fn secret_rules(mode: Mode) -> Vec<String> {
     let tools: &[&str] = match mode {
-        Mode::Talk if !full => &["Read"],
-        _ => &["Read", "Edit", "Write"],
+        Mode::Talk => &["Read"],
+        Mode::Edit => &["Read", "Edit", "Write"],
     };
     tools.iter().flat_map(|tool| SECRET_PATTERNS.iter().map(move |pattern| format!("{tool}({pattern})"))).collect()
 }
@@ -251,9 +258,13 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     }
     command
         .args(["--append-system-prompt", &target.guide]);
-    command.arg("--disallowedTools").args(secret_rules(mode, full));
+    // Secrets files stay out of the file tools unless the bot has full access; the web, unless granted.
+    let mut denied = if full { Vec::new() } else { secret_rules(mode) };
     if full && !target.web {
-        command.args(["WebFetch", "WebSearch"]);
+        denied.extend(["WebFetch".to_string(), "WebSearch".to_string()]);
+    }
+    if !denied.is_empty() {
+        command.arg("--disallowedTools").args(denied);
     }
     if let Some(model) = target.model {
         command.args(["--model", model]);
@@ -603,7 +614,8 @@ mod tests {
         let claude = args(&claude_command(&target(dir, "claude", true), Mode::Talk));
         assert!(has_pair(&claude, "--permission-mode", "auto"), "Claude Code's auto mode, with its own review: {claude:?}");
         assert!(!claude.contains(&"--tools".to_string()), "every tool, the shell included");
-        assert!(claude.contains(&"Read(**/.env)".to_string()) && claude.contains(&"WebFetch".to_string()), "secrets and the web stay out unless granted");
+        assert!(!claude.contains(&"Read(**/.env)".to_string()), "with full access it may create and edit .env so the app runs");
+        assert!(claude.contains(&"WebFetch".to_string()), "the web stays out unless granted");
 
         let codex = args(&codex(&target(dir, "codex", true), Mode::Talk));
         assert!(codex.contains(&"--approve-for-me".to_string()), "Codex reviews its own approvals");
@@ -641,8 +653,10 @@ mod tests {
         let full = guide("loja", "", &[], &[], true);
         assert!(full.contains("full access") && full.contains("git") && full.contains(&format!("{OPEN_MARK} app")), "{full}");
         assert!(!full.contains(PROPOSAL_MARK) && !full.contains("you can only read"), "nothing to approve: it edits by itself");
+        assert!(full.contains(".env.example") && full.contains("Never quote") && !full.contains("raiox keeps them out of reach"), "secrets files are open to it, their values never said");
         let reads = guide("loja", "", &[], &[], false);
-        assert!(reads.contains(PROPOSAL_MARK) && reads.contains("Full access"), "a bot that only reads says how to give it more");
+        assert!(reads.contains(PROPOSAL_MARK) && reads.contains(&format!("{OPEN_MARK} access")), "a bot that only reads offers the one-click access card");
+        assert!(reads.contains("raiox keeps them out of reach"), "without full access secrets stay out");
     }
 
     #[test]

@@ -41,10 +41,12 @@ interface ComposerProps {
   onStop: () => void
   /** While the bot works in this conversation: sends a correction of its course. */
   onCorrect?: (text: string) => Promise<boolean>
+  /** The bot's mode, as a coding CLI shows it under its prompt: full access, or asking first. Shift+Tab switches it. */
+  access?: { on: boolean; onToggle: () => void }
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect }: ComposerProps) {
+export function Composer({ draftKey, placeholder, maxLength, busy, allowImages = false, onSend, onStop, onCorrect, access }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
   const [attachError, setAttachError] = useState<string | null>(null)
@@ -151,7 +153,10 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
   }
 
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape' && busy) {
+    if (event.key === 'Tab' && event.shiftKey && access) {
+      event.preventDefault()
+      access.onToggle()
+    } else if (event.key === 'Escape' && busy) {
       event.preventDefault()
       onStop()
     } else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -305,6 +310,23 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
           </button>
         )}
       </div>
+      {access && (
+        <div className="compositor-rodape">
+          <button
+            type="button"
+            className={`compositor-modo ${access.on ? 'ligado' : ''}`}
+            aria-pressed={access.on}
+            title={access.on ? t.accessOnHint : t.accessOffHint}
+            onClick={access.onToggle}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={access.on ? 'M4 6l7 6-7 6zM12 6l7 6-7 6z' : 'M8 6h3v12H8zM14 6h3v12h-3z'} />
+            </svg>
+            {access.on ? t.accessOn : t.accessOff}
+          </button>
+          <small className="compositor-atalho">shift+tab</small>
+        </div>
+      )}
     </form>
   )
 }
