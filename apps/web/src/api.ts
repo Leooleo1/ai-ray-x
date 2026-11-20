@@ -728,6 +728,8 @@ export interface Preview {
   simulator: string | null
   /** The project's dependencies are installing; the app starts when they are in. */
   installing?: boolean
+  /** The app answers on a port browsers refuse (4190, say): it runs, but no browser opens it there. */
+  blocked_port?: number | null
 }
 
 export function botPreview(id: string): Promise<Preview> {

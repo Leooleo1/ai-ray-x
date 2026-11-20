@@ -290,6 +290,20 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
             {`${draft.length}/${maxLength}`}
           </small>
         )}
+        {access && (
+          <button
+            type="button"
+            className={`compositor-modo ${access.on ? 'ligado' : ''}`}
+            aria-pressed={access.on}
+            title={access.on ? t.accessOnHint : t.accessOffHint}
+            onClick={access.onToggle}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d={access.on ? 'M4 6l7 6-7 6zM12 6l7 6-7 6z' : 'M8 6h3v12H8zM14 6h3v12h-3z'} />
+            </svg>
+            {access.on ? t.accessOn : t.accessOff}
+          </button>
+        )}
         {correcting && draft.trim() ? (
           <button className="enviar corrigir" type="submit" disabled={sending} aria-label={t.correctSend} title={t.correctSend}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -310,23 +324,6 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
           </button>
         )}
       </div>
-      {access && (
-        <div className="compositor-rodape">
-          <button
-            type="button"
-            className={`compositor-modo ${access.on ? 'ligado' : ''}`}
-            aria-pressed={access.on}
-            title={access.on ? t.accessOnHint : t.accessOffHint}
-            onClick={access.onToggle}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d={access.on ? 'M4 6l7 6-7 6zM12 6l7 6-7 6z' : 'M8 6h3v12H8zM14 6h3v12h-3z'} />
-            </svg>
-            {access.on ? t.accessOn : t.accessOff}
-          </button>
-          <small className="compositor-atalho">shift+tab</small>
-        </div>
-      )}
     </form>
   )
 }

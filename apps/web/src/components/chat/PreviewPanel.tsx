@@ -154,7 +154,8 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
                 </button>
               </div>
             )}
-            {preview?.running && preview.url && !IS_REMOTE && (
+            {preview?.running && preview.blocked_port && <p className="nota failed quebra">{t.previewBlockedPort.replace('{p}', String(preview.blocked_port))}</p>}
+            {preview?.running && preview.url && !preview.blocked_port && !IS_REMOTE && (
               <div className={`ver-moldura ${size}`}>
                 <iframe key={refresh} title={t.previewTitle} src={preview.url} />
               </div>

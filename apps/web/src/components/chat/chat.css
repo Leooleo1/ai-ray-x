@@ -178,12 +178,14 @@
 }
 
 /* The composer grows with the text; thumbnails sit above the field, buttons on its last line. */
-.compositor {
+/* The chat's field: a pill on one line, a rounded box once images ride above it. form.compositor wins over
+   the shared single-line field's centered pill in styles.css. */
+form.compositor {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
   padding: 6px 6px 6px 10px;
-  border-radius: var(--raio-painel);
+  border-radius: 24px;
 }
 
 .compositor.arrastando {
@@ -191,15 +193,7 @@
   box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 38%);
 }
 
-/* The bot's mode under the field, as a coding CLI shows it: full access, or asking first. */
-.compositor-rodape {
-  display: flex;
-  align-self: stretch;
-  align-items: center;
-  gap: 8px;
-  padding: 0 0 2px;
-}
-
+/* The bot's mode beside Send, as a coding CLI shows it: full access, or asking first (Shift+Tab switches it). */
 .compositor-modo {
   display: inline-flex;
   align-items: center;
@@ -211,8 +205,12 @@
   background: none;
   color: var(--nevoa);
   font: 500 12px/16px var(--sans);
+  white-space: nowrap;
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease;
+  /* Centered on Send while the field is one line; the row lines up at the bottom as it grows. */
+  margin-bottom: 6px;
+  flex: none;
 }
 
 .compositor-modo:hover {
@@ -234,12 +232,6 @@
   height: 12px;
   fill: currentColor;
 }
-
-.compositor-atalho {
-  color: rgb(255 255 255 / 30%);
-  font: 12px/16px var(--mono);
-}
-
 .compositor-linha {
   display: flex;
   align-items: flex-end;
