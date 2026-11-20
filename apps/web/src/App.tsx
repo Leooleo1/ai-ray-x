@@ -283,6 +283,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <UpdateNote />
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
+        {/* The page itself, on a canvas inside the frame the sidebar and this title bar make. */}
+        <div className="palco">
         {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onSettings={(tab) => {
           setSettingsTab(tab)
           go('settings')
@@ -318,6 +320,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
             <SecretsCard totals={secretTotals(report)} />
           </main>
         )}
+        </div>
       </div>
       <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
     </div>
