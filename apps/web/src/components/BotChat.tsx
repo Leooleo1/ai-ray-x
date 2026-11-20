@@ -1,4 +1,5 @@
 import { OpenTabs } from './chat/OpenTabs'
+import { ContextMeter } from './chat/ContextMeter'
 import { useEffect, useRef, useState } from 'react'
 import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
@@ -188,6 +189,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
             onNew={() => void newThread()}
           />
+          <ContextMeter bot={bot.id} thread={current} busy={busyHere} onFresh={() => void newThread()} />
           <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
           <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
           <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>

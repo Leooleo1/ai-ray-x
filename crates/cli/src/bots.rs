@@ -437,6 +437,11 @@ pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()
     room::append_messages(&threads::chat_file(state_dir, id, thread), vec![note("reset", json!({}))])
 }
 
+/// The CLI session a conversation continues (for the context meter).
+pub(crate) fn conversation_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<String>> {
+    thread_session(state_dir, bot, thread)
+}
+
 /// The CLI session a conversation continues.
 fn thread_session(state_dir: &Path, bot: &Bot, thread: &str) -> Result<Option<String>> {
     if thread == MAIN { Ok(bot.session.clone()) } else { threads::session(state_dir, &bot.id, thread) }

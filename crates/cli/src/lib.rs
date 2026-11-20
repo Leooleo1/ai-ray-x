@@ -23,6 +23,7 @@ pub mod carry;
 pub mod channels;
 pub mod budget;
 pub mod connections;
+pub mod context;
 pub mod commands;
 pub mod data;
 pub mod deliveries;

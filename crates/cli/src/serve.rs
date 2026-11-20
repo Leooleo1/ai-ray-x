@@ -255,6 +255,13 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         },
         (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
         (Method::Get, "/api/usage") => respond(usage(panel, request.url())),
+        (Method::Get, "/api/bot/context") => {
+            let url = request.url().to_string();
+            let query = url.split_once('?').map_or("", |(_, q)| q);
+            let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('=')).unwrap_or("").to_string();
+            let thread = Some(param("thread")).filter(|t| crate::threads::valid(t)).unwrap_or_else(|| crate::threads::MAIN.to_string());
+            respond(crate::context::of_conversation(&mut panel.store, &panel.roots, &panel.state_dir, &param("id"), &thread))
+        }
         (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
         // The person's name and photo: from this computer only.
         (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {

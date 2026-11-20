@@ -890,6 +890,18 @@ export function saveFlow(flow: Pick<Flow, 'name' | 'enabled' | 'trigger' | 'step
   return request<{ id: string }>('/api/flows/save', { ...flow })
 }
 
+/** How full a conversation's context is, and when it will compact. */
+export interface ConversationContext {
+  status: ContextStatus
+  compact_at: number | null
+  compact_from: 'setting' | 'usual' | 'none'
+  window: number | null
+}
+
+export function fetchConversationContext(bot: string, thread: string): Promise<ConversationContext | null> {
+  return request<ConversationContext | null>(`/api/bot/context?id=${encodeURIComponent(bot)}&thread=${encodeURIComponent(thread)}`)
+}
+
 export function fetchLimits(): Promise<PlanLimits> {
   return request<PlanLimits>('/api/limits')
 }
