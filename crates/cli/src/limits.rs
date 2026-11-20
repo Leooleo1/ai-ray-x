@@ -21,9 +21,9 @@ const SECS_PER_WEEK: i64 = 7 * 24 * 60 * 60;
 /// A live reading of Codex's limits is asked again after this long.
 const LIVE_EVERY: Duration = Duration::from_secs(60);
 /// After a failed live reading (no Codex, signed out), the logs alone are used for this long.
-const LIVE_RETRY: Duration = Duration::from_secs(10 * 60);
+const LIVE_RETRY: Duration = Duration::from_secs(2 * 60);
 /// How long the app server has to answer.
-const LIVE_TIMEOUT: Duration = Duration::from_secs(10);
+const LIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// The last live reading (or failure), when it was asked, and whether one is being asked now.
 struct Live {
