@@ -113,7 +113,12 @@ itself; each change can still be undone from the conversation. "Runs without
 asking" (on unless you turn it off) runs on its own the commands that only read,
 test, lint, build or install the locked dependencies and, when the AI offers See
 the app, installs missing dependencies, starts the app, waits for its page and
-shows you a screenshot; anything else still waits for your click.
+shows you a screenshot; anything else still waits for your click. "Full access"
+(off unless you turn it on) goes further: the AI works in the project like its
+CLI in auto mode, editing files, running any command (tests, builds, installs,
+git commit, pull and push) and starting the app through See the app, with its
+CLI's own automatic review stopping what is risky. It asks you before something
+hard to undo beyond the project, such as a force push or a deploy.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
 of things. A page goes with every question, or only when the question shares

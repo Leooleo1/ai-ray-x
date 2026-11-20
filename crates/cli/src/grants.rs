@@ -42,11 +42,16 @@ pub struct Grants {
     /// so that old key is ignored and those bots get today's default.
     #[serde(rename = "runs_alone", default = "yes")]
     pub auto_run: bool,
+    /// Full access (off unless turned on): it works in the project like its CLI in auto mode, editing,
+    /// running any command (installs and git included) and starting the app by itself; each CLI's own
+    /// automatic review still stops what is risky.
+    #[serde(default)]
+    pub full_access: bool,
 }
 
 impl Default for Grants {
     fn default() -> Self {
-        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: true }
+        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: true, full_access: false }
     }
 }
 
@@ -94,7 +99,10 @@ pub fn changed(current: &Grants, agent: &str, input: &Value) -> Result<Grants> {
             Some(_) => bail!("pick one of the offered ceilings"),
         },
     };
-    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit), auto_run: flag("auto_run", current.auto_run) })
+    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit),
+        auto_run: flag("auto_run", current.auto_run),
+        full_access: flag("full_access", current.full_access),
+    })
 }
 
 /// The bots kept on this computer: paired devices neither see nor reach them.
@@ -173,6 +181,7 @@ pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
         "week_limit": bot.grants.week_limit,
         "auto_edit": bot.grants.auto_edit,
         "auto_run": bot.grants.auto_run,
+        "full_access": bot.grants.full_access,
         "week_used": week_used(state_dir, &bot.id),
         "week_choices": WEEK_CHOICES,
         "web_possible": web_possible(&bot.agent),

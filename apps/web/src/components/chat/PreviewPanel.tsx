@@ -114,10 +114,16 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
                     onChange={(event) => setCommand(event.target.value)}
                   />
                 </label>
-                <button type="submit" className="cheio" disabled={!command.trim()}>
+                <button type="submit" className="cheio" disabled={!command.trim() || preview?.installing}>
                   {t.previewRun}
                 </button>
-                <small>{preview?.command && preview.exit_code !== null ? t.previewExited.replace('{n}', String(preview.exit_code)) : t.previewRunNote}</small>
+                <small>
+                  {preview?.installing
+                    ? t.previewInstalling
+                    : preview?.command && preview.exit_code !== null
+                      ? t.previewExited.replace('{n}', String(preview.exit_code))
+                      : t.previewRunNote}
+                </small>
               </form>
             ) : (
               <div className="ver-barra">

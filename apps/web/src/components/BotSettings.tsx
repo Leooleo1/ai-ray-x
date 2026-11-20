@@ -414,9 +414,11 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
   const grants = bot.grants
   if (!grants) return null
   const set = (change: Record<string, unknown>) => void bots.act('grants', { id: bot.id, ...change })
-  const rows: { key: 'devices' | 'web' | 'mcp' | 'auto_edit' | 'auto_run'; label: string; note: string; shown: boolean }[] = [
-    { key: 'auto_run', label: t.grantAutoRun, note: t.grantAutoRunNote, shown: true },
-    { key: 'auto_edit', label: t.grantAutoEdit, note: t.grantAutoEditNote, shown: true },
+  // Full access covers running and editing without asking, so those two step aside while it is on.
+  const rows: { key: 'devices' | 'web' | 'mcp' | 'auto_edit' | 'auto_run' | 'full_access'; label: string; note: string; shown: boolean }[] = [
+    { key: 'full_access', label: t.grantFullAccess, note: t.grantFullAccessNote, shown: true },
+    { key: 'auto_run', label: t.grantAutoRun, note: t.grantAutoRunNote, shown: !grants.full_access },
+    { key: 'auto_edit', label: t.grantAutoEdit, note: t.grantAutoEditNote, shown: !grants.full_access },
     { key: 'devices', label: t.grantDevices, note: t.grantDevicesNote, shown: true },
     { key: 'web', label: t.grantWeb, note: t.grantWebNote, shown: grants.web_possible },
     { key: 'mcp', label: t.grantMcp, note: t.grantMcpNote, shown: grants.mcp_possible },
@@ -433,7 +435,7 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
             </button>
             <span>
               <b>{row.label}</b>
-              <small className={(row.key === 'mcp' || row.key === 'auto_edit' || row.key === 'auto_run') && grants[row.key] ? 'permissao-alerta' : ''}>{row.note}</small>
+              <small className={row.key !== 'devices' && row.key !== 'web' && grants[row.key] ? 'permissao-alerta' : ''}>{row.note}</small>
             </span>
           </label>
         ))}

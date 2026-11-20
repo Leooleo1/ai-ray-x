@@ -410,7 +410,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         }
         "preview_start" => {
             let bot = bots::find(state_dir, field("id"))?;
-            crate::preview::start(state_dir, &bot.id, &bot.dir, field("command"))
+            crate::app_start::start_from_panel(state_dir, &bot.id, &bot.dir, field("command"))
         }
         "preview_stop" => crate::preview::stop(state_dir, &bots::find(state_dir, field("id"))?.id),
         "preview_shot" => {

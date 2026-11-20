@@ -6,6 +6,7 @@
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
@@ -20,6 +21,40 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(500);
 const INSTALL_WAIT: Duration = Duration::from_secs(10 * 60);
 /// The end of a failed install's output kept for the bot, in characters.
 const INSTALL_TAIL: usize = 2000;
+
+/// Bots whose project is installing its dependencies before See the app starts it.
+static INSTALLING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn installing() -> MutexGuard<'static, Vec<String>> {
+    INSTALLING.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Whether See the app is installing this bot's project's dependencies now.
+pub fn is_installing(bot: &str) -> bool {
+    installing().iter().any(|b| b == bot)
+}
+
+/// See the app's Run: when the project's dependencies are missing, they are installed first, away
+/// from the panel's thread, and the commands start once they are in; what fails shows as the output.
+pub fn start_from_panel(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<()> {
+    if missing_install(dir).is_none() {
+        return preview::start(state_dir, bot, dir, command);
+    }
+    preview::check(command)?;
+    if is_installing(bot) {
+        bail!("the project's dependencies are being installed; the app starts when they are in");
+    }
+    installing().push(bot.to_string());
+    let (state_dir, bot, dir, command) = (state_dir.to_path_buf(), bot.to_string(), dir.to_path_buf(), command.to_string());
+    std::thread::spawn(move || {
+        let started = install_if_missing(&dir, &|| false).and_then(|()| preview::start(&state_dir, &bot, &dir, &command));
+        installing().retain(|b| *b != bot);
+        if let Err(error) = started {
+            preview::note(&state_dir, &bot, &format!("{error:#}"));
+        }
+    });
+    Ok(())
+}
 
 /// The install a JavaScript project's lockfile asks for, when its dependencies are missing.
 fn missing_install(dir: &Path) -> Option<(&'static str, &'static [&'static str])> {

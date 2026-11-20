@@ -22,6 +22,8 @@ use crate::bot_trail::{self, Trail};
 
 /// A bot that thinks longer than this is stopped.
 const TIMEOUT: Duration = Duration::from_secs(10 * 60);
+/// With full access a turn may install, build and test, so it gets longer before it is stopped.
+const FULL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const POLL: Duration = Duration::from_millis(200);
 /// Characters of the CLI's error output kept for the chat.
 const ERROR_TAIL: usize = 400;
@@ -95,26 +97,17 @@ pub struct Target<'a> {
     pub web: bool,
     /// The bot may use the person's own MCP servers (its grants).
     pub mcp: bool,
+    /// Full access (its grants): the CLI edits, runs commands and uses git in the project by itself,
+    /// in its own automatic mode, instead of only reading.
+    pub full: bool,
 }
 
 /// What the bot is told on every turn: how raiox works, how to propose a
 /// change, and the personality the person gave it (may be empty).
-pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]) -> String {
+pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String], full: bool) -> String {
+    let access = if full { full_access(project) } else { reads_only(project) };
     let base = format!(
-        "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
-         In this turn you can only read: do not edit files or run commands that change anything. \
-         When the answer needs a command's output (the git history, test results, line counts, a version) and you \
-         cannot run it yourself, do not guess and do not tell the person to run it: end your answer with one line\n\
-         {RUN_MARK} <command>\n\
-         (at most two such lines). raiox shows it to the person, runs it in the project folder if they approve and \
-         sends you the output. One program with its arguments: no pipes, redirections, `;`, `&&`, `$` or shells, and \
-         nothing that changes files or prints secrets. \
-         When you say you will run a command next, put its line in that same answer: an answer that only announces \
-         the next step leaves the person waiting. \
-         Answer in the person's language, briefly. \
-         When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
-         {PROPOSAL_MARK} <the change in one line>\n\
-         raiox then shows an Approve button; only after approval are you resumed with edit permission. \
+        "{access} \
          To look at the project's app as it runs (when the person started it in raiox's See the app) or at the iOS \
          simulator, end with one line {SHOT_MARK} <a path such as /login, a local URL, or simulator> (at most two); \
          raiox takes a screenshot and hands it to you. \
@@ -159,6 +152,43 @@ pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String]
     format!("{base}{secrets}{mail}{places}{wire}{}", if persona.is_empty() { String::new() } else { format!("\n\n{persona}") })
 }
 
+/// A bot that only reads: commands go through raiox, changes through a proposal the person approves.
+fn reads_only(project: &str) -> String {
+    format!(
+        "You are answering through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
+         In this turn you can only read: do not edit files or run commands that change anything. \
+         When the answer needs a command's output (the git history, test results, line counts, a version) and you \
+         cannot run it yourself, do not guess and do not tell the person to run it: end your answer with one line\n\
+         {RUN_MARK} <command>\n\
+         (at most two such lines). raiox shows it to the person, runs it in the project folder if they approve and \
+         sends you the output. One program with its arguments: no pipes, redirections, `;`, `&&`, `$` or shells, and \
+         nothing that changes files or prints secrets. \
+         When you say you will run a command next, put its line in that same answer: an answer that only announces \
+         the next step leaves the person waiting. \
+         Answer in the person's language, briefly. \
+         When the person asks for a change, describe in a few lines what you would change and end with exactly one line:\n\
+         {PROPOSAL_MARK} <the change in one line>\n\
+         raiox then shows an Approve button; only after approval are you resumed with edit permission. \
+         If the person wants you to work on your own (edit directly, run any command, start the app, git pull or \
+         push), say they can turn on Full access in your settings, and end with one line {OPEN_MARK} settings."
+    )
+}
+
+/// A bot with full access: it works in the project as its CLI does in auto mode.
+fn full_access(project: &str) -> String {
+    format!(
+        "You are working through raiox, a local panel where the person talks to the AI of the project \"{project}\". \
+         You have full access to this project, like a coding CLI in auto mode: edit its files, run commands (tests, \
+         builds, installs, git status, commit, pull and push) and check your own work, without asking first. Your \
+         CLI reviews risky actions by itself. Before something hard to undo beyond this folder (a force push, \
+         rewriting shared history, deleting remote branches, deploying, publishing), ask the person first. \
+         Never start a dev server or any command that does not end in your shell: it would hold your turn. To start \
+         the project's app, end with one line {OPEN_MARK} app; raiox installs what is missing, starts it, keeps it \
+         running and hands you a screenshot of the page. \
+         Answer in the person's language, briefly: say what you did and how you checked it."
+    )
+}
+
 fn edit_prompt(proposal: &str) -> String {
     format!(
         "Approved by the person: {proposal}\n\
@@ -175,11 +205,12 @@ const SECRET_PATTERNS: [&str; 14] = [
     "**/id_rsa*", "**/id_ed25519*", "**/.npmrc", "**/credentials.json",
 ];
 
-/// `--disallowedTools` rules: no reading secrets while talking, and no reading or writing them while editing.
-fn secret_rules(mode: Mode) -> Vec<String> {
+/// `--disallowedTools` rules: no reading secrets while talking, and no reading or writing them while
+/// editing or working with full access.
+fn secret_rules(mode: Mode, full: bool) -> Vec<String> {
     let tools: &[&str] = match mode {
-        Mode::Talk => &["Read"],
-        Mode::Edit => &["Read", "Edit", "Write"],
+        Mode::Talk if !full => &["Read"],
+        _ => &["Read", "Edit", "Write"],
     };
     tools.iter().flat_map(|tool| SECRET_PATTERNS.iter().map(move |pattern| format!("{tool}({pattern})"))).collect()
 }
@@ -193,16 +224,21 @@ pub fn prompt_for(mode: Mode, text: &str) -> String {
 
 /// The Claude Code command for a turn (a live session adds its streaming input).
 pub fn claude_command(target: &Target, mode: Mode) -> Command {
-    let base = match mode {
-        Mode::Talk => "Read,Grep,Glob",
-        Mode::Edit => "Read,Grep,Glob,Edit,Write",
-    };
-    let tools = if target.web { format!("{base},WebFetch,WebSearch") } else { base.to_string() };
+    let full = target.full && mode == Mode::Talk;
     let mut command = crate::procs::command("claude");
     command
         .current_dir(target.dir)
         // Live events (one JSON per line) so the panel can show each step; the last line is the result.
-        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", &tools]);
+        .args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]);
+    // Full access keeps every built-in tool, the shell included; otherwise only the readers (and the editors in a draft).
+    if !full {
+        let base = match mode {
+            Mode::Talk => "Read,Grep,Glob",
+            Mode::Edit => "Read,Grep,Glob,Edit,Write",
+        };
+        let tools = if target.web { format!("{base},WebFetch,WebSearch") } else { base.to_string() };
+        command.args(["--tools", &tools]);
+    }
     // MCP servers stay out unless the person let this bot use theirs.
     if !target.mcp {
         command.arg("--strict-mcp-config");
@@ -215,7 +251,10 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     }
     command
         .args(["--append-system-prompt", &target.guide]);
-    command.arg("--disallowedTools").args(secret_rules(mode));
+    command.arg("--disallowedTools").args(secret_rules(mode, full));
+    if full && !target.web {
+        command.args(["WebFetch", "WebSearch"]);
+    }
     if let Some(model) = target.model {
         command.args(["--model", model]);
     }
@@ -224,7 +263,10 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
     }
     // A print-mode call cannot ask: a bot allowed the person's MCP servers uses them without asking
     // (its built-in tools are still the list above, and the secrets rules still deny).
-    if target.mcp {
+    if full {
+        // Claude Code's own auto mode: it acts without asking and its classifier stops what is risky.
+        command.args(["--permission-mode", "auto"]);
+    } else if target.mcp {
         command.args(["--permission-mode", "bypassPermissions"]);
     } else if mode == Mode::Edit {
         command.args(["--permission-mode", "acceptEdits"]);
@@ -236,9 +278,10 @@ pub fn claude_command(target: &Target, mode: Mode) -> Command {
 }
 
 fn codex(target: &Target, mode: Mode) -> Command {
+    let full = target.full && mode == Mode::Talk;
     let sandbox = match mode {
-        Mode::Talk => "sandbox_mode=\"read-only\"",
-        Mode::Edit => "sandbox_mode=\"workspace-write\"",
+        Mode::Talk if !full => "sandbox_mode=\"read-only\"",
+        _ => "sandbox_mode=\"workspace-write\"",
     };
     let mut command = crate::procs::command("codex");
     command.current_dir(target.dir).arg("exec");
@@ -250,6 +293,10 @@ fn codex(target: &Target, mode: Mode) -> Command {
         command.arg("--image").arg(image);
     }
     command.args(["--json", "--skip-git-repo-check", "-c", sandbox]);
+    if full {
+        // Codex's own automatic review answers its approvals; the network lets installs and git reach out.
+        command.args(["--approve-for-me", "-c", "sandbox_workspace_write.network_access=true"]);
+    }
     // Values are checked by the caller (letters, digits, dots and dashes), so quoting is safe.
     if let Some(model) = target.model {
         command.args(["-c", &format!("model=\"{model}\"")]);
@@ -263,11 +310,14 @@ fn codex(target: &Target, mode: Mode) -> Command {
 
 /// Cursor's agent: ask mode (read-only) for talk, resumed; an approved edit is
 /// a fresh agent-mode session, because a resumed session keeps its mode.
-/// Shell commands stay denied (no --force).
+/// Shell commands stay denied (no --force), unless the bot has full access.
 fn cursor(target: &Target, mode: Mode) -> Command {
+    let full = target.full && mode == Mode::Talk;
     let mut command = crate::procs::command("cursor-agent");
     command.current_dir(target.dir).args(["-p", "--output-format", "stream-json", "--stream-partial-output", "--trust", "--workspace"]).arg(target.dir);
-    if mode == Mode::Talk {
+    if full {
+        command.arg("--force");
+    } else if mode == Mode::Talk {
         command.args(["--mode", "ask"]);
     }
     // An edit resumes only its own session, when the person corrects it midway.
@@ -311,7 +361,7 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
         "antigravity" | "opencode" => {
             let prompt = if target.session.is_none() { format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text)) } else { prompt_for(mode, text) };
             if agent == "antigravity" {
-                (crate::bot_clis::antigravity(target, mode), crate::bot_clis::antigravity_input(&prompt))
+                (crate::bot_clis::antigravity(target, mode), crate::bot_clis::antigravity_input(&prompt, target.full && mode == Mode::Talk))
             } else {
                 (crate::bot_clis::opencode(target, mode), prompt)
             }
@@ -322,6 +372,7 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
     let out_path = scratch.join("out.txt");
     let err_path = scratch.join("err.txt");
     let started = Instant::now();
+    let limit = if target.full && mode == Mode::Talk { FULL_TIMEOUT } else { TIMEOUT };
     let mut child = command
         .stdin(Stdio::piped())
         .stdout(File::create(&out_path)?)
@@ -345,9 +396,9 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
             let _ = child.wait();
             bail!(STOPPED);
         }
-        if started.elapsed() > TIMEOUT {
+        if started.elapsed() > limit {
             let _ = child.kill();
-            bail!("{agent} took longer than {} minutes and was stopped", TIMEOUT.as_secs() / 60);
+            bail!("{agent} took longer than {} minutes and was stopped", limit.as_secs() / 60);
         }
         std::thread::sleep(POLL);
     };
@@ -530,6 +581,70 @@ pub fn parse_codex(out: &str) -> Result<Reply> {
 mod tests {
     use super::*;
 
+    fn args(command: &Command) -> Vec<String> {
+        command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect()
+    }
+
+    fn has_pair(args: &[String], flag: &str, value: &str) -> bool {
+        args.windows(2).any(|pair| pair[0] == flag && pair[1] == value)
+    }
+
+    fn opencode_config(command: &Command) -> String {
+        command.get_envs().find(|(key, _)| *key == "OPENCODE_CONFIG_CONTENT").and_then(|(_, value)| value).map(|v| v.to_string_lossy().into_owned()).unwrap_or_default()
+    }
+
+    fn target<'a>(dir: &'a Path, agent: &'a str, full: bool) -> Target<'a> {
+        Target { agent, dir, guide: String::new(), session: None, model: None, effort: None, shots: None, images: &[], web: false, mcp: false, full }
+    }
+
+    #[test]
+    fn full_access_runs_each_cli_in_its_own_automatic_mode() {
+        let dir = Path::new("/tmp/projeto");
+        let claude = args(&claude_command(&target(dir, "claude", true), Mode::Talk));
+        assert!(has_pair(&claude, "--permission-mode", "auto"), "Claude Code's auto mode, with its own review: {claude:?}");
+        assert!(!claude.contains(&"--tools".to_string()), "every tool, the shell included");
+        assert!(claude.contains(&"Read(**/.env)".to_string()) && claude.contains(&"WebFetch".to_string()), "secrets and the web stay out unless granted");
+
+        let codex = args(&codex(&target(dir, "codex", true), Mode::Talk));
+        assert!(codex.contains(&"--approve-for-me".to_string()), "Codex reviews its own approvals");
+        assert!(codex.contains(&"sandbox_mode=\"workspace-write\"".to_string()) && codex.contains(&"sandbox_workspace_write.network_access=true".to_string()));
+
+        let cursor = args(&cursor(&target(dir, "cursor", true), Mode::Talk));
+        assert!(cursor.contains(&"--force".to_string()) && !has_pair(&cursor, "--mode", "ask"));
+
+        let agy = args(&crate::bot_clis::antigravity(&target(dir, "antigravity", true), Mode::Talk));
+        assert!(has_pair(&agy, "--mode", "auto") && !agy.contains(&"--sandbox".to_string()));
+
+        let opencode = crate::bot_clis::opencode(&target(dir, "opencode", true), Mode::Talk);
+        assert!(args(&opencode).contains(&"--auto".to_string()) && has_pair(&args(&opencode), "--agent", "build"));
+        let config = opencode_config(&opencode);
+        assert!(config.contains(r#""bash":"allow""#) && config.contains(r#""edit":"allow""#) && config.contains(r#""external_directory":"deny""#), "{config}");
+    }
+
+    #[test]
+    fn without_full_access_a_conversation_only_reads() {
+        let dir = Path::new("/tmp/projeto");
+        let claude = args(&claude_command(&target(dir, "claude", false), Mode::Talk));
+        assert!(has_pair(&claude, "--tools", "Read,Grep,Glob") && !claude.contains(&"auto".to_string()));
+        let codex = args(&codex(&target(dir, "codex", false), Mode::Talk));
+        assert!(codex.contains(&"sandbox_mode=\"read-only\"".to_string()) && !codex.contains(&"--approve-for-me".to_string()));
+        let cursor = args(&cursor(&target(dir, "cursor", false), Mode::Talk));
+        assert!(has_pair(&cursor, "--mode", "ask") && !cursor.contains(&"--force".to_string()));
+        let agy = args(&crate::bot_clis::antigravity(&target(dir, "antigravity", false), Mode::Talk));
+        assert!(has_pair(&agy, "--mode", "plan") && agy.contains(&"--sandbox".to_string()));
+        let opencode = crate::bot_clis::opencode(&target(dir, "opencode", false), Mode::Talk);
+        assert!(has_pair(&args(&opencode), "--agent", "plan") && opencode_config(&opencode).contains(r#""bash":"deny""#));
+    }
+
+    #[test]
+    fn the_guide_says_what_full_access_lets_the_ai_do() {
+        let full = guide("loja", "", &[], &[], true);
+        assert!(full.contains("full access") && full.contains("git") && full.contains(&format!("{OPEN_MARK} app")), "{full}");
+        assert!(!full.contains(PROPOSAL_MARK) && !full.contains("you can only read"), "nothing to approve: it edits by itself");
+        let reads = guide("loja", "", &[], &[], false);
+        assert!(reads.contains(PROPOSAL_MARK) && reads.contains("Full access"), "a bot that only reads says how to give it more");
+    }
+
     #[test]
     fn cursor_messages_glued_together_get_a_paragraph_each() {
         assert_eq!(separate_messages("Vou ler `a.Js`.A proposta acerta: Sim."), "Vou ler `a.Js`.\n\nA proposta acerta: Sim.");
@@ -538,8 +653,8 @@ mod tests {
 
     #[test]
     fn the_persona_follows_the_raiox_guide() {
-        let plain = guide("app", "", &[], &[]);
-        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.", &[], &[]);
+        let plain = guide("app", "", &[], &[], false);
+        let with_persona = guide("app", "Your name in this project is Reviewer. Look for bugs.", &[], &[], false);
         assert!(plain.contains(PROPOSAL_MARK) && !plain.contains("Reviewer"));
         assert!(with_persona.starts_with(&plain) && with_persona.ends_with("Look for bugs."));
     }
@@ -553,10 +668,10 @@ mod tests {
 
     #[test]
     fn the_guide_lists_the_other_bots_only_when_there_are_some() {
-        assert!(!guide("app", "", &[], &[]).contains(TO_MARK));
-        assert!(guide("app", "", &["shop".into()], &[]).contains("Other projects with a raiox bot: shop."));
+        assert!(!guide("app", "", &[], &[], false).contains(TO_MARK));
+        assert!(guide("app", "", &["shop".into()], &[], false).contains("Other projects with a raiox bot: shop."));
         // A project with a bot but no wire comes with the way to wire it.
-        let unwired = guide("app", "", &[], &["shop".into()]);
+        let unwired = guide("app", "", &[], &["shop".into()], false);
         assert!(unwired.contains("not wired to this one: shop") && unwired.contains(&format!("{OPEN_MARK} wires")));
     }
 

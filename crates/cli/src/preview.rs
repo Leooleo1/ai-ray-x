@@ -164,14 +164,7 @@ pub fn url_of(state_dir: &Path, bot: &str) -> Option<String> {
 /// One set per project at a time.
 pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<()> {
     let lines = commands_of(command);
-    if lines.is_empty() || lines.len() > MAX_COMMANDS {
-        bail!("give 1 to {MAX_COMMANDS} commands, one per line");
-    }
-    // Every line is checked before any starts.
-    let checked = lines
-        .iter()
-        .map(|line| crate::commands::check(line).map_err(|why| anyhow::anyhow!("raiox will not run `{line}` ({why})")))
-        .collect::<Result<Vec<_>>>()?;
+    let checked = check(command)?;
     let mut open = running();
     if let Some(index) = open.iter().position(|(b, _)| b == bot) {
         if open[index].1.children.iter_mut().any(alive) {
@@ -206,6 +199,24 @@ pub fn start(state_dir: &Path, bot: &str, dir: &Path, command: &str) -> Result<(
     }
     open.push((bot.to_string(), Running { children, command: lines.join("\n"), started_ms: room::now_ms() }));
     Ok(())
+}
+
+/// The person's dev commands, each checked, before any starts: one per line, at most a few.
+pub fn check(command: &str) -> Result<Vec<Vec<String>>> {
+    let lines = commands_of(command);
+    if lines.is_empty() || lines.len() > MAX_COMMANDS {
+        bail!("give 1 to {MAX_COMMANDS} commands, one per line");
+    }
+    lines.iter().map(|line| crate::commands::check(line).map_err(|why| anyhow::anyhow!("raiox will not run `{line}` ({why})"))).collect()
+}
+
+/// Leaves a line in the app's output, where See the app shows it (an install that failed, say).
+pub fn note(state_dir: &Path, bot: &str, text: &str) {
+    let file = log_file(state_dir, bot);
+    if let Some(folder) = file.parent() {
+        let _ = fs::create_dir_all(folder);
+    }
+    let _ = fs::write(file, format!("{text}\n"));
 }
 
 /// How raiox remembers a command's process, so it stops even if raiox closes first.
@@ -254,6 +265,7 @@ pub fn status(state_dir: &Path, bot: &str, dir: &Path) -> Result<Value> {
         "url": if running { address(&log) } else { None },
         "log": tail,
         "simulator": crate::simulator::booted(),
+        "installing": crate::app_start::is_installing(bot),
     }))
 }
 
