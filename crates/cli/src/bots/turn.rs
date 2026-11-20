@@ -34,6 +34,12 @@ pub(super) struct Turn {
     pub command: Option<String>,
     /// Images the person attached to this message, stored in `<state>/uploads/<bot>`.
     pub images: Vec<PathBuf>,
+    /// Whether this turn's CLI session is saved on the thread (false for cross-CLI audits).
+    pub keep_session: bool,
+    /// True for Dev/Infra audit turns (skips chained proposal review and marks answers).
+    pub is_audit: bool,
+    /// CLI id that ran the audit, recorded on audit answers for transparency.
+    pub auditor_agent: Option<String>,
 }
 
 /// How this bot's CLI is called, the same for every round of the turn.
@@ -116,7 +122,8 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     let mut app_started = false;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
-        let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
+        let conversation = turn.keep_session.then(|| format!("{}:{thread}", bot.id));
+        let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, conversation.as_deref(), &images);
         images.clear();
         let reply = match asked {
             Ok(reply) => reply,
@@ -132,7 +139,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
                     };
                     if reached.is_some() {
                         session = reached;
-                        if bot_run::keeps_session(turn.mode) {
+                        if turn.keep_session && bot_run::keeps_session(turn.mode) {
                             let _ = set_thread_session(state_dir, &bot.id, thread, session.clone());
                         }
                     }
@@ -151,8 +158,11 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             effort: setup.effort.clone(),
             ..reply
         };
-        if bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
+        if turn.keep_session && bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
             let _ = set_thread_session(state_dir, &bot.id, thread, reply.session.clone());
+            session = reply.session.clone();
+        } else if !turn.keep_session && bot_run::keeps_session(turn.mode) && reply.session.is_some() {
+            // Keep resuming within this single multi-round audit turn without saving across CLI boundaries.
             session = reply.session.clone();
         }
         if let Some(work) = &work {
@@ -170,11 +180,18 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         let proposed = reply.proposal.is_some();
         // Tasks it left for the board go there, for this bot.
         crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
-        let answer = note("answer", json!({ "mode": "talk", "reply": reply }));
+        let mut answer_data = json!({ "mode": "talk", "reply": reply });
+        if turn.is_audit {
+            answer_data["audit"] = json!(true);
+            if let Some(agent) = &turn.auditor_agent {
+                answer_data["auditor_agent"] = json!(agent);
+            }
+        }
+        let answer = note("answer", answer_data);
         let answer_ms = answer.ms;
         say(answer);
-        // A project pair: the chosen reviewer reads every proposal before the person approves it.
-        if proposed && let Some(reviewer) = find(state_dir, &bot.id).ok().and_then(|b| b.reviewer)
+        // A project pair: the chosen reviewer reads every proposal before the person approves it (skipped for audit turns).
+        if !turn.is_audit && proposed && let Some(reviewer) = find(state_dir, &bot.id).ok().and_then(|b| b.reviewer)
             && let Err(error) = super::review::request(state_dir, jobs, &bot.id, thread, answer_ms, &reviewer)
         {
             say(note("failed", json!({ "error": format!("{error:#}"), "review": answer_ms })));

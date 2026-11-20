@@ -47,6 +47,10 @@ Intel Macs and Linux: [build from source](docs/building.md).
   that interviews you for a niche, tracks real experiments (including free X
   Analytics CSV exports) and evolves versioned playbooks through a statistical
   gate.
+- **Dev/Infra Auditor**: opt-in per project in its Settings; audits scripts,
+  CI workflows, raiox routines, skills (`SKILL.md`) and instruction files using
+  raiox's runtime rules and recent failure logs, optionally on a second AI CLI,
+  delivering verified fixes through drafts.
 - **Anywhere**: your phone (pairing by QR) or Telegram.
 
 Every feature, in detail: [docs/features.md](docs/features.md).
@@ -72,6 +76,7 @@ you ask it to or turn it on. These switches do, so read them before you flip the
 | **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |
+| **Dev/Infra Auditor** (per AI) | Audits project scripts, workflows, routines and skills on demand, on infra change, or weekly | Spends your plan on each audit; proposals always wait in a draft for your approval |
 | **Reads the web** (per AI) | Lets it open pages and search | What it reads can try to steer it |
 | **Phone access** (Settings › Phone) | Opens the panel to a public address through Cloudflare Tunnel | The temporary link is on the internet; only devices you pair get in, and Remove cuts one off at once |
 | **Telegram** (Settings › Phone) | Lets one paired Telegram chat talk to your AIs | Anyone holding that phone can use them; proposals still wait in raiox |

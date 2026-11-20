@@ -127,6 +127,10 @@
   color: #b4a3f5;
 }
 
+.entregas-tipo.audit {
+  color: var(--cobalto);
+}
+
 .entregas-corpo b {
   font: 500 13px/18px var(--sans);
   overflow-wrap: anywhere;

@@ -164,6 +164,17 @@ experiments (simulated or from real CSV exports such as X Analytics), guardrail
 checks and statistical promotion into versioned playbooks; inside a folder with
 its `.raiox-rsi` marker, the engine's subcommands run without asking for a click.
 
+**Dev/Infra Auditor.** Off by default, turned on per project in its Settings
+(on the computer only). Audits that project's scripts, CI workflows, raiox
+routines, skills (`SKILL.md`), `CLAUDE.md`/`AGENTS.md` and `package.json`
+commands with raiox's own runtime rules and recent refused/failed command
+telemetry — optionally using another enabled AI CLI for fresh eyes. Runs on
+demand, on change (checks daily and skips at 0 tokens if no script, skill,
+instruction or routine changed), or weekly, respecting free hours and token
+ceilings. Reports land in a dedicated `Dev/Infra Audit` thread and in
+Deliveries; audit proposals never auto-edit and always wait in a draft for your
+approval.
+
 **ai-memory.** With [ai-memory](https://github.com/akitaonrails/ai-memory)
 installed, raiox keeps a pinned page per project (`raiox/equipe.md`) with who
 works there and what each AI did last, and every bot reads its own project's

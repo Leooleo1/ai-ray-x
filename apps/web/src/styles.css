@@ -1786,6 +1786,11 @@ textarea:focus-visible {
   color: var(--ok);
 }
 
+.auditor-selo {
+  color: var(--cobalto);
+  font: 11px/14px var(--mono);
+}
+
 .espera {
   display: inline-flex;
   align-items: center;

@@ -273,6 +273,11 @@ pub fn from_answer(state_dir: &Path, bot: &str, titles: &[String]) {
     }
 }
 
+/// The free-hours window configured for automatic background runs, if any.
+pub fn window(state_dir: &Path) -> Option<Window> {
+    load(state_dir).window
+}
+
 /// The board for the panel: the tasks, newest first, and where each task's conversation is.
 pub fn state(state_dir: &Path) -> Value {
     let board = load(state_dir);

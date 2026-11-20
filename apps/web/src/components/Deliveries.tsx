@@ -10,7 +10,7 @@ import './desk.css'
 import './deliveries.css'
 
 const DAY_MS = 86_400_000
-const KIND_ORDER = ['change', 'draft', 'shot', 'routine', 'task'] as const
+const KIND_ORDER = ['change', 'draft', 'shot', 'routine', 'audit', 'task'] as const
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
@@ -145,7 +145,7 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
                     </span>
                     <b>{item.kind === 'shot' ? t.deliveryShotOf.replace('{target}', item.title) : item.title}</b>
                     {item.files && item.files.length > 0 && item.kind !== 'draft' && <code>{item.files.join('  ')}</code>}
-                    {item.kind === 'routine' && item.detail && <p>{item.detail}</p>}
+                    {(item.kind === 'routine' || item.kind === 'audit') && item.detail && <p>{item.detail}</p>}
                     {item.kind === 'shot' && item.detail && <ShotBlock bot={bot} message={{ ms: item.ms, author: 'you', kind: 'shot', data: { name: item.detail } }} />}
                   </span>
                   <button type="button" className="vidro-btn" onClick={() => nav.openMessage(item.bot, item.thread, item.ms)}>

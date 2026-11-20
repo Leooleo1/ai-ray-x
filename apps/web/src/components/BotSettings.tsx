@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { type Bot, type BotUsage, type Persona, botUsage } from '../api'
+import { type Bot, type BotUsage, IS_REMOTE, type Persona, botUsage } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
-import { compact, t } from '../i18n'
+import { compact, locale, t } from '../i18n'
 import { type Look, AvatarEditor } from './AvatarEditor'
 import { Bars } from './Bars'
 import { EffortMeter } from './EffortMeter'
@@ -28,10 +28,11 @@ interface BotSettingsProps {
   bot: Bot
   bots: Bots
   onClose: () => void
+  onOpenThread?: (threadId: string) => void
 }
 
 /** What the project runs on, the bot's model and effort, and its look. */
-export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
+export function BotSettings({ bot, bots, onClose, onOpenThread }: BotSettingsProps) {
   const [usage, setUsage] = useState<BotUsage | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const face = faceForBot(bot)
@@ -165,6 +166,8 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
             <p className="ajustes-nota">{t.reviewerNote}</p>
           </>
         )}
+
+        {bot.auditor && <AuditorBlock bot={bot} bots={bots} onOpenThread={onOpenThread} />}
 
         {bot.budget && (
           <>
@@ -432,6 +435,102 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
           ? t.usedThisWeek.replace('{used}', compact(grants.week_used))
           : t.usedOfWeek.replace('{used}', compact(grants.week_used)).replace('{limit}', compact(grants.week_limit))}
       </p>
+    </>
+  )
+}
+
+/** Opt-in per-project Dev/Infra auditor: audits scripts, workflows, routines and skills. */
+function AuditorBlock({ bot, bots, onOpenThread }: { bot: Bot; bots: Bots; onOpenThread?: (threadId: string) => void }) {
+  const auditor = bot.auditor
+  const [starting, setStarting] = useState(false)
+  if (!auditor) return null
+  const set = (change: Record<string, unknown>) => void bots.act('auditor', { id: bot.id, ...change })
+  const otherAgents = bots.state.agents.map((a) => a.id).filter((id) => id !== bot.agent)
+  const hasThread = Boolean(auditor.thread && bot.threads.some((th) => th.id === auditor.thread))
+  const auditingNow = Boolean(bot.busy && auditor.thread && bot.busy_thread === auditor.thread)
+  const skipped = auditor.skipped_ms != null && (auditor.last_ms == null || auditor.skipped_ms > auditor.last_ms)
+  const lastLabel = auditor.last_ms
+    ? `${t.lastRun} ${new Date(auditor.last_ms).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : t.neverRan
+  const runAudit = async () => {
+    if (starting || bot.busy) return
+    setStarting(true)
+    try {
+      const next = await bots.act('audit_run', { id: bot.id, lang: locale })
+      const updated = next?.bots.find((b) => b.id === bot.id)
+      const threadId = updated?.auditor?.thread
+      if (threadId && onOpenThread) onOpenThread(threadId)
+    } finally {
+      setStarting(false)
+    }
+  }
+  return (
+    <>
+      <span className="ajustes-grupo">{t.auditorGroup}</span>
+      <label className="permissao">
+        <button
+          type="button"
+          className={`config-chave ${auditor.enabled ? 'ligada' : ''}`}
+          role="switch"
+          aria-checked={auditor.enabled}
+          disabled={IS_REMOTE}
+          onClick={() => set({ enabled: !auditor.enabled })}
+        >
+          <i />
+        </button>
+        <span>
+          <b>{t.auditorTitle}</b>
+          <small>{t.auditorNote}</small>
+        </span>
+      </label>
+      {auditor.enabled && (
+        <div className="auditor-opcoes">
+          {!IS_REMOTE && otherAgents.length > 0 && (
+            <Choice
+              label={t.auditorAiLabel}
+              current={auditor.agent}
+              fallback={bot.agent}
+              options={otherAgents}
+              show={(id) => AGENT_LABEL[id as keyof typeof AGENT_LABEL] ?? id}
+              nullLabel={t.auditorSameAi}
+              onPick={(agent) => set({ agent: agent ?? '' })}
+            />
+          )}
+          {!IS_REMOTE && (
+            <>
+              <div className="ajustes-campo">
+                <span>{t.auditorCadenceLabel}</span>
+                <div className="ajustes-grade" role="radiogroup" aria-label={t.auditorCadenceLabel} style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                  {(['manual', 'on_change', 'weekly'] as const).map((cadence) => (
+                    <button
+                      key={cadence}
+                      type="button"
+                      role="radio"
+                      aria-checked={auditor.cadence === cadence}
+                      className={auditor.cadence === cadence ? 'ativo' : ''}
+                      onClick={() => set({ cadence })}
+                    >
+                      <b>{t.auditorCadences[cadence]}</b>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {auditor.cadence === 'on_change' && <p className="ajustes-nota">{t.auditorCadenceNote}</p>}
+            </>
+          )}
+          <div className="acao auditor-acoes">
+            <button type="button" className="cheio" disabled={bot.busy || starting} onClick={() => void runAudit()}>
+              {auditingNow || starting ? t.auditorRunning : t.auditorRunNow}
+            </button>
+            {hasThread && auditor.thread && onOpenThread && (
+              <button type="button" className="link" onClick={() => onOpenThread(auditor.thread!)}>
+                {t.auditorOpenThread}
+              </button>
+            )}
+          </div>
+          <p className="ajustes-nota auditor-meta">{skipped ? t.auditorSkipped : lastLabel}</p>
+        </div>
+      )}
     </>
   )
 }
