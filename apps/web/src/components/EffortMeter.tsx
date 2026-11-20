@@ -1,14 +1,10 @@
 import { type CSSProperties, type PointerEvent, useEffect, useRef, useState } from 'react'
 import { t } from '../i18n'
+import { lit } from '../pixels'
 import './effort.css'
 
 const COLS = 44
 const ROWS = 5
-/** Columns past the edge where the light breaks into dither, like a glow fading out. */
-const EDGE = 4
-/** Ordered 4×4 dither thresholds, 0 to 1. */
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((n) => (n + 0.5) / 16)
-
 interface EffortMeterProps {
   label: string
   /** The bot's own level; none follows the CLI's default. */
@@ -19,14 +15,6 @@ interface EffortMeterProps {
   /** Picking the default level gives null (back to the default). */
   onPick: (value: string | null) => void
   color: string
-}
-
-/** A cell's light: lit up to the level, dithered past it, brighter toward the edge. */
-function lit(col: number, row: number, edge: number): number {
-  if (col < edge) return 0.35 + 0.65 * (col / Math.max(1, edge))
-  const past = col - edge
-  if (past >= EDGE) return 0
-  return BAYER[(row % 4) * 4 + (col % 4)] > (past + 1) / (EDGE + 1) ? 0.3 : 0
 }
 
 /** Effort as a field of pixels that lights up to the chosen level; the field itself is the control. */
