@@ -18,7 +18,6 @@ import { SettingsPage, type Tab as SettingsTab } from './components/SettingsPage
 import { AskMany } from './components/chat/AskMany'
 import { BatchView } from './components/chat/BatchView'
 import type { ChatNav } from './components/chat/nav'
-import { TipToast } from './components/TipToast'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
 import { CONSUMPTION, type ChatView, keepConsumption, lastConsumption, Sidebar, type Tab } from './components/Sidebar'
@@ -395,7 +394,6 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         ) : <p className="tela-estado">{t.noLogs}</p>)}
         </div>
       </div>
-      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
       <Notices />
       {paletteOpen && (
         <CommandPalette
