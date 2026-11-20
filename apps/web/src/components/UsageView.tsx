@@ -93,14 +93,13 @@ export function UsageView() {
   return (
     <main className="uso">
       {controls}
-      <section className="cartao uso-topo">
+      <section className="uso-topo">
         <div className="uso-resumo">
           <span className="uso-total">{money(usage.usd)}</span>
           <span className="uso-meta">{t.usageMeta.replace('{n}', usage.sessions.toLocaleString(locale))}</span>
           <ul className="uso-ias">
             {usage.by_source.map((row) => (
               <li key={row.key}>
-                <i style={{ background: colorOf(row.key) }} />
                 <span className="uso-ia-nome">
                   <AgentLogo agent={row.key} />
                   {labelOf(row.key)}
@@ -116,7 +115,7 @@ export function UsageView() {
         </div>
         <CostChart days={usage.daily} series={series} />
       </section>
-      <section className="cartao uso-totais">
+      <section className="uso-totais">
         {totals.map((item) => (
           <div key={item.label}>
             <span>{item.label}</span>
@@ -124,7 +123,7 @@ export function UsageView() {
           </div>
         ))}
       </section>
-      <section className="cartao uso-detalhe">
+      <section className="uso-detalhe">
         <header>
           <h2>{t.usageDetail}</h2>
           <Segmented

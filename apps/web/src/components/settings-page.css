@@ -50,12 +50,14 @@
 
 /* Hero: how far the setup is, the trail, the next step; the bot on its stage.
    Doubled class: the global card rule loads after this file. */
-.cartao.cfg-heroi {
+/* The setup sits open on the frame, with a hairline under it: no card. */
+.cfg-heroi {
   display: grid;
   flex: none;
   grid-template-columns: minmax(0, 1fr) 260px;
   gap: 24px;
-  padding: 24px 24px 24px 28px;
+  padding: 8px 4px 24px;
+  box-shadow: inset 0 -1px 0 var(--fio);
 }
 
 .cfg-heroi-corpo {
@@ -205,15 +207,17 @@
 }
 
 /* Tabs: icon, short label and how many, in one grouped control. */
+/* Tabs on a line of their own, the language at its far end; no box around them. */
 .cfg-abas {
-  display: inline-flex;
+  display: flex;
   flex: none;
-  align-self: flex-start;
+  align-items: center;
   gap: 4px;
-  padding: 4px;
-  border-radius: var(--raio-painel);
-  background: var(--vidro-7);
-  box-shadow: inset 0 0 0 1px var(--fio);
+  padding: 0;
+}
+
+.cfg-abas .idioma-wrap {
+  margin-left: auto;
 }
 
 .cfg-abas button {
@@ -272,10 +276,10 @@
   display: none;
 }
 
+/* The connections as one list: a row per CLI, a hairline between them. */
 .cfg-grade {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--vao);
+  display: flex;
+  flex-direction: column;
 }
 
 .cfg-vazio {
@@ -284,48 +288,77 @@
   font-size: 14px;
 }
 
-/* An AI CLI: a lit card with its color's glow when on, flat when off or missing. */
+/* An AI CLI as a row: its mark, its name, whether it is signed in, what raiox read, the model
+   its bots start on, and the switch. A command to install or sign in drops under the row. */
 .cfg-ia {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-areas:
+    'logo nome estado numero padrao acao'
+    '.    extra extra  extra  extra  extra';
+  /* Fixed widths, so every row's columns line up with the others'. */
+  grid-template-columns: 32px 200px minmax(0, 1fr) 180px 260px 96px;
+  align-items: center;
+  column-gap: 20px;
   min-width: 0;
-  padding: 20px 20px 16px;
-  border-radius: var(--raio-painel);
-  background:
-    var(--brilho, none) right top / cover no-repeat,
-    var(--carvao);
-  box-shadow: var(--sombra-card);
-}
-
-/* Two columns per card: the monogram, then everything else on the name's line. */
-.cfg-ia > p {
-  margin-left: 52px;
-}
-
-.cfg-ia.apagada {
-  background: rgb(255 255 255 / 2%);
-  box-shadow: inset 0 0 0 1px var(--fio);
+  padding: 16px 4px;
+  box-shadow: inset 0 -1px 0 var(--fio);
 }
 
 .cfg-ia header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
+  display: contents;
+}
+
+.cfg-ia.apagada {
+  opacity: 0.55;
+}
+
+.cfg-ia .cfg-monograma {
+  grid-area: logo;
+}
+
+.cfg-ia .cfg-nome {
+  grid-area: nome;
+}
+
+.cfg-ia .cfg-estado {
+  grid-area: estado;
+}
+
+.cfg-ia .cfg-numero,
+.cfg-ia .cfg-faz {
+  grid-area: numero;
+}
+
+.cfg-ia header > .config-chave,
+.cfg-ia header > .cfg-btn {
+  grid-area: acao;
+  justify-self: end;
+}
+
+.cfg-ia footer {
+  grid-area: padrao;
+}
+
+/* In a row the pickers name themselves (Model, Effort): no "Starts on" before them. */
+.cfg-ia .cfg-rotulo {
+  display: none;
+}
+
+.cfg-ia footer.cfg-comandos,
+.cfg-ia footer:has(.bv-comando) {
+  grid-area: extra;
+  margin-top: 12px;
 }
 
 .cfg-monograma {
   display: grid;
-  flex: none;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   place-items: center;
-  border-radius: var(--raio-item);
+  border-radius: 50%;
   background: rgb(255 255 255 / 6%);
-  box-shadow: var(--sombra-card);
   color: var(--nevoa);
-  font: 17px/1 var(--pontos);
+  font: 13px/1 var(--pontos);
 }
 
 .cfg-nome {
@@ -385,26 +418,21 @@
 /* Each connection's count: light, on the title size; the page's one hero is the setup progress above. */
 .cfg-numero b {
   flex: none;
-  font: 300 22px/28px var(--sans);
+  font: 300 18px/24px var(--sans);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
 .cfg-faz {
-  display: flex;
-  align-items: flex-end;
-  min-height: 28px;
   margin: 0;
 }
 
 .cfg-ia footer {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   min-width: 0;
-  margin-top: auto;
-  padding-top: 12px;
-  box-shadow: inset 0 1px 0 var(--fio);
 }
 
 .cfg-ia footer:empty {
@@ -710,9 +738,25 @@
 }
 
 @media (max-width: 760px) {
-  .cartao.cfg-heroi {
+  .cfg-heroi {
     grid-template-columns: minmax(0, 1fr);
-    padding: 20px;
+    padding: 4px 0 20px;
+  }
+
+  /* A CLI on a phone: mark, name and switch on top, the rest under them. */
+  .cfg-ia {
+    grid-template-areas:
+      'logo nome   acao'
+      '.    estado estado'
+      '.    numero numero'
+      '.    padrao padrao'
+      '.    extra  extra';
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .cfg-ia footer {
+    justify-content: flex-start;
   }
 
   .cfg-palco {
@@ -772,7 +816,13 @@
   }
 
   .cfg-abas {
+    flex-wrap: wrap;
     align-self: stretch;
+  }
+
+  .cfg-abas .idioma-wrap {
+    width: 100%;
+    margin-left: 0;
   }
 
   .cfg-abas button {
