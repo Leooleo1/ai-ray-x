@@ -396,10 +396,8 @@ pub fn deactivate(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
 }
 
 /// Changes how a bot runs and looks. Empty model or effort means the CLI's default.
-pub fn configure(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>, effort: Option<&str>, persona: Option<Persona>) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
-    }
+pub fn configure(state_dir: &Path, id: &str, model: Option<&str>, effort: Option<&str>, persona: Option<Persona>) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let (model, effort) = (check_model(model)?, check_effort(&bot.agent, effort)?);
     if let Some(p) = &persona {
@@ -583,10 +581,8 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
 }
 
 /// Sets the model the bot talks on (empty: the same as for changes).
-pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
-    }
+pub fn set_talk_model(state_dir: &Path, id: &str, model: Option<&str>) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     find(state_dir, id)?;
     let talk_model = check_model(model)?;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { talk_model: talk_model.clone(), ..b } } else { b }).collect()))
@@ -618,10 +614,8 @@ pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
 
 /// Sets or clears the daily token limit of this bot's project (0 clears it).
 /// Changes what a bot may do (phone, web, MCP, weekly ceiling).
-pub fn set_grants(state_dir: &Path, jobs: &Jobs, id: &str, input: &Value) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; change it when it is done");
-    }
+pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))

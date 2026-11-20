@@ -325,8 +325,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::room::forget(&bot.dir, field("path"))
         }
         "routine_changed" => crate::routines::set_only_if_changed(state_dir, field("routine"), input.get("on").and_then(Value::as_bool).unwrap_or(false)),
-        "talk_model" => bots::set_talk_model(state_dir, jobs, field("id"), Some(field("model"))),
-        "grants" => bots::set_grants(state_dir, jobs, field("id"), input),
+        "talk_model" => bots::set_talk_model(state_dir, field("id"), Some(field("model"))),
+        "grants" => bots::set_grants(state_dir, field("id"), input),
         "request_approve" => crate::requests::approve(state_dir, &panel.roots.home, jobs, field("request")),
         "request_discard" => crate::requests::discard(state_dir, field("request")),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
@@ -366,7 +366,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "correct" => jobs.correct(field("id"), field("text")),
         "configure" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
-            bots::configure(state_dir, jobs, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)
+            bots::configure(state_dir, field("id"), input.get("model").and_then(Value::as_str), input.get("effort").and_then(Value::as_str), persona)
         }
         "usage" => return crate::bot_usage::usage(&panel.store, &panel.roots, state_dir, field("id")),
         "inbox" => return crate::bot_mail::inbox(state_dir, field("id")),

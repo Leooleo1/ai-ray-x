@@ -89,7 +89,6 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               current={bot.model}
               fallback={usage.default.model}
               options={usage.offered_models}
-              busy={bot.busy}
               show={modelName}
               onPick={(model) => run(model, bot.effort, null)}
             />
@@ -99,7 +98,6 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               current={bot.effort}
               fallback={usage.default.effort}
               options={usage.offered_efforts}
-              busy={bot.busy}
               show={(e) => e}
               onPick={(effort) => run(bot.model, effort, null)}
             />
@@ -109,7 +107,6 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               current={bot.talk_model ?? null}
               fallback={bot.model ?? usage.default.model}
               options={usage.offered_models}
-              busy={bot.busy}
               show={modelName}
               nullLabel={t.sameModel}
               onPick={(model) => void bots.act('talk_model', { id: bot.id, model: model ?? '' })}
@@ -126,7 +123,6 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               current={bot.reviewer ?? null}
               fallback={null}
               options={partners.map((p) => p.id)}
-              busy={false}
               show={(id) => AGENT_LABEL[partners.find((p) => p.id === id)?.agent ?? bot.agent]}
               nullLabel={t.noReviewer}
               onPick={(reviewer) => void bots.act('reviewer', { id: bot.id, reviewer: reviewer ?? '' })}
@@ -143,7 +139,6 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               current={bot.budget.limit === null ? null : String(bot.budget.limit)}
               fallback={null}
               options={bot.budget.choices.map(String)}
-              busy={false}
               show={(tokens) => compact(Number(tokens))}
               nullLabel={t.noLimit}
               onPick={(tokens) => void bots.act('limit', { id: bot.id, tokens: tokens === null ? 0 : Number(tokens) })}
@@ -192,7 +187,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
           <textarea rows={3} value={manner} maxLength={MAX_MANNER} placeholder={t.mannerHint} onChange={(event) => setManner(event.target.value)} />
         </label>
         <span className="acao">
-          <button type="button" className="cheio" disabled={!changed || bot.busy} onClick={() => run(bot.model, bot.effort, persona)}>
+          <button type="button" className="cheio" disabled={!changed} onClick={() => run(bot.model, bot.effort, persona)}>
             {t.save}
           </button>
         </span>
@@ -212,7 +207,6 @@ interface ChoiceProps {
   options: string[]
   /** Type any value (with the options as suggestions) instead of picking from a grid. */
   free?: boolean
-  busy: boolean
   show: (value: string) => string
   onPick: (value: string | null) => void
   /** What the first option says; the CLI's default unless given. */
@@ -220,18 +214,18 @@ interface ChoiceProps {
 }
 
 /** One grouped selector: the CLI's default first, then each option. */
-export function Choice({ label, current, fallback, options, free = false, busy, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
-  if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} busy={busy} show={show} onPick={onPick} />
+export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
+  if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} />
   return (
     <div className="ajustes-campo">
       <span>{label}</span>
       <div className="ajustes-grade" role="radiogroup" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }}>
-        <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} disabled={busy} onClick={() => onPick(null)}>
+        <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} onClick={() => onPick(null)}>
           <b>{nullLabel}</b>
           {fallback && <small>{show(fallback)}</small>}
         </button>
         {options.map((option) => (
-          <button key={option} type="button" role="radio" aria-checked={current === option} className={current === option ? 'ativo' : ''} disabled={busy} onClick={() => onPick(option)}>
+          <button key={option} type="button" role="radio" aria-checked={current === option} className={current === option ? 'ativo' : ''} onClick={() => onPick(option)}>
             <b>{show(option)}</b>
           </button>
         ))}
@@ -241,7 +235,7 @@ export function Choice({ label, current, fallback, options, free = false, busy, 
 }
 
 /** Many models (Cursor lists hundreds): the default, or one typed with suggestions. */
-function LongChoice({ label, current, fallback, options, busy, onPick }: ChoiceProps) {
+function LongChoice({ label, current, fallback, options, onPick }: ChoiceProps) {
   const [draft, setDraft] = useState(current ?? '')
   const listId = `modelos-${label}`
   // One field: empty means the CLI's default; Enter or leaving the field applies what was typed.
@@ -256,7 +250,6 @@ function LongChoice({ label, current, fallback, options, busy, onPick }: ChoiceP
         className="ajustes-modelo"
         list={listId}
         value={draft}
-        disabled={busy}
         placeholder={fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={apply}
@@ -289,7 +282,7 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
         .filter((row) => row.shown)
         .map((row) => (
           <label key={row.key} className="permissao">
-            <button type="button" className={`config-chave ${grants[row.key] ? 'ligada' : ''}`} role="switch" aria-checked={grants[row.key]} disabled={bot.busy} onClick={() => set({ [row.key]: !grants[row.key] })}>
+            <button type="button" className={`config-chave ${grants[row.key] ? 'ligada' : ''}`} role="switch" aria-checked={grants[row.key]} onClick={() => set({ [row.key]: !grants[row.key] })}>
               <i />
             </button>
             <span>
@@ -303,7 +296,6 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
         current={grants.week_limit === null ? null : String(grants.week_limit)}
         fallback={null}
         options={grants.week_choices.map(String)}
-        busy={bot.busy}
         show={(tokens) => compact(Number(tokens))}
         nullLabel={t.noLimit}
         onPick={(tokens) => set({ week_limit: tokens === null ? 0 : Number(tokens) })}

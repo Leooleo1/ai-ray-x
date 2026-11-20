@@ -202,7 +202,7 @@ mod tests {
         let site = crate::bots::activate(&state, &home, "Projects/site", "claude", None).unwrap();
         let channel = crate::channels::create(&state, "time", &[mail.id.clone(), site.id.clone()]).unwrap();
         assert!(device_may(&state, &json!({ "id": mail.id })).is_ok(), "every bot reaches the phone at first");
-        crate::bots::set_grants(&state, &crate::bots::Jobs::default(), &mail.id, &json!({ "devices": false })).unwrap();
+        crate::bots::set_grants(&state, &mail.id, &json!({ "devices": false })).unwrap();
         assert!(device_may(&state, &json!({ "id": mail.id, "text": "oi" })).is_err());
         assert!(device_may(&state, &json!({ "channel": channel.id, "text": "oi" })).is_err(), "nor through a channel it is in");
         assert!(device_may(&state, &json!({ "id": site.id })).is_ok());
