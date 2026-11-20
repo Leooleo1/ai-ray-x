@@ -14,6 +14,8 @@ use crate::{bots, threads};
 
 /// Deliveries the page lists at most.
 const MAX_ITEMS: usize = 200;
+/// An answer's opening reaches at least this many characters before it names a change.
+const OPENING_MIN: usize = 40;
 /// What a routine's result shows of its answer.
 const EXCERPT: usize = 240;
 /// Routine conversations' titles, now and before.
@@ -68,6 +70,19 @@ fn edited(reply: &Value) -> Vec<String> {
     files
 }
 
+/// An answer's opening, to name what it changed: its first paragraph, or the first few when they are
+/// short (a greeting alone says nothing), on one line.
+fn opening(text: &str) -> String {
+    let mut said = String::new();
+    for paragraph in text.split("\n\n").map(str::trim).filter(|p| !p.is_empty()) {
+        if said.chars().count() >= OPENING_MIN {
+            break;
+        }
+        said = format!("{said} {}", paragraph.split_whitespace().collect::<Vec<_>>().join(" ")).trim().to_string();
+    }
+    said
+}
+
 /// The deliveries of one conversation.
 fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -> Vec<Delivery> {
     let base = |kind, ms, title: String| Delivery { kind, bot: bot.to_string(), thread: thread.to_string(), ms, title, files: Vec::new(), undone: false, detail: String::new(), tokens: 0 };
@@ -96,10 +111,7 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
                 ("bot", "answer") if routine.is_some() => Some(Delivery { detail: cut(text, EXCERPT), ..base("routine", m.ms, routine.unwrap_or("").to_string()) }),
                 // An AI with full access edits in the conversation itself: what it changed is a delivery,
                 // named by the start of its answer.
-                ("bot", "answer") if !edited(reply).is_empty() => {
-                    let said = text.split_whitespace().collect::<Vec<_>>().join(" ");
-                    Some(Delivery { files: edited(reply), tokens, ..base("change", m.ms, cut(&said, 140)) })
-                }
+                ("bot", "answer") if !edited(reply).is_empty() => Some(Delivery { files: edited(reply), tokens, ..base("change", m.ms, cut(&opening(text), 140)) }),
                 ("you", "draft_applied") => {
                     let draft = m.data["draft"].as_str().unwrap_or("");
                     // Older applies wrote "files", newer ones "paths".
@@ -199,5 +211,7 @@ mod tests {
         assert_eq!(found[0].kind, "change");
         assert_eq!(found[0].files, vec!["titulo.js".to_string(), "titulo.test.js".to_string()]);
         assert_eq!((found[0].title.as_str(), found[0].tokens), ("Troquei o título e fiz o commit. Detalhes...", 1000), "the start of its answer, and what it cost");
+        let long = vec![message(3, "bot", "answer", json!({ "mode": "talk", "reply": { "text": "Fixed. The cart now adds prices in cents and formats only at the end.\n\n- `src/cart/total.ts`: sums cents.\n- tests pass.", "trail": { "items": [{ "kind": "edit", "target": "src/cart/total.ts" }] } } }))];
+        assert_eq!(of_conversation("b", "main", "", &long)[0].title, "Fixed. The cart now adds prices in cents and formats only at the end.", "its first paragraph, not the list under it");
     }
 }

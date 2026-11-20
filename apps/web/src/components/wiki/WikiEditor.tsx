@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Bot, WikiEntry } from '../../api'
-import { faceForBot } from '../../avatars'
+import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, t } from '../../i18n'
 import { Avatar } from '../Avatar'
 
@@ -15,6 +15,9 @@ export const TITLE_MAX = 80
 export const BODY_MAX = 6000
 /** Readers named in the footer; the rest (and AIs removed since) are summed up. */
 const READERS_SHOWN = 4
+
+/** A reader by the name it was given (Iris, Rex), else by its project, so two AIs of one project stay apart when named. */
+const readerName = (bot: Bot) => (bot.persona?.name && bot.persona.name !== AGENT_LABEL[bot.agent] ? bot.persona.name : bot.name)
 
 interface WikiEditorProps {
   draft: WikiDraft
@@ -87,7 +90,7 @@ export function WikiEditor({ draft, onChange, week, bots, dirty, saved, onSave, 
             {named.map(({ bot, reads }) => (
               <span key={bot.id} className="wiki-leitor">
                 <Avatar agent={faceForBot(bot)} size={16} state="still" />
-                {`${bot.name} ${reads}×`}
+                {`${readerName(bot)} ${reads}×`}
               </span>
             ))}
             {others > 0 && <span>{t.wikiOtherReaders.replace('{n}', String(others))}</span>}

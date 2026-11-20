@@ -250,7 +250,8 @@
 .entregas-item {
   position: relative;
   display: grid;
-  grid-template-columns: 44px 8px minmax(0, 1fr);
+  /* Wide enough for "12:59 PM" where the clock has 12 hours. */
+  grid-template-columns: 64px 8px minmax(0, 1fr);
   column-gap: 16px;
   padding-bottom: 20px;
 }
@@ -260,7 +261,7 @@
   position: absolute;
   top: 18px;
   bottom: 0;
-  left: 63.5px;
+  left: 83.5px;
   width: 1px;
   background: linear-gradient(rgb(255 255 255 / 16%) 50%, transparent 0) 0 0 / 1px 4px repeat-y;
   content: '';
@@ -269,6 +270,7 @@
 .entregas-hora {
   color: var(--nevoa);
   font: 12px/20px var(--mono);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -455,12 +457,12 @@
   }
 
   .entregas-item {
-    grid-template-columns: 38px 8px minmax(0, 1fr);
+    grid-template-columns: 58px 8px minmax(0, 1fr);
     column-gap: 10px;
   }
 
   .entregas-item:not(:last-child)::before {
-    left: 51.5px;
+    left: 71.5px;
   }
 
   /* On a phone the line keeps the kind, the project and Open; an undone one is struck through below. */
