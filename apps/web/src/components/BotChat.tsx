@@ -1,6 +1,7 @@
+import { OpenTabs } from './chat/OpenTabs'
 import { useEffect, useRef, useState } from 'react'
 import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
-import { AGENT_LABEL, faceForBot, speakerOf, personaName } from '../avatars'
+import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { type AccessMode, grantsFor, modeOf } from '../modes'
@@ -180,13 +181,13 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               <path d="M5 7h14M5 12h14M5 17h9" />
             </svg>
           </button>
-          <span className="conversa-titulo">
-            <Avatar agent={face} size={24} state={busyHere ? 'thinking' : 'still'} />
-            <span>
-              <b>{side ? side.title : t.mainConversation}</b>
-              <small>{[bot.name, AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</small>
-            </span>
-          </span>
+          <OpenTabs
+            bots={bots.state.bots}
+            open={{ bot: bot.id, thread: current }}
+            busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && b.busy && (b.busy_thread ?? 'main') === tab.thread)}
+            onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
+            onNew={() => void newThread()}
+          />
           <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <rect x="3.5" y="5" width="17" height="12" rx="2" />

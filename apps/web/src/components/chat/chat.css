@@ -1667,33 +1667,118 @@ form.compositor {
 }
 
 /* The chat's title: which conversation, of which project and IA. */
-.conversa-titulo {
+/* The open conversations as tabs: the open one on glass, the others quiet, a close on hover. */
+.abas {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.conversa-titulo > span {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.conversa-titulo b {
-  overflow: hidden;
-  font: 500 14px/18px var(--sans);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conversa-titulo small {
-  overflow: hidden;
+.aba {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 200px;
+  border-radius: var(--raio-item);
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
+}
+
+.aba > button:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 30px 0 8px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.aba:only-of-type > button:first-child {
+  padding-right: 12px;
+}
+
+.aba b {
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.aba:hover {
+  background: rgb(255 255 255 / 4%);
+  color: var(--giz);
+}
+
+.aba.ativa {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.aba-fechar,
+.aba-nova {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+}
+
+.aba-fechar {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  opacity: 0;
+}
+
+.aba:hover .aba-fechar,
+.aba.ativa .aba-fechar,
+.aba-fechar:focus-visible {
+  opacity: 1;
+}
+
+.aba-fechar:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.aba-nova {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--raio-item);
+}
+
+.aba-nova:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.aba-fechar svg,
+.aba-nova svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.aba-nova svg {
+  width: 16px;
+  height: 16px;
 }
 
 .so-celular {
@@ -2670,3 +2755,15 @@ form.compositor {
   stroke-linejoin: round;
 }
 
+
+/* On a phone there is room for one tab: the open conversation; the list button switches. */
+@media (max-width: 960px) {
+  .aba:not(.ativa),
+  .aba-fechar {
+    display: none;
+  }
+
+  .aba > button:first-child {
+    padding-right: 12px;
+  }
+}
