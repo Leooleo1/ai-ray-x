@@ -29,6 +29,7 @@ import { UpdateNote } from './components/UpdateNote'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
+const SIDEBAR_KEY = 'raiox.sidebar'
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
 const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
@@ -172,6 +173,33 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === 'collapsed'
+    } catch {
+      return false
+    }
+  })
+  const toggleSidebar = () =>
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? 'collapsed' : 'expanded')
+      } catch {
+        // Ignore storage errors in restricted contexts.
+      }
+      return next
+    })
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+        event.preventDefault()
+        toggleSidebar()
+      }
+    }
+    window.addEventListener('keydown', onShortcut)
+    return () => window.removeEventListener('keydown', onShortcut)
+  }, [])
   // Which Settings tab opens: Connections from the menu, another when a chat card sends the person there.
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('conexoes')
   const bots = useBots(report.bots)
@@ -227,7 +255,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
   const heading = HEADINGS[tab]
   return (
-    <div className={`app ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'recolhida' : ''} ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
       <Sidebar
         tab={tab}
         chat={chat}
@@ -235,6 +263,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         unread={unread}
         channels={channelList}
         updatedAt={at}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
         onTab={(next) => {
           setSettingsTab('conexoes')
           go(next)

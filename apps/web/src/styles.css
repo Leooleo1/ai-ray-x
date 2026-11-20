@@ -54,6 +54,11 @@ body {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   height: 100dvh;
+  transition: grid-template-columns 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.app.recolhida {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .principal {
@@ -70,19 +75,57 @@ body {
 /* Sidebar: the one navigation. A level of its own, one step above the night. */
 
 .lateral {
+  position: relative;
+  z-index: 10;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px 12px;
+  overflow: visible;
+  background: #09090c;
+  box-shadow: inset -1px 0 0 var(--fio);
+}
+
+.lado-topo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 0 8px;
+}
+
+.lado-scroll {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 20px;
   min-height: 0;
-  padding: 20px 12px;
   overflow-y: auto;
-  background: #09090c;
-  box-shadow: inset -1px 0 0 var(--fio);
   scrollbar-width: none;
 }
 
-.lateral .marca {
-  margin: 0 8px;
+.lado-recolher {
+  display: grid;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.lado-recolher:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
 }
 
 .lado-grupo {
@@ -135,6 +178,38 @@ body {
   white-space: nowrap;
 }
 
+.lado-rosto {
+  position: relative;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lado-item:hover .lado-rosto {
+  transform: scale(1.08);
+}
+
+.lado-sinal {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #09090c;
+}
+
+.lado-sinal.nao-lida {
+  background: var(--cobalto);
+}
+
+.lado-sinal.digitando {
+  background: var(--ok);
+  animation: ponto-digitando 1.4s ease-in-out infinite;
+}
+
 .icone {
   width: 18px;
   height: 18px;
@@ -146,8 +221,127 @@ body {
   stroke-width: 1.6;
 }
 
+/* Redraw icon strokes in sequence on hover for tactile motion. */
+.lado-item:hover .icone,
+.lado-recolher:hover .icone {
+  animation: icone-pulsa 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lado-item:hover .icone path,
+.lado-recolher:hover .icone path {
+  stroke-dasharray: 102;
+  animation: icone-desenha 520ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i, 0) * 55ms) both;
+}
+
+@keyframes icone-desenha {
+  0% {
+    stroke-dashoffset: 102;
+    opacity: 0.35;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes icone-pulsa {
+  0% {
+    transform: scale(1);
+  }
+
+  38% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.marca:hover svg circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: marca-onda 460ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--r, 0) * 65ms);
+}
+
+@keyframes marca-onda {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  42% {
+    transform: scale(0.35);
+    opacity: 0.35;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Collapsed sidebar rail: icons and project avatars centered cleanly. */
+.lateral.recolhida {
+  padding: 16px 10px;
+}
+
+.lateral.recolhida .lado-topo {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+
+.lateral.recolhida .marca-nome,
+.lateral.recolhida .lado-item .nome,
+.lateral.recolhida .presenca,
+.lateral.recolhida .lado-item > .nao-lida {
+  display: none;
+}
+
+.lateral.recolhida .lado-titulo {
+  height: 1px;
+  margin: 8px 6px;
+  padding: 0;
+  overflow: hidden;
+  text-indent: -9999px;
+  background: var(--fio);
+}
+
+.lateral.recolhida .lado-item {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  width: 40px;
+  height: 36px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    transition: none;
+  }
+
+  .lado-item:hover .icone,
+  .lado-recolher:hover .icone,
+  .lado-item:hover .icone path,
+  .lado-recolher:hover .icone path,
+  .marca:hover svg circle,
+  .lado-sinal.digitando {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}
+
 .lado-rodape {
   display: flex;
+  flex: none;
   flex-direction: column;
   margin-top: auto;
 }
@@ -885,7 +1079,8 @@ body {
     max-width: 200px;
     margin: 0 auto;
   }
-  .app {
+  .app,
+  .app.recolhida {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
     min-height: 100dvh;
@@ -893,7 +1088,8 @@ body {
 
   /* On a phone the menu is a tab bar at the bottom: icon over name, nothing cut.
      The projects live in Chats, which lists them. */
-  .lateral {
+  .lateral,
+  .lateral.recolhida {
     position: fixed;
     right: 0;
     bottom: 0;
@@ -906,6 +1102,11 @@ body {
     box-shadow: inset 0 1px 0 var(--fio);
   }
 
+  .lado-scroll {
+    display: contents;
+  }
+
+  .lateral .lado-topo,
   .lateral .marca,
   .lateral .lado-projetos,
   .lado-titulo,
@@ -931,16 +1132,27 @@ body {
     display: inline;
   }
 
-  .lateral .lado-menu .lado-item {
+  .lateral .lado-menu .lado-item,
+  .lateral.recolhida .lado-menu .lado-item {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
+    width: auto;
     height: 52px;
+    margin: 0;
     padding: 0;
     font-size: 11px;
     line-height: 14px;
+  }
+
+  .lateral.recolhida .lado-menu .lado-item .nome {
+    display: inline;
+  }
+
+  .lateral.recolhida .lado-menu .lado-item:has(.curto) .nome:not(.curto) {
+    display: none;
   }
 
   .lateral .lado-menu .nome {

@@ -167,6 +167,11 @@
   height: 18px;
 }
 
+.perfil-item:hover svg path {
+  stroke-dasharray: 102;
+  animation: icone-desenha 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .perfil-nota {
   margin: 4px 0 0;
   padding: 10px 10px 4px;
@@ -176,8 +181,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .perfil-menu {
+  .perfil-menu,
+  .perfil-item:hover svg path {
     animation: none;
+    stroke-dasharray: none;
   }
 }
 
@@ -204,4 +211,25 @@
   color: var(--nevoa);
   font: 11px/14px var(--mono);
   opacity: 0.8;
+}
+
+/* Collapsed sidebar: show only the circular monogram; keep the menu wide enough to read. */
+.lateral.recolhida .perfil-botao {
+  grid-template-columns: 32px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.lateral.recolhida .perfil-nome,
+.lateral.recolhida .perfil-seta {
+  display: none;
+}
+
+.lateral.recolhida .perfil-menu {
+  right: auto;
+  left: 0;
+  width: 232px;
 }
