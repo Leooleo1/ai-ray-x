@@ -305,7 +305,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         onSearch={() => setPaletteOpen(true)}
       />
       <div className="principal">
-        <div className="titulo">
+        {/* In the macOS app this row is the title bar too: it drags the window. */}
+        <div className="titulo" data-tauri-drag-region>
           {CONSUMPTION.includes(tab) ? (
             // The three consumption pages share one title: their names are the tabs.
             <nav className="titulo-abas" aria-label={t.consumptionPages}>
@@ -316,7 +317,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
               ))}
             </nav>
           ) : (
-            <h1>{heading.title}</h1>
+            <h1 data-tauri-drag-region>{heading.title}</h1>
           )}
           <UpdateNote />
           {/* The period of the logs read: only where the figures come from them (Usage picks its own). */}
