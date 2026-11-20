@@ -12,7 +12,7 @@ const en = {
     ['Link GitHub', 'to find your repositories and clone what is missing'],
     ['Pick projects', 'only the ones you check get a bot'],
     ['Make the bot', 'a ready one or your own: name, shape and manner'],
-    ['Wire the projects', 'only wired ones talk to each other'],
+    ['Link the projects', 'only linked ones talk to each other'],
     ['See how it works', 'a half-minute tour with your bot'],
   ],
   localOnly: 'Logs stay on this machine',
