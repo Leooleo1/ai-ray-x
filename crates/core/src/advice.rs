@@ -197,7 +197,7 @@ pub fn suggestions(eff: &Efficiency, skills_listed: Option<u64>) -> Vec<Suggesti
         } else {
             "Set tool_output_token_limit in ~/.codex/config.toml and keep command output short"
         },
-        value: None,
+        value: claude.then(|| "15000".to_string()),
         confidence: "exact for past logs",
     });
 

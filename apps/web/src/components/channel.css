@@ -8,7 +8,7 @@
 
 .canal-nome {
   flex: none;
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .canal-membros {
@@ -61,7 +61,7 @@
   margin: auto;
   max-width: 460px;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
 }
 
@@ -75,7 +75,7 @@
 
 .canal-quem b {
   flex: none;
-  font: 500 13px/18px var(--mono);
+  font: 500 12px/18px var(--mono);
 }
 
 .canal-quem small {
@@ -117,7 +117,7 @@
 
 .canal-novo h2 {
   margin: 0;
-  font: 500 17px/24px var(--sans);
+  font: 500 22px/28px var(--sans);
 }
 
 .canal-escolha {
@@ -136,7 +136,7 @@
   width: 100%;
   padding: 8px 10px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 4%);
   color: var(--giz);
   text-align: left;
@@ -157,7 +157,7 @@
 
 .canal-escolha b {
   overflow: hidden;
-  font: 500 13px/18px var(--sans);
+  font: 500 14px/20px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -183,7 +183,7 @@
   justify-content: center;
   width: 22px;
   color: var(--nevoa);
-  font: 15px/1 var(--mono);
+  font: 14px/1 var(--mono);
 }
 
 .lado-titulo-canais {
@@ -212,7 +212,7 @@
   border-radius: 50%;
   background: rgb(255 255 255 / 5%);
   color: var(--nevoa);
-  font: 15px/1 var(--mono);
+  font: 14px/1 var(--mono);
 }
 
 /* Where the router sent a message, under it, quiet. */

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { type Bot, type BotUsage, type Persona, botUsage } from '../api'
+import { useEffect, useId, useRef, useState } from 'react'
+import { type Bot, type BotUsage, IS_REMOTE, type Persona, botUsage } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
-import { compact, t } from '../i18n'
+import { compact, locale, t } from '../i18n'
 import { type Look, AvatarEditor } from './AvatarEditor'
 import { Bars } from './Bars'
+import { EffortMeter } from './EffortMeter'
 import { RoutinesEditor } from './RoutinesEditor'
 import './settings.css'
 
@@ -13,7 +14,11 @@ const MAX_MANNER = 1200
 const MAX_ROLE = 40
 
 /** "claude-opus-5-5" reads as "Opus 5.5"; other names stay as they are. */
+/** Claude Code's model aliases, as a person reads them. */
+const ALIASES: Record<string, string> = { opus: 'Opus', sonnet: 'Sonnet', haiku: 'Haiku', fable: 'Fable' }
+
 export function modelName(model: string): string {
+  if (ALIASES[model]) return ALIASES[model]
   const claude = model.match(/^claude-([a-z]+)-(\d+)-(\d+)/)
   if (!claude) return model
   return `${claude[1][0].toUpperCase()}${claude[1].slice(1)} ${claude[2]}.${claude[3]}`
@@ -23,10 +28,11 @@ interface BotSettingsProps {
   bot: Bot
   bots: Bots
   onClose: () => void
+  onOpenThread?: (threadId: string) => void
 }
 
 /** What the project runs on, the bot's model and effort, and its look. */
-export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
+export function BotSettings({ bot, bots, onClose, onOpenThread }: BotSettingsProps) {
   const [usage, setUsage] = useState<BotUsage | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const face = faceForBot(bot)
@@ -34,6 +40,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
   const [name, setName] = useState(bot.persona?.name ?? AGENT_LABEL[bot.agent])
   const [manner, setManner] = useState(bot.persona?.instructions ?? '')
   const [role, setRole] = useState(bot.persona?.role ?? '')
+  const [confirmClose, setConfirmClose] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -43,7 +50,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     return () => {
       alive = false
     }
-  }, [bot.id])
+  }, [bot.id, bot.agent])
 
   const run = (model: string | null, effort: string | null, persona: Persona | null) =>
     void bots.act('configure', { id: bot.id, model: model ?? '', effort: effort ?? '', persona })
@@ -57,6 +64,47 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     role: role.trim(),
   }
   const changed = JSON.stringify(persona) !== JSON.stringify(bot.persona)
+  useEffect(() => {
+    if (!changed) setConfirmClose(false)
+  }, [changed])
+  const tryClose = () => {
+    if (changed && !confirmClose) {
+      setConfirmClose(true)
+      return
+    }
+    onClose()
+  }
+  const resetPersona = () => {
+    setLook({ shape: bot.persona?.shape ?? 'monitor', color: face.color, finish: bot.persona?.finish ?? 'solid' })
+    setName(bot.persona?.name ?? AGENT_LABEL[bot.agent])
+    setManner(bot.persona?.instructions ?? '')
+    setRole(bot.persona?.role ?? '')
+    setConfirmClose(false)
+  }
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const target = event.target as HTMLElement | null
+      // Let inner popovers (like LongChoice) consume Escape first.
+      if (target?.closest('.ajustes-combo.aberto')) return
+      if (changed && !confirmClose) setConfirmClose(true)
+      else onClose()
+    }
+    // A click outside the drawer closes it as Escape does (asking first when a change is unsaved);
+    // the button that opens it toggles it by itself.
+    const onOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target || target.closest('.ajustes, [data-abre-ajustes]')) return
+      if (changed && !confirmClose) setConfirmClose(true)
+      else onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onOutside)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onOutside)
+    }
+  }, [changed, confirmClose, onClose])
   const days = usage?.days ?? 30
   const models = usage?.models ?? []
   const partners = bots.state.bots.filter((b) => b.dir === bot.dir && b.id !== bot.id)
@@ -66,8 +114,8 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
     <aside className="ajustes" aria-label={t.settings}>
       <header className="ajustes-topo">
         <b>{t.settings}</b>
-        <button type="button" className="voltar" onClick={onClose}>
-          {t.close}
+        <button type="button" className={`voltar ${confirmClose ? 'confirmar' : ''}`} onBlur={() => setConfirmClose(false)} onClick={tryClose}>
+          {confirmClose ? t.closeDiscard : t.close}
         </button>
       </header>
       <div className="ajustes-corpo">
@@ -75,10 +123,10 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
         {failed && <p className="nota failed">{failed}</p>}
         {usage && models.length === 0 && <p className="nota">{t.noUsageDays.replace('{n}', String(days))}</p>}
         {models.length > 0 && (
-          <Bars title={t.modelsTitle} subtitle={t.modelsSub} color={face.color} rows={models.map((m) => ({ label: modelName(m.name), value: m.tokens }))} />
+          <Bars title={t.modelsTitle} subtitle={t.modelsSub} color={face.color} rows={models.map((m) => ({ label: m.name === 'default' ? (usage?.default.model ? modelName(usage.default.model) : t.defaultOption) : modelName(m.name), value: m.tokens }))} />
         )}
         {efforts.length > 0 && (
-          <Bars title={t.effortTitle} subtitle={t.effortSub} color={face.color} rows={efforts.map((e) => ({ label: e.name, value: e.requests }))} />
+          <Bars title={t.effortTitle} subtitle={t.effortSub} color={face.color} rows={efforts.map((e) => ({ label: e.name === 'default' ? (usage?.default.effort ?? t.defaultOption) : e.name, value: e.requests }))} />
         )}
 
         <span className="ajustes-grupo">{`${t.botUses} · ${AGENT_LABEL[bot.agent]}`}</span>
@@ -93,12 +141,12 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
               onPick={(model) => run(model, bot.effort, null)}
             />
             {usage.offered_efforts.length > 0 && (
-            <Choice
+            <EffortMeter
               label={t.effortLabel}
               current={bot.effort}
               fallback={usage.default.effort}
               options={usage.offered_efforts}
-              show={(e) => e}
+              color={face.color}
               onPick={(effort) => run(bot.model, effort, null)}
             />
             )}
@@ -120,6 +168,7 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
             <span className="ajustes-grupo">{t.reviewerLabel}</span>
             <Choice
               label={t.reviewerLabel}
+              bare
               current={bot.reviewer ?? null}
               fallback={null}
               options={partners.map((p) => p.id)}
@@ -131,11 +180,14 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
           </>
         )}
 
+        {bot.auditor && <AuditorBlock bot={bot} bots={bots} onOpenThread={onOpenThread} />}
+
         {bot.budget && (
           <>
             <span className="ajustes-grupo">{t.dailyLimit}</span>
             <Choice
               label={t.dailyLimit}
+              bare
               current={bot.budget.limit === null ? null : String(bot.budget.limit)}
               fallback={null}
               options={bot.budget.choices.map(String)}
@@ -193,12 +245,26 @@ export function BotSettings({ bot, bots, onClose }: BotSettingsProps) {
         </span>
         {bots.error && <p className="nota failed quebra">{bots.error}</p>}
       </div>
+      {changed && (
+        <footer className="ajustes-rodape">
+          <span className="ajustes-pendente">
+            <i className="ponto alerta" aria-hidden="true" />
+            {t.unsavedChanges}
+          </span>
+          <button type="button" className="link" onClick={resetPersona}>
+            {t.cancel}
+          </button>
+          <button type="button" className="cheio" onClick={() => run(bot.model, bot.effort, persona)}>
+            {t.save}
+          </button>
+        </footer>
+      )}
     </aside>
   )
 }
 
-/** Past this many options, a field with suggestions replaces the grid. */
-const GRID_LIMIT = 8
+/** Past this many options, a searchable dropdown replaces the grid. */
+const GRID_LIMIT = 6
 
 interface ChoiceProps {
   label: string
@@ -211,15 +277,21 @@ interface ChoiceProps {
   onPick: (value: string | null) => void
   /** What the first option says; the CLI's default unless given. */
   nullLabel?: string
+  /** Under a section title that already names it: no label of its own (screen readers still get it). */
+  bare?: boolean
 }
 
 /** One grouped selector: the CLI's default first, then each option. */
-export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
-  if (free || options.length > GRID_LIMIT) return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} />
+export function Choice({ label, current, fallback, options, free = false, show, onPick, nullLabel = t.defaultOption, bare = false }: ChoiceProps) {
+  if (free || options.length > GRID_LIMIT) {
+    return <LongChoice label={label} current={current} fallback={fallback} options={options} show={show} onPick={onPick} nullLabel={nullLabel} />
+  }
+  // One line of equal cells, never wrapped (longer lists use the searchable picker).
+  const gridStyle = { gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }
   return (
     <div className="ajustes-campo">
-      <span>{label}</span>
-      <div className="ajustes-grade" role="radiogroup" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length + 1}, minmax(0, 1fr))` }}>
+      {!bare && <span>{label}</span>}
+      <div className="ajustes-grade" role="radiogroup" aria-label={label} style={gridStyle}>
         <button type="button" role="radio" aria-checked={current === null} className={current === null ? 'ativo' : ''} onClick={() => onPick(null)}>
           <b>{nullLabel}</b>
           {fallback && <small>{show(fallback)}</small>}
@@ -234,33 +306,106 @@ export function Choice({ label, current, fallback, options, free = false, show, 
   )
 }
 
-/** Many models (Cursor lists hundreds): the default, or one typed with suggestions. */
-function LongChoice({ label, current, fallback, options, onPick }: ChoiceProps) {
+/** Many models (Cursor lists hundreds): searchable popover with custom value support. */
+function LongChoice({ label, current, fallback, options, show, onPick, nullLabel = t.defaultOption }: ChoiceProps) {
+  const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(current ?? '')
-  const listId = `modelos-${label}`
-  // One field: empty means the CLI's default; Enter or leaving the field applies what was typed.
-  const apply = () => {
+  const box = useRef<HTMLDivElement>(null)
+  const inputId = useId()
+  useEffect(() => {
+    setDraft(current ?? '')
+  }, [current])
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const needle = draft.trim().toLowerCase()
+  const matched = options.filter((o) => !needle || `${o} ${show(o)}`.toLowerCase().includes(needle))
+  const choose = (next: string | null) => {
+    setDraft(next ?? '')
+    setOpen(false)
+    if (next !== current) onPick(next)
+  }
+  const applyTyped = () => {
     const next = draft.trim() || null
+    setOpen(false)
     if (next !== current) onPick(next)
   }
   return (
-    <label className="ajustes-campo">
-      <span>{label}</span>
-      <input
-        className="ajustes-modelo"
-        list={listId}
-        value={draft}
-        placeholder={fallback ? `${t.defaultOption} · ${fallback}` : t.defaultOption}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={apply}
-        onKeyDown={(event) => event.key === 'Enter' && apply()}
-      />
-      <datalist id={listId}>
-        {options.map((option) => (
-          <option key={option} value={option} />
-        ))}
-      </datalist>
-    </label>
+    <div className={`ajustes-campo ajustes-combo ${open ? 'aberto' : ''}`} ref={box}>
+      <label htmlFor={inputId}>{label}</label>
+      <div className="ajustes-combo-wrap">
+        <input
+          id={inputId}
+          className="ajustes-modelo"
+          value={draft}
+          placeholder={fallback ? `${nullLabel} · ${show(fallback)}` : nullLabel}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setOpen(true)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              applyTyped()
+            }
+          }}
+        />
+        {draft && (
+          <button
+            type="button"
+            className="campo-limpar"
+            aria-label={t.clearSearch}
+            title={t.clearSearch}
+            onClick={() => choose(null)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {open && (
+        <ul className="ajustes-combo-lista" role="listbox" aria-label={label}>
+          <li role="option" aria-selected={current === null}>
+            <button type="button" className={current === null ? 'ativo' : ''} onClick={() => choose(null)}>
+              <span>{nullLabel}</span>
+              {fallback && <small>{show(fallback)}</small>}
+            </button>
+          </li>
+          {matched.slice(0, 60).map((option) => (
+            <li key={option} role="option" aria-selected={current === option}>
+              <button type="button" className={current === option ? 'ativo' : ''} onClick={() => choose(option)}>
+                <span>{show(option)}</span>
+                {show(option) !== option && <small>{option}</small>}
+              </button>
+            </li>
+          ))}
+          {needle && !options.includes(draft.trim()) && (
+            <li role="option" aria-selected={false}>
+              <button type="button" onClick={applyTyped}>
+                <span>{`${t.use} “${draft.trim()}”`}</span>
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -306,6 +451,105 @@ function GrantsBlock({ bot, bots }: { bot: Bot; bots: Bots }) {
           ? t.usedThisWeek.replace('{used}', compact(grants.week_used))
           : t.usedOfWeek.replace('{used}', compact(grants.week_used)).replace('{limit}', compact(grants.week_limit))}
       </p>
+    </>
+  )
+}
+
+/** Opt-in per-project Dev/Infra auditor: audits scripts, workflows, routines and skills. */
+function AuditorBlock({ bot, bots, onOpenThread }: { bot: Bot; bots: Bots; onOpenThread?: (threadId: string) => void }) {
+  const auditor = bot.auditor
+  const [starting, setStarting] = useState(false)
+  if (!auditor) return null
+  const set = (change: Record<string, unknown>) => void bots.act('auditor', { id: bot.id, ...change })
+  const otherAgents = bots.state.agents.map((a) => a.id).filter((id) => id !== bot.agent)
+  const hasThread = Boolean(auditor.thread && bot.threads.some((th) => th.id === auditor.thread))
+  const auditingNow = Boolean(bot.busy && auditor.thread && bot.busy_thread === auditor.thread)
+  const skipped = auditor.skipped_ms != null && (auditor.last_ms == null || auditor.skipped_ms > auditor.last_ms)
+  const lastLabel = auditor.last_ms
+    ? `${t.lastRun} ${new Date(auditor.last_ms).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : t.neverRan
+  const runAudit = async () => {
+    if (starting || bot.busy) return
+    setStarting(true)
+    try {
+      const next = await bots.act('audit_run', { id: bot.id, lang: locale })
+      const updated = next?.bots.find((b) => b.id === bot.id)
+      const threadId = updated?.auditor?.thread
+      if (threadId && onOpenThread) onOpenThread(threadId)
+    } finally {
+      setStarting(false)
+    }
+  }
+  return (
+    <>
+      <span className="ajustes-grupo">{t.auditorGroup}</span>
+      <label className="permissao">
+        <button
+          type="button"
+          className={`config-chave ${auditor.enabled ? 'ligada' : ''}`}
+          role="switch"
+          aria-checked={auditor.enabled}
+          disabled={IS_REMOTE}
+          onClick={() => set({ enabled: !auditor.enabled })}
+        >
+          <i />
+        </button>
+        <span>
+          <b>{t.auditorTitle}</b>
+          <small>{t.auditorNote}</small>
+        </span>
+      </label>
+      {auditor.enabled && (
+        <div className="auditor-opcoes">
+          {!IS_REMOTE && otherAgents.length > 0 && (
+            <div className="auditor-linha">
+              <span>{t.auditorAiLabel}</span>
+              <Choice
+                label={t.auditorAiLabel}
+                bare
+                current={auditor.agent}
+                fallback={bot.agent}
+                options={otherAgents}
+                show={(id) => AGENT_LABEL[id as keyof typeof AGENT_LABEL] ?? id}
+                nullLabel={t.auditorSameAi}
+                onPick={(agent) => set({ agent: agent ?? '' })}
+              />
+            </div>
+          )}
+          {!IS_REMOTE && (
+            <div className="auditor-linha">
+              <span>{t.auditorCadenceLabel}</span>
+              <div className="ajustes-grade" role="radiogroup" aria-label={t.auditorCadenceLabel} style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                {(['manual', 'on_change', 'weekly'] as const).map((cadence) => (
+                  <button
+                    key={cadence}
+                    type="button"
+                    role="radio"
+                    aria-checked={auditor.cadence === cadence}
+                    className={auditor.cadence === cadence ? 'ativo' : ''}
+                    title={cadence === 'on_change' ? t.auditorCadenceNote : undefined}
+                    onClick={() => set({ cadence })}
+                  >
+                    <b>{t.auditorCadences[cadence]}</b>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* One status line: the last audit (open it) and the one action. */}
+          <div className="auditor-estado">
+            <span className={`auditor-meta ${auditingNow || starting ? 'rodando' : ''}`}>{auditingNow || starting ? t.auditorRunning : skipped ? t.auditorSkipped : lastLabel}</span>
+            {hasThread && auditor.thread && onOpenThread && (
+              <button type="button" className="auditor-ver" onClick={() => onOpenThread(auditor.thread!)}>
+                {t.auditorOpenThread}
+              </button>
+            )}
+            <button type="button" className="auditor-rodar" disabled={bot.busy || starting} onClick={() => void runAudit()}>
+              {t.auditorRunNow}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

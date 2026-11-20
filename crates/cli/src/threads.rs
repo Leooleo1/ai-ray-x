@@ -65,7 +65,12 @@ pub fn create(state_dir: &Path, bot: &str, title: &str) -> Result<Thread> {
         bail!("a bot keeps at most {MAX_THREADS} extra conversations; close one first");
     }
     let now = room::now_ms();
-    let thread = Thread { id: format!("t{now:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, created_ms: now };
+    // The id comes from the time; two made in the same millisecond take the next free one.
+    let mut stamp = now;
+    while threads.iter().any(|t| t.id == format!("t{stamp:x}")) {
+        stamp += 1;
+    }
+    let thread = Thread { id: format!("t{stamp:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, created_ms: now };
     save(state_dir, bot, &threads.into_iter().chain([thread.clone()]).collect::<Vec<_>>())?;
     Ok(thread)
 }
@@ -106,6 +111,17 @@ pub fn name_after(state_dir: &Path, bot: &str, thread: &str, text: &str, default
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conversations_made_in_the_same_millisecond_get_their_own_ids() {
+        let state = std::env::temp_dir().join(format!("raiox-thread-ids-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&state);
+        let ids: Vec<String> = (0..MAX_THREADS).map(|n| create(&state, "b1", &format!("c{n}")).unwrap().id).collect();
+        let unique: std::collections::HashSet<&String> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "every conversation has its own id: {ids:?}");
+        assert!(ids.iter().all(|id| valid(id)));
+        let _ = fs::remove_dir_all(&state);
+    }
 
     #[test]
     fn ids_cannot_reach_other_folders() {

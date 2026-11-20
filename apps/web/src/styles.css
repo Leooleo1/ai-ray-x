@@ -14,7 +14,13 @@
   --fio: rgb(255 255 255 / 8%);
   --lateral: 20px;
   --vao: 16px;
-  --raio-painel: 20px;
+  /* One radius per level: the canvas, a card or anything floating, an item; controls are pills. */
+  /* Depth: a card is a hairline with a faint top light; anything floating (menus, the drawer, a tip)
+     adds one soft shadow. Separators and control rings are borders, not depth. */
+  --sombra-card: inset 0 0 0 1px var(--fio), inset 0 1px 0 rgb(255 255 255 / 5%);
+  --sombra-flutua: inset 0 0 0 1px rgb(255 255 255 / 10%), inset 0 1px 0 rgb(255 255 255 / 7%), 0 24px 48px -12px rgb(0 0 0 / 80%);
+  --raio-moldura: 20px;
+  --raio-painel: 16px;
   --raio-item: 10px;
   --sans: 'Geist Variable', system-ui, sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, monospace;
@@ -42,18 +48,41 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 45%);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 32%);
+  outline-offset: -1px;
+}
+
+.compositor textarea:focus-visible,
+.compositor input:focus-visible {
+  outline: 0;
+}
+
 .tela-estado {
   display: grid;
   height: 100dvh;
   place-items: center;
   color: var(--nevoa);
-  font: 13px/16px var(--mono);
+  font: 12px/16px var(--mono);
 }
 
 .app {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   height: 100dvh;
+  transition: grid-template-columns 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.app.recolhida {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .principal {
@@ -70,19 +99,57 @@ body {
 /* Sidebar: the one navigation. A level of its own, one step above the night. */
 
 .lateral {
+  position: relative;
+  z-index: 10;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px 12px;
+  overflow: visible;
+  background: #09090c;
+  box-shadow: inset -1px 0 0 var(--fio);
+}
+
+.lado-topo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 0 8px;
+}
+
+.lado-scroll {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 20px;
   min-height: 0;
-  padding: 20px 12px;
   overflow-y: auto;
-  background: #09090c;
-  box-shadow: inset -1px 0 0 var(--fio);
   scrollbar-width: none;
 }
 
-.lateral .marca {
-  margin: 0 8px;
+.lado-recolher {
+  display: grid;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.lado-recolher:hover {
+  background: var(--vidro-7);
+  color: var(--giz);
 }
 
 .lado-grupo {
@@ -135,6 +202,38 @@ body {
   white-space: nowrap;
 }
 
+.lado-rosto {
+  position: relative;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lado-item:hover .lado-rosto {
+  transform: scale(1.08);
+}
+
+.lado-sinal {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #09090c;
+}
+
+.lado-sinal.nao-lida {
+  background: var(--cobalto);
+}
+
+.lado-sinal.digitando {
+  background: var(--ok);
+  animation: ponto-digitando 1.4s ease-in-out infinite;
+}
+
 .icone {
   width: 18px;
   height: 18px;
@@ -146,8 +245,152 @@ body {
   stroke-width: 1.6;
 }
 
+/* Redraw icon strokes in sequence on hover for tactile motion. */
+.lado-item:hover .icone,
+.lado-recolher:hover .icone {
+  animation: icone-pulsa 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lado-item:hover .icone path,
+.lado-recolher:hover .icone path {
+  stroke-dasharray: 102;
+  animation: icone-desenha 520ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--i, 0) * 55ms) both;
+}
+
+@keyframes icone-desenha {
+  0% {
+    stroke-dashoffset: 102;
+    opacity: 0.35;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes icone-pulsa {
+  0% {
+    transform: scale(1);
+  }
+
+  38% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.marca:hover svg circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: marca-onda 460ms cubic-bezier(0.22, 1, 0.36, 1) calc(var(--r, 0) * 65ms);
+}
+
+@keyframes marca-onda {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  42% {
+    transform: scale(0.35);
+    opacity: 0.35;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Collapsed sidebar rail: icons and project avatars centered cleanly. */
+.lateral.recolhida {
+  padding: 16px 10px;
+}
+
+.lateral.recolhida .lado-topo {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+}
+
+.lateral.recolhida .marca-nome,
+.lateral.recolhida .lado-item .nome,
+.lateral.recolhida .presenca,
+.lateral.recolhida .lado-item > .nao-lida {
+  display: none;
+}
+
+.lateral.recolhida .lado-titulo {
+  height: 1px;
+  margin: 8px 6px;
+  padding: 0;
+  overflow: hidden;
+  text-indent: -9999px;
+  background: var(--fio);
+}
+
+.lateral.recolhida .lado-item {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  width: 40px;
+  height: 36px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* Floating label beside the collapsed rail: fixed so vertical scroll never clips it. */
+.lado-dica {
+  position: fixed;
+  z-index: 60;
+  padding: 5px 10px;
+  border-radius: var(--raio-item);
+  background: #17171f;
+  box-shadow: var(--sombra-flutua);
+  color: var(--giz);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 960px) {
+  .lado-dica {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app,
+  .chapa circle,
+  .mostrador-marca,
+  .mostrador-janela,
+  .seletor-seta {
+    transition: none;
+  }
+
+  .lado-item:hover .icone,
+  .lado-recolher:hover .icone,
+  .lado-item:hover .icone path,
+  .lado-recolher:hover .icone path,
+  .marca:hover svg circle,
+  .lado-sinal.digitando {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}
+
 .lado-rodape {
   display: flex;
+  flex: none;
   flex-direction: column;
   margin-top: auto;
 }
@@ -164,7 +407,7 @@ body {
   display: inline-flex;
   flex: none;
   margin-left: auto;
-  padding: 3px;
+  padding: 2px;
   border-radius: 999px;
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
@@ -172,8 +415,8 @@ body {
 
 .trilho-ativo {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 2px;
+  bottom: 2px;
   left: 0;
   border-radius: 999px;
   background: rgb(255 255 255 / 11%);
@@ -191,7 +434,7 @@ body {
   border-radius: 999px;
   background: transparent;
   color: var(--nevoa);
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
   transition: color 200ms ease;
@@ -224,7 +467,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
   letter-spacing: -0.01em;
 }
 
@@ -317,9 +560,7 @@ body {
   padding: var(--lateral);
   border-radius: var(--raio-painel);
   background: var(--carvao);
-  box-shadow:
-    inset 0 0 0 1px var(--fio),
-    inset 0 1px 0 rgb(255 255 255 / 6%);
+  box-shadow: var(--sombra-card);
 }
 
 .cartao h2 {
@@ -336,7 +577,7 @@ body {
 .cartao h2 small {
   overflow: hidden;
   color: var(--nevoa);
-  font: 13px/16px var(--sans);
+  font: 14px/18px var(--sans);
   text-overflow: ellipsis;
 }
 
@@ -344,10 +585,7 @@ body {
   grid-column: span 8;
   justify-content: space-between;
   background: var(--carvao) url('/luz/heroi.webp') center bottom / cover no-repeat;
-  box-shadow:
-    inset 0 0 0 1px var(--fio),
-    inset 0 1px 0 rgb(255 255 255 / 6%),
-    0 24px 48px -24px rgb(0 0 0 / 70%);
+  box-shadow: var(--sombra-card);
 }
 
 .relogio {
@@ -374,7 +612,7 @@ body {
 
 .rotulo {
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .numeros {
@@ -410,7 +648,7 @@ body {
 
 .valor-api span {
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .chapa {
@@ -432,6 +670,28 @@ body {
   fill: var(--brasa);
 }
 
+.chapa .chapa-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.chapa circle {
+  transition: opacity 140ms ease;
+}
+
+.chapa circle.suave {
+  opacity: 0.42;
+}
+
+.chapa circle.ativo.aceso,
+.chapa circle.ativo.pico {
+  fill-opacity: 1;
+}
+
+.chapa circle.ativo.apagado {
+  fill: rgb(255 255 255 / 14%);
+}
+
 .rodape {
   display: flex;
   gap: var(--vao);
@@ -445,49 +705,8 @@ body {
   font-weight: 400;
 }
 
-/* Clock: ring of marks */
-
-.anel {
-  display: grid;
-  flex: 1;
-  min-height: 0;
-  place-items: center;
-}
-
-.anel svg {
-  width: auto;
-  height: 100%;
-  max-height: 240px;
-  aspect-ratio: 1;
-}
-
-.marca,
-.marca-pico {
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
-.anel .marca {
-  stroke: var(--giz);
-}
-
-.anel .marca-pico {
-  stroke: var(--brasa);
-}
-
-.rotulo-hora {
-  fill: var(--nevoa);
-  font: 11px var(--mono);
-}
-
-.pico-valor {
-  fill: var(--giz);
-  font: 400 22px var(--sans);
-}
-
-.pico-rotulo {
-  fill: var(--nevoa);
-  font: 11px var(--mono);
+.rodape-dia {
+  color: var(--nevoa);
 }
 
 /* Context ruler */
@@ -510,7 +729,7 @@ body {
   align-items: center;
   gap: 10px;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -537,7 +756,7 @@ body {
   width: 12px;
   height: 12px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
+  border-radius: 999px;
 }
 
 .marcador.mediana {
@@ -667,7 +886,7 @@ body {
 }
 
 .num {
-  font: 13px/16px var(--mono);
+  font: 12px/16px var(--mono);
 }
 
 .apoio {
@@ -693,7 +912,7 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -741,7 +960,7 @@ body {
 .agente .destaque span {
   overflow: hidden;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -755,7 +974,7 @@ body {
 .unidade-pequena {
   margin-left: 6px;
   color: var(--nevoa);
-  font: 400 13px/16px var(--sans);
+  font: 400 12px/16px var(--sans);
 }
 
 .dieta-lista {
@@ -764,6 +983,26 @@ body {
 
 .sessao {
   grid-column: span 5;
+}
+
+.dieta-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.dieta-controles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.dieta-controles .segmentado {
+  margin-left: 0;
 }
 
 .dieta-lista h2 {
@@ -809,7 +1048,7 @@ body {
 .linha-2 {
   overflow: hidden;
   color: var(--nevoa);
-  font-size: 13px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -819,7 +1058,7 @@ body {
   display: -webkit-box;
   overflow: hidden;
   color: var(--nevoa);
-  font: 13px/18px var(--sans);
+  font: 14px/20px var(--sans);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -881,11 +1120,8 @@ body {
     mask-image: none;
   }
 
-  .relogio svg {
-    max-width: 200px;
-    margin: 0 auto;
-  }
-  .app {
+  .app,
+  .app.recolhida {
     grid-template-columns: minmax(0, 1fr);
     height: auto;
     min-height: 100dvh;
@@ -893,7 +1129,8 @@ body {
 
   /* On a phone the menu is a tab bar at the bottom: icon over name, nothing cut.
      The projects live in Chats, which lists them. */
-  .lateral {
+  .lateral,
+  .lateral.recolhida {
     position: fixed;
     right: 0;
     bottom: 0;
@@ -906,6 +1143,11 @@ body {
     box-shadow: inset 0 1px 0 var(--fio);
   }
 
+  .lado-scroll {
+    display: contents;
+  }
+
+  .lateral .lado-topo,
   .lateral .marca,
   .lateral .lado-projetos,
   .lado-titulo,
@@ -931,16 +1173,27 @@ body {
     display: inline;
   }
 
-  .lateral .lado-menu .lado-item {
+  .lateral .lado-menu .lado-item,
+  .lateral.recolhida .lado-menu .lado-item {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
+    width: auto;
     height: 52px;
+    margin: 0;
     padding: 0;
     font-size: 11px;
     line-height: 14px;
+  }
+
+  .lateral.recolhida .lado-menu .lado-item .nome {
+    display: inline;
+  }
+
+  .lateral.recolhida .lado-menu .lado-item:has(.curto) .nome:not(.curto) {
+    display: none;
   }
 
   .lateral .lado-menu .nome {
@@ -1003,7 +1256,7 @@ body {
   padding: 0 14px;
   border: 0;
   border-radius: 999px;
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1088,13 +1341,11 @@ body {
   /* The card's padding and the list's on both sides keep it inside a phone screen. */
   width: min(380px, calc(100vw - 104px));
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: var(--raio-painel);
   background: #16161c;
-  box-shadow:
-    inset 0 0 0 1px var(--fio),
-    0 16px 32px -12px rgb(0 0 0 / 80%);
+  box-shadow: var(--sombra-flutua);
   color: var(--nevoa);
-  font: 13px/18px var(--sans);
+  font: 14px/20px var(--sans);
   white-space: normal;
   opacity: 0;
   pointer-events: none;
@@ -1217,6 +1468,13 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* A sentence in the line (the conversation reset, or moved to another AI): normal case. */
+.dia.aviso {
+  font: 12px/16px var(--sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .dia::before,
 .dia::after {
   flex: 1;
@@ -1255,7 +1513,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .quem b {
@@ -1319,7 +1577,7 @@ body {
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--nevoa);
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, transform 160ms ease;
@@ -1434,8 +1692,8 @@ body {
   gap: 4px;
   max-width: 560px;
   margin-top: 8px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 12px 16px;
+  border-radius: var(--raio-painel);
   background: #16161c;
   box-shadow: inset 0 0 0 1px var(--fio), inset 3px 0 0 var(--cobalto);
 }
@@ -1504,16 +1762,16 @@ body {
   padding: 1px 5px;
   border-radius: 6px;
   background: rgb(255 255 255 / 8%);
-  font: 12.5px/18px var(--mono);
+  font: 12px/18px var(--mono);
 }
 
 .md pre {
   padding: 10px 12px;
   overflow-x: auto;
-  border-radius: 10px;
+  border-radius: var(--raio-item);
   background: #16161c;
   box-shadow: inset 0 0 0 1px var(--fio);
-  font: 12.5px/18px var(--mono);
+  font: 12px/18px var(--mono);
   white-space: pre;
 }
 
@@ -1532,6 +1790,11 @@ body {
   color: var(--ok);
 }
 
+.auditor-selo {
+  color: var(--cobalto);
+  font: 11px/14px var(--mono);
+}
+
 .espera {
   display: inline-flex;
   align-items: center;
@@ -1545,8 +1808,8 @@ body {
   gap: 4px;
   max-width: 560px;
   margin-top: 8px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 12px 16px;
+  border-radius: var(--raio-painel);
   background: #16161c;
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -1591,7 +1854,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 4px 20px;
   margin: 6px 0 2px;
-  font: 13px/18px var(--mono);
+  font: 12px/18px var(--mono);
 }
 
 .comparativo dt {
@@ -1629,7 +1892,7 @@ body {
 
 .aprovacao {
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: var(--raio-painel);
   background: #16161c;
   box-shadow: inset 0 0 0 1px var(--fio);
 }
@@ -1755,10 +2018,6 @@ body {
     text-align: left;
   }
 
-  .anel svg {
-    height: 200px;
-  }
-
   .linha-regua {
     grid-template-columns: 1fr;
     gap: 0;
@@ -1798,7 +2057,7 @@ body {
     animation: acender 420ms ease-out both;
   }
 
-  .anel line {
+  .mostrador .mostrador-marca {
     stroke-dasharray: 1;
     animation: desenhar 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
@@ -1834,42 +2093,220 @@ body {
 
 /* Efficiency: which project the cuts go to, named before any Apply. */
 .alvo-projeto {
-  display: inline-flex;
   flex: none;
+}
+
+/* Shared custom select chip (replaces native <select> controls). */
+.seletor-chip {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.seletor-botao {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-left: 12px;
-}
-
-.alvo-projeto small {
-  color: var(--nevoa);
-  font: 12px/16px var(--sans);
-  white-space: nowrap;
-}
-
-.alvo-projeto select {
-  height: 30px;
-  padding: 0 30px 0 12px;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px 0 12px;
   border: 0;
   border-radius: 999px;
-  outline: 0;
-  background: var(--vidro-7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5' fill='none' stroke='%239a9aa6' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E") right 10px center / 14px no-repeat;
+  background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
-  font: 500 13px/16px var(--sans);
-  appearance: none;
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.seletor-botao:hover,
+.seletor-botao.aberto {
+  background: rgb(255 255 255 / 11%);
+}
+
+.seletor-prefixo {
+  flex: none;
+  color: var(--nevoa);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.seletor-atual {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.seletor-seta {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: var(--nevoa);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms ease;
+}
+
+.seletor-botao.aberto .seletor-seta {
+  transform: rotate(180deg);
+}
+
+.seletor-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(300px, calc(100vw - 32px));
+  max-height: 280px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--raio-painel);
+  background: #15151b;
+  box-shadow: var(--sombra-flutua);
+  scrollbar-width: none;
+}
+
+.seletor-menu.direita {
+  right: 0;
+  left: auto;
+}
+
+.seletor-menu.acima {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.seletor-menu li button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--nevoa);
+  font: 14px/18px var(--sans);
+  text-align: left;
   cursor: pointer;
 }
 
-@media (max-width: 760px) {
-  .alvo-projeto {
-    margin-left: 0;
-  }
+.seletor-menu li button:hover {
+  background: rgb(255 255 255 / 5%);
+  color: var(--giz);
 }
 
-/* With the project picker in the header, the hint gives way so nothing cuts. */
-.dieta-lista h2:has(.alvo-projeto) > small {
-  display: none;
+.seletor-menu li button.ativo {
+  background: rgb(255 255 255 / 9%);
+  color: var(--giz);
+}
+
+.seletor-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.seletor-texto b,
+.seletor-texto small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-texto b {
+  font-weight: 500;
+}
+
+.seletor-texto small {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+}
+
+.seletor-marca {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 22%);
+}
+
+.seletor-marca.marcado {
+  box-shadow: inset 0 0 0 3.5px var(--giz);
+}
+
+/* Search wrapper with a clear button inside the input. */
+.busca-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.busca-wrap > input {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.campo-limpar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+.campo-limpar:hover {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.campo-limpar svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.lado-link.confirmar,
+.voltar.confirmar {
+  color: var(--brasa);
+}
+
+.projetos-busca-wrap {
+  flex: none;
+}
+
+.rsi-caminho {
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
 }
 
 /* Projects page: the ones with an AI to open, then every other one to turn on. */
@@ -1885,7 +2322,7 @@ body {
   align-items: baseline;
   gap: 10px;
   margin: 8px 0 0;
-  font: 500 15px/20px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .projetos-secao:first-child {
@@ -1904,11 +2341,73 @@ body {
   height: 38px;
   padding: 0 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   outline: 0;
   background: var(--vidro-7);
   color: var(--giz);
   font: 14px/20px var(--sans);
+}
+
+/* Built-in self-improving agent template card inside Add a project. */
+.rsi-modelo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--raio-painel);
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.rsi-modelo-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rsi-modelo-topo .projeto-nome small {
+  white-space: normal;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.rsi-modelo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.rsi-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rsi-campo > span {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.rsi-campo input {
+  height: 36px;
+  max-width: 280px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--raio-item);
+  outline: 0;
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 12px/18px var(--mono);
+}
+
+.rsi-acoes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .projetos-lista {
@@ -1961,6 +2460,37 @@ body {
   gap: 6px;
 }
 
+/* The quiet action beside a card's one filled button (or a row's only action):
+   text, grey until hovered, no pill. One style for the whole panel. */
+.acao-texto {
+  flex: none;
+  height: 28px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.acao-texto:hover,
+.acao-texto:focus-visible {
+  color: var(--giz);
+}
+
+/* Asking "sure?" before it deletes. */
+.acao-texto.confirmar {
+  color: var(--brasa);
+}
+
+.acao-texto:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .projeto-acao {
   height: 32px;
   padding: 0 14px;
@@ -1969,7 +2499,7 @@ body {
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -2031,7 +2561,7 @@ body {
   flex: none;
   height: 40px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
@@ -2057,9 +2587,13 @@ body {
   }
 }
 
-/* Near the start of the ruler the label begins at its mark, so it never leaves the card. */
+/* Near either end of the ruler, standalone labels anchor inward so they never clip. */
 .rotulo-marca.acima.do-inicio {
   transform: translateX(-6px);
+}
+
+.rotulo-marca.acima.do-fim {
+  transform: translateX(calc(-100% + 6px));
 }
 
 /* The short name of a section shows only in the phone's tab bar. */
@@ -2088,7 +2622,7 @@ body {
 }
 
 .parear b {
-  font: 500 18px/24px var(--sans);
+  font: 500 22px/28px var(--sans);
 }
 
 .parear p {
@@ -2110,10 +2644,10 @@ body {
   height: 40px;
   padding: 0 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 6%);
   color: var(--giz);
-  font: 15px/20px var(--mono);
+  font: 14px/20px var(--mono);
   letter-spacing: 0.04em;
   text-align: center;
 }
@@ -2130,4 +2664,64 @@ body {
 
 .parear .cheio:disabled {
   opacity: 0.45;
+}
+
+/* One frame for the app: the sidebar and the title bar are the same surface,
+   with no line between them, and each page sits on a canvas inside it, inset
+   8px, with rounded corners, a hairline and the dotted texture. On a phone the
+   canvas steps aside (display: contents) and the layout stays as it was. */
+.palco {
+  display: contents;
+}
+
+@media (min-width: 961px) {
+  body {
+    background: var(--noite);
+  }
+
+  .lateral {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .principal {
+    gap: 0;
+    max-width: none;
+    padding: 0;
+  }
+
+  /* On the logo's line: the sidebar's top row is centered 35px down. */
+  .titulo {
+    height: 70px;
+    padding: 20px 28px 20px 4px;
+    align-items: center;
+  }
+
+  .palco {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+    margin: 0 8px 8px 0;
+    padding: 16px;
+    overflow: auto;
+    border-radius: var(--raio-moldura);
+    background: #09090c
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='1.5' cy='1.5' r='0.8' fill='%23fff' fill-opacity='0.035'/%3E%3C/svg%3E");
+    box-shadow: inset 0 0 0 1px var(--fio);
+    scrollbar-width: none;
+  }
+
+  /* A page that is one card (a conversation, the projects, a group's answers): the canvas is that
+     card, so there is no box inside a box. */
+  .palco:has(> .chat) {
+    padding: 0;
+    background: var(--carvao);
+  }
+
+  .palco > .chat > .cartao {
+    border-radius: inherit;
+    background: transparent;
+    box-shadow: none;
+  }
 }

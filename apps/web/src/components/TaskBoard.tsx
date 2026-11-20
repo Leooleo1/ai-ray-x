@@ -4,6 +4,7 @@ import { faceForBot } from '../avatars'
 import { compact, t } from '../i18n'
 import { Avatar } from './Avatar'
 import type { ChatNav } from './chat/nav'
+import { SelectChip } from './SelectChip'
 import './board.css'
 
 /** How often the board looks at its tasks (they move when a turn ends). */
@@ -27,6 +28,7 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
   const [board, setBoard] = useState<TaskBoardState | null>(null)
   const [title, setTitle] = useState('')
   const [bot, setBot] = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
@@ -63,7 +65,16 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
     if (thread && task.answer_ms) nav.openMessage(task.bot, thread, task.answer_ms)
     else nav.openBot(task.bot)
   }
-  if (!board) return null
+  if (!board) {
+    return (
+      <section className="mesa-secao quadro">
+        <header className="quadro-topo">
+          <h2>{t.boardTitle}</h2>
+        </header>
+        <p className="mesa-vazio">{error ?? t.wikiLoading}</p>
+      </section>
+    )
+  }
   return (
     <section className="mesa-secao quadro">
       <header className="quadro-topo">
@@ -74,20 +85,29 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
           </button>
           <span>
             <b>{t.boardAuto}</b>
-            <small>{t.boardAutoNote}</small>
+            <small>
+              {board.window
+                ? t.boardAutoWindow.replace('{a}', String(board.window.start).padStart(2, '0')).replace('{b}', String(board.window.end).padStart(2, '0'))
+                : t.boardAutoNote}
+            </small>
           </span>
         </label>
       </header>
       {bots.length > 0 && (
         <form className="quadro-nova" onSubmit={(event) => void add(event)}>
           <input value={title} maxLength={120} placeholder={t.boardNewTitle} onChange={(event) => setTitle(event.target.value)} />
-          <select value={chosen} onChange={(event) => setBot(event.target.value)} aria-label={t.boardNewTitle}>
-            {bots.map((b) => (
-              <option key={b.id} value={b.id}>
-                {`${label(b)} · ${b.name}`}
-              </option>
-            ))}
-          </select>
+          <SelectChip
+            className="quadro-bot"
+            label={t.boardBotLabel}
+            value={chosen}
+            options={bots.map((b) => ({
+              value: b.id,
+              label: label(b),
+              meta: b.name !== label(b) ? b.name : undefined,
+              icon: <Avatar agent={faceForBot(b)} size={18} state="still" />,
+            }))}
+            onChange={setBot}
+          />
           <button type="submit" className="cheio" disabled={!title.trim()}>
             {t.boardAdd}
           </button>
@@ -122,7 +142,7 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
                       )}
                       {task.status === 'doing' && <small className="quadro-trabalhando">{t.boardWorking}</small>}
                       {task.status !== 'todo' && (
-                        <button type="button" className="vidro-btn" onClick={() => open(task, index)}>
+                        <button type="button" className="acao-texto" onClick={() => open(task, index)}>
                           {t.boardOpen}
                         </button>
                       )}
@@ -131,19 +151,30 @@ export function TaskBoard({ bots, nav }: TaskBoardProps) {
                           <button type="button" className="cheio" onClick={() => void act('done', { id: task.id })}>
                             {t.boardFinish}
                           </button>
-                          <button type="button" className="vidro-btn" onClick={() => void act('start', { id: task.id })}>
+                          <button type="button" className="acao-texto" onClick={() => void act('start', { id: task.id })}>
                             {t.boardAgain}
                           </button>
                         </>
                       )}
                       {task.status === 'done' && (
-                        <button type="button" className="vidro-btn" onClick={() => void act('reopen', { id: task.id })}>
+                        <button type="button" className="acao-texto" onClick={() => void act('reopen', { id: task.id })}>
                           {t.boardReopen}
                         </button>
                       )}
                       {(task.status === 'todo' || task.status === 'done') && (
-                        <button type="button" className="link" onClick={() => void act('delete', { id: task.id })}>
-                          {t.boardDelete}
+                        <button
+                          type="button"
+                          className={`acao-texto ${deleting === task.id ? 'confirmar' : ''}`}
+                          onBlur={() => setDeleting(null)}
+                          onClick={() => {
+                            if (deleting !== task.id) setDeleting(task.id)
+                            else {
+                              setDeleting(null)
+                              void act('delete', { id: task.id })
+                            }
+                          }}
+                        >
+                          {deleting === task.id ? t.boardDeleteSure : t.boardDelete}
                         </button>
                       )}
                     </span>

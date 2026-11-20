@@ -74,6 +74,8 @@ enum Command {
         suggestion: String,
         #[arg(long, default_value = "claude")]
         source: String,
+        #[arg(long)]
+        value: Option<String>,
     },
     /// Undo an applied change by its id (see the panel or the ledger).
     Undo { change: String },
@@ -117,9 +119,17 @@ fn main() -> Result<()> {
             serve::run(serve::Panel { store, roots, web_dir, state_dir, project_dir, jobs: bots::Jobs::default(), clones: setup::Clones::default() }, port, !no_open)
         }
         Command::Mcp => mcp::run(store, roots, state_dir(&db)),
-        Command::Apply { suggestion, source } => {
+        Command::Apply { suggestion, source, value } => {
             raiox_core::refresh(&mut store, &roots)?;
-            emit(actions::apply_suggestion(&store, &roots.home, &state_dir(&db), &std::env::current_dir()?, &suggestion, &source)?)
+            emit(actions::apply_suggestion(
+                &store,
+                &roots.home,
+                &state_dir(&db),
+                &std::env::current_dir()?,
+                &suggestion,
+                &source,
+                value.as_deref(),
+            )?)
         }
         Command::Ask { agent, text } => {
             raiox_core::refresh(&mut store, &roots)?;

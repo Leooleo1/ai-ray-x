@@ -24,6 +24,8 @@ export function AskMany({ bots, nav }: AskManyProps) {
     if (batch) nav.openBatch(batch.id)
     return next !== null
   }
+  const allFreePicked = free.length > 0 && free.every((b) => picked.has(b.id))
+  const toggleAll = () => setPicked(allFreePicked ? new Set() : new Set(free.map((b) => b.id)))
   return (
     <main className="chat">
       <section className="cartao chat-centro bot-chat sem-lista">
@@ -32,7 +34,14 @@ export function AskMany({ bots, nav }: AskManyProps) {
             <b className="grupo-titulo">{t.askManyTitle}</b>
           </header>
           <div className="chat-mensagens grupo-escolha">
-            <p className="nota">{t.askManyHint}</p>
+            <div className="grupo-cabeca">
+              <p className="nota">{free.length === 0 && bots.state.bots.length > 0 ? t.askManyAllBusy : t.askManyHint}</p>
+              {free.length > 1 && (
+                <button type="button" className="lado-link" onClick={toggleAll}>
+                  {allFreePicked ? t.askManyNone : t.askManyAll}
+                </button>
+              )}
+            </div>
             <div className="grupo-bots" role="group" aria-label={t.askManyPick}>
               {bots.state.bots.map((bot) => (
                 <button

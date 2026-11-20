@@ -14,7 +14,7 @@
   width: 100%;
   padding: 8px;
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--raio-item);
   background: transparent;
   color: var(--giz);
   text-align: left;
@@ -102,12 +102,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 6px;
-  border-radius: 14px;
+  border-radius: var(--raio-painel);
   background: #121217;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 7%),
-    0 0 0 1px rgb(255 255 255 / 10%),
-    0 24px 56px -12px rgb(0 0 0 / 85%);
+  box-shadow: var(--sombra-flutua);
   animation: perfil-abre 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -147,10 +144,10 @@
   height: 34px;
   padding: 0 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--raio-item);
   background: transparent;
   color: var(--nevoa);
-  font: 500 13px/18px var(--sans);
+  font: 500 14px/20px var(--sans);
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
@@ -167,6 +164,11 @@
   height: 18px;
 }
 
+.perfil-item:hover svg path {
+  stroke-dasharray: 102;
+  animation: icone-desenha 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .perfil-nota {
   margin: 4px 0 0;
   padding: 10px 10px 4px;
@@ -176,8 +178,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .perfil-menu {
+  .perfil-menu,
+  .perfil-item:hover svg path {
     animation: none;
+    stroke-dasharray: none;
   }
 }
 
@@ -204,4 +208,25 @@
   color: var(--nevoa);
   font: 11px/14px var(--mono);
   opacity: 0.8;
+}
+
+/* Collapsed sidebar: show only the circular monogram; keep the menu wide enough to read. */
+.lateral.recolhida .perfil-botao {
+  grid-template-columns: 32px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.lateral.recolhida .perfil-nome,
+.lateral.recolhida .perfil-seta {
+  display: none;
+}
+
+.lateral.recolhida .perfil-menu {
+  right: auto;
+  left: 0;
+  width: 232px;
 }

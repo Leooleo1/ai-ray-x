@@ -19,7 +19,7 @@ const POLL: Duration = Duration::from_millis(40);
 pub struct Known {
     pub id: &'static str,
     pub name: &'static str,
-    binary: &'static str,
+    pub binary: &'static str,
     /// The install line for macOS and Linux, and for Windows (PowerShell).
     pub install: &'static str,
     pub install_windows: &'static str,

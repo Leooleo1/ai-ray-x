@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Bot } from '../../api'
 import { AGENT_LABEL, faceForBot, stageLight, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
@@ -19,6 +20,7 @@ interface BotsPanelProps {
 
 /** Each bot as a card on its own light: what it runs on, how much it holds, and the way into its chat. */
 export function BotsPanel({ bots, onOpenBot, onAddBot }: BotsPanelProps) {
+  const [deactivating, setDeactivating] = useState<string | null>(null)
   const wiresOf = (bot: Bot) => bots.state.links.filter(([a, b]) => a === bot.name || b === bot.name).length
   return (
     <>
@@ -26,6 +28,7 @@ export function BotsPanel({ bots, onOpenBot, onAddBot }: BotsPanelProps) {
     <div className="cfg-grade">
       {bots.state.bots.map((bot) => {
         const face = faceForBot(bot)
+        const confirming = deactivating === bot.id
         return (
           <article key={bot.id} className="cfg-bot">
             <div className="cfg-bot-palco" style={{ backgroundImage: `url(${stageLight(face.color)})` }}>
@@ -40,8 +43,20 @@ export function BotsPanel({ bots, onOpenBot, onAddBot }: BotsPanelProps) {
               <button type="button" className="cfg-btn cheio" onClick={() => onOpenBot(bot.id)}>
                 {t.talk}
               </button>
-              <button type="button" className="lado-link" disabled={bot.busy} onClick={() => void bots.act('deactivate', { id: bot.id })}>
-                {t.deactivate}
+              <button
+                type="button"
+                className={`lado-link ${confirming ? 'confirmar' : ''}`}
+                disabled={bot.busy}
+                onBlur={() => setDeactivating(null)}
+                onClick={() => {
+                  if (!confirming) setDeactivating(bot.id)
+                  else {
+                    setDeactivating(null)
+                    void bots.act('deactivate', { id: bot.id })
+                  }
+                }}
+              >
+                {confirming ? t.deactivateSure : t.deactivate}
               </button>
             </footer>
           </article>

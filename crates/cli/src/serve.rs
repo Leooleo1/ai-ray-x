@@ -136,6 +136,18 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => Answer::Now(reply),
         },
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
+        (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
+            Ok(input) => match crate::bots::find(&panel.state_dir, input.get("id").and_then(Value::as_str).unwrap_or("")) {
+                Ok(bot) => {
+                    let settings = crate::settings::Settings::load(&panel.state_dir);
+                    let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
+                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|id| settings.is_enabled(id), codex)))))
+                }
+                Err(error) => Answer::Now(respond(Err(error))),
+            },
+            Err(reply) => Answer::Now(reply),
+        },
         // Asks the update server: never on the main loop.
         (Method::Post, "/api/app/check") if !remote => Answer::Later(Box::new(|| respond(crate::app_update::check_now()))),
         // Opening a terminal can take a moment (or wait on the system): never on the main loop.
@@ -196,6 +208,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
                 &dir,
                 input.get("id").and_then(Value::as_str).unwrap_or(""),
                 input.get("source").and_then(Value::as_str).unwrap_or("claude"),
+                input.get("value").and_then(Value::as_str),
             ))),
             Err(reply) => reply,
         },
@@ -292,6 +305,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())
         }
+        "rsi_create" => {
+            crate::rsi::create(state_dir, &panel.roots.home, jobs, field("name"), field("agent"), input.get("lang").and_then(Value::as_str))?;
+            Ok(())
+        }
         "deactivate" => {
             let dir = bots::dir_of(state_dir, field("id"));
             bots::deactivate(state_dir, jobs, field("id"))?;
@@ -310,6 +327,7 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
         }
         "approve" => bots::approve(state_dir, &panel.roots.home, jobs, field("id"), thread),
+        "switch_agent" => crate::agent_switch::switch(state_dir, jobs, field("id"), field("agent"), input.get("model").and_then(Value::as_str).filter(|m| !m.is_empty())),
         "run" => {
             let index = input.get("index").and_then(Value::as_u64).unwrap_or(u64::MAX) as usize;
             bots::run_command(state_dir, jobs, field("id"), thread, index, input.get("always").and_then(Value::as_bool).unwrap_or(false))
@@ -340,6 +358,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_changed" => crate::routines::set_only_if_changed(state_dir, field("routine"), input.get("on").and_then(Value::as_bool).unwrap_or(false)),
         "talk_model" => bots::set_talk_model(state_dir, field("id"), Some(field("model"))),
         "grants" => bots::set_grants(state_dir, field("id"), input),
+        "auditor" => crate::auditor::configure(state_dir, field("id"), input),
+        "audit_run" => crate::auditor::run_now(state_dir, jobs, field("id"), input.get("lang").and_then(Value::as_str)).map(|_| ()),
         "request_approve" => crate::requests::approve(state_dir, &panel.roots.home, jobs, field("request")),
         "request_discard" => crate::requests::discard(state_dir, field("request")),
         "limit" => bots::set_limit(state_dir, field("id"), input.get("tokens").and_then(Value::as_u64).unwrap_or(0)),
@@ -429,7 +449,15 @@ fn task_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Val
         }
         "start" => crate::tasks::start(state_dir, &panel.jobs, field("id"))?,
         "done" | "reopen" | "delete" => crate::tasks::mark(state_dir, field("id"), action)?,
-        "auto" => crate::tasks::set_auto(state_dir, input.get("on").and_then(Value::as_bool).unwrap_or(false))?,
+        "auto" => {
+            // "window": {start, end} sets the hours, null clears them, absent keeps them.
+            let window = match input.get("window") {
+                None => None,
+                Some(Value::Null) => Some(None),
+                Some(w) => Some(Some(crate::tasks::Window::new(w["start"].as_u64().unwrap_or(99), w["end"].as_u64().unwrap_or(99))?)),
+            };
+            crate::tasks::set_auto(state_dir, input.get("on").and_then(Value::as_bool).unwrap_or(false), window)?
+        }
         other => anyhow::bail!("unknown task action {other}"),
     }
     Ok(crate::tasks::state(state_dir))

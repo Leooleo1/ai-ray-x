@@ -37,9 +37,10 @@ fn next(messages: &[room::Message]) -> Next {
 }
 
 /// After a turn ends: approve its proposal, or apply its draft, when the bot may edit without asking.
+/// Dev/Infra audit threads are always excluded so infra/skill changes require explicit human review.
 pub fn after_turn(state_dir: &Path, jobs: &Jobs, bot: &str, thread: &str) {
     let Ok(bot) = bots::find(state_dir, bot) else { return };
-    if !bot.grants.auto_edit {
+    if !bot.grants.auto_edit || crate::auditor::is_audit_thread(state_dir, &bot.id, thread) {
         return;
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, &bot.id, thread));
@@ -66,5 +67,20 @@ mod tests {
         assert_eq!(next(&[message("bot", "answer", json!({ "reply": { "text": "só conversa", "proposal": null } }))]), Next::Nothing);
         assert_eq!(next(&[message("bot", "draft", json!({ "draft": "d1" })), message("you", "draft_applied", json!({}))]), Next::Nothing, "an applied draft ends the chain");
         assert_eq!(next(&[message("bot", "failed", json!({ "error": "x" }))]), Next::Nothing);
+    }
+
+    #[test]
+    fn audit_threads_are_never_auto_edited() {
+        let home = std::env::temp_dir().join(format!("raiox-auto-edit-audit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = bots::activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        let audit = threads::create(&state, &bot.id, crate::auditor::THREAD_TITLE).unwrap();
+        let plain = threads::create(&state, &bot.id, "Normal").unwrap();
+        assert!(crate::auditor::is_audit_thread(&state, &bot.id, &audit.id));
+        assert!(!crate::auditor::is_audit_thread(&state, &bot.id, &plain.id));
+        assert!(!crate::auditor::is_audit_thread(&state, &bot.id, threads::MAIN));
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

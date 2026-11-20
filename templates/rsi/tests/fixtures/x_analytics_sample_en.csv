@@ -1,0 +1,5 @@
+Post id,Date,Post text,Post link,Impressions,Likes,Engagements,Bookmarks,Shares,New follows,Replies,Reposts,Profile visits,Detail Expands,URL Clicks
+1890000000000000001,2026-11-18,"We cut Claude context rereads by 59% with one local setting. Here is the before/after breakdown. https://t.co/abc123",https://x.com/acme/status/1890000000000000001,"4,000",110,320,120,18,24,60,30,160,95,40
+1890000000000000002,2026-11-18,"Why most prompt tweaks fail on day 3: they optimize for likes instead of bookmarks.",https://x.com/acme/status/1890000000000000002,2000,45,110,40,5,10,30,12,50,20,8
+1890000000000000003,2026-11-19,"Good morning everyone! Coffee time before shipping.",https://x.com/acme/status/1890000000000000003,1500,12,25,1,0,0,4,0,3,5,0
+1890000000000000004,2026-11-19,"Draft with zero impressions yet should be skipped cleanly.",https://x.com/acme/status/1890000000000000004,0,0,0,0,0,0,0,0,0,0,0

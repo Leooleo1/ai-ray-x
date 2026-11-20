@@ -55,6 +55,50 @@ export function hours(report: Report): number[] {
   return Array.from({ length: 24 }, (_, h) => report.sources.reduce((sum, s) => sum + (s.overview.by_hour[h] ?? 0), 0))
 }
 
+/** Each hour's projects that used it most, all sources together, biggest first. */
+export function hourProjects(report: Report): [string, number][][] {
+  return Array.from({ length: 24 }, (_, h) => {
+    const sums = new Map<string, number>()
+    for (const s of report.sources) for (const [project, tokens] of s.overview.by_hour_projects?.[h] ?? []) sums.set(project, (sums.get(project) ?? 0) + tokens)
+    return [...sums.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  })
+}
+
+/** Share of the busiest hour under which an hour counts as free. */
+const FREE_SHARE = 0.1
+const MIN_FREE = 3
+const MAX_FREE = 8
+const FALLBACK_FREE = 4
+
+/** The person's longest quiet stretch (hours with little use, past midnight too), for the AIs to work in. */
+export function freeWindow(hours: number[]): { start: number; end: number } {
+  const max = Math.max(1, ...hours)
+  const quiet = hours.map((v) => v <= max * FREE_SHARE)
+  let best = { start: 0, length: 0 }
+  for (let start = 0; start < 24; start++) {
+    if (!quiet[start] || quiet[(start + 23) % 24]) continue
+    let length = 0
+    while (length < 24 && quiet[(start + length) % 24]) length++
+    if (length > best.length) best = { start, length }
+  }
+  if (best.length >= MIN_FREE) {
+    const length = Math.min(best.length, MAX_FREE)
+    return { start: best.start, end: (best.start + length) % 24 }
+  }
+  // No quiet stretch: the hours used least, a few in a row.
+  let least = { start: 0, sum: Infinity }
+  for (let start = 0; start < 24; start++) {
+    const sum = Array.from({ length: FALLBACK_FREE }, (_, i) => hours[(start + i) % 24]).reduce((a, b) => a + b, 0)
+    if (sum < least.sum) least = { start, sum }
+  }
+  return { start: least.start, end: (least.start + FALLBACK_FREE) % 24 }
+}
+
+/** How many hours a window holds. */
+export function windowLength(w: { start: number; end: number }): number {
+  return (w.end - w.start + 24) % 24
+}
+
 export function reportedCost(report: Report): number | null {
   const costs = report.sources.map((s) => s.overview.reported_cost_usd).filter((c): c is number => c !== null)
   return costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null

@@ -51,6 +51,8 @@ pub struct Overview {
     pub daily: Vec<DayPoint>,
     pub active_hours: f64,
     pub by_hour: [u64; 24],
+    /// The projects that used each hour most (tokens), for the clock's hour detail.
+    pub by_hour_projects: Vec<Vec<(String, u64)>>,
     pub by_weekday: [u64; 7],
     pub projects: Vec<(String, u64)>,
     pub tools: Vec<(String, u64)>,
@@ -129,6 +131,7 @@ pub fn overview(conn: &Connection, source: &str) -> Result<Overview> {
         daily: daily(conn, source)?,
         active_hours: active_hours(conn, source)?,
         by_hour: histogram(conn, "local_hour", source)?,
+        by_hour_projects: hour_projects(conn, source)?,
         by_weekday: histogram(conn, "weekday", source)?,
         projects: top(
             pairs(
@@ -234,6 +237,22 @@ pub fn platforms(conn: &Connection) -> Result<Vec<Platform>> {
 
 fn top(items: Vec<(String, u64)>, limit: usize) -> Vec<(String, u64)> {
     items.into_iter().take(limit).collect()
+}
+
+/// Projects per local hour that each hour's tokens went to most, a few each.
+const HOUR_PROJECTS: usize = 3;
+
+fn hour_projects(conn: &Connection, source: &str) -> Result<Vec<Vec<(String, u64)>>> {
+    let found = rows(
+        conn,
+        "SELECT local_hour, project, SUM(input + cache_read + cache_write_5m + cache_write_1h + output) AS t
+         FROM calls WHERE source = ?1 AND local_hour IS NOT NULL GROUP BY local_hour, project ORDER BY t DESC",
+        [source],
+        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?.max(0) as u64)),
+    )?;
+    Ok((0..24)
+        .map(|hour| found.iter().filter(|(h, _, _)| *h == hour).take(HOUR_PROJECTS).map(|(_, project, tokens)| (project.clone(), *tokens)).collect())
+        .collect())
 }
 
 fn histogram<const N: usize>(conn: &Connection, column: &str, source: &str) -> Result<[u64; N]> {

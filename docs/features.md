@@ -110,9 +110,10 @@ without asking, so only for an AI you trust with them), and a weekly token
 ceiling of its own, next to the project's daily one. "Edits without asking"
 approves the AI's own proposals and applies the draft to the project by
 itself; each change can still be undone from the conversation. "Runs without
-asking" runs the commands the AI asks for (only those raiox allows at all) and,
-when it offers See the app, starts the project's app, waits for its page and
-shows you a screenshot.
+asking" (on unless you turn it off) runs on its own the commands that only read,
+test, lint, build or install the locked dependencies and, when the AI offers See
+the app, installs missing dependencies, starts the app, waits for its page and
+shows you a screenshot; anything else still waits for your click.
 
 **Wiki.** Pages all your AIs read: the team's rules, how to deploy, the names
 of things. A page goes with every question, or only when the question shares
@@ -154,6 +155,25 @@ carries and how the project's week compares with the one before, Diet lists
 the cuts with Apply, Memo says what was kept and points to ai-memory pages
 with the same title or untouched for months, which you can delete. They can also
 float a tip now and then; each one can be muted.
+
+**Self-improving agent.** Under Add a project (on the computer only; requires
+Python 3), raiox includes an embedded template that creates a local folder in
+`~/Projects/<name>`, activates a bot on the CLI you pick, and starts by asking
+which niche you want to optimize. It runs a closed loop of hypotheses, A/B
+experiments (simulated or from real CSV exports such as X Analytics), guardrail
+checks and statistical promotion into versioned playbooks; inside a folder with
+its `.raiox-rsi` marker, the engine's subcommands run without asking for a click.
+
+**Dev/Infra Auditor.** Off by default, turned on per project in its Settings
+(on the computer only). Audits that project's scripts, CI workflows, raiox
+routines, skills (`SKILL.md`), `CLAUDE.md`/`AGENTS.md` and `package.json`
+commands with raiox's own runtime rules and recent refused/failed command
+telemetry — optionally using another enabled AI CLI for fresh eyes. Runs on
+demand, on change (checks daily and skips at 0 tokens if no script, skill,
+instruction or routine changed), or weekly, respecting free hours and token
+ceilings. Reports land in a dedicated `Dev/Infra Audit` thread and in
+Deliveries; audit proposals never auto-edit and always wait in a draft for your
+approval.
 
 **ai-memory.** With [ai-memory](https://github.com/akitaonrails/ai-memory)
 installed, raiox keeps a pinned page per project (`raiox/equipe.md`) with who

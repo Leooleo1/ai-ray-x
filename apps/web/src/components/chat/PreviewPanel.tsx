@@ -26,6 +26,14 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
   const [shot, setShot] = useState<string | null>(null)
   const [shooting, setShooting] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
+  const [refresh, setRefresh] = useState(0)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   useEffect(() => {
     let alive = true
     const load = () =>
@@ -120,13 +128,18 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
                 ) : (
                   <span className="ver-esperando">{t.previewWaiting}</span>
                 )}
-                <span className="ver-tamanhos" role="group">
+                <span className="ver-tamanhos" role="group" aria-label={t.previewSizes}>
                   {(Object.keys(SIZES) as Size[]).map((key) => (
                     <button key={key} type="button" aria-pressed={size === key} className={size === key ? 'ativo' : ''} onClick={() => setSize(key)}>
                       {key === 'desktop' ? t.previewDesktop : t.previewPhone}
                     </button>
                   ))}
                 </span>
+                {!IS_REMOTE && preview.url && (
+                  <button type="button" className="vidro-btn" onClick={() => setRefresh((n) => n + 1)}>
+                    {t.previewReload}
+                  </button>
+                )}
                 <button type="button" className="vidro-btn" disabled={!preview.url || shooting} onClick={() => void take()}>
                   {shooting ? t.previewShooting : t.previewShot}
                 </button>
@@ -137,7 +150,7 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
             )}
             {preview?.running && preview.url && !IS_REMOTE && (
               <div className={`ver-moldura ${size}`}>
-                <iframe title={t.previewTitle} src={preview.url} />
+                <iframe key={refresh} title={t.previewTitle} src={preview.url} />
               </div>
             )}
             {preview?.log && (
@@ -156,7 +169,14 @@ export function PreviewPanel({ bot, bots, runSignal = 0, onClose }: PreviewPanel
             </button>
           </div>
         )}
-        {shot && <img className={`ver-print ${tab === 'simulator' ? 'simulador' : ''}`} src={shot} alt={t.previewShot} />}
+        {shot && (
+          <div className="ver-print-wrap">
+            <img className={`ver-print ${tab === 'simulator' ? 'simulador' : ''}`} src={shot} alt={t.previewShot} />
+            <button type="button" className="lado-link" onClick={() => setShot(null)}>
+              {t.previewClearShot}
+            </button>
+          </div>
+        )}
         {(failed ?? bots.error) && <p className="nota failed quebra">{failed ?? bots.error}</p>}
       </div>
     </aside>

@@ -24,11 +24,12 @@ import { RowsCard, SecretsCard } from './components/Lists'
 import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
-import { carriedRows, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
+import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 import { UpdateNote } from './components/UpdateNote'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
+const SIDEBAR_KEY = 'raiox.sidebar'
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
 const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
@@ -172,6 +173,33 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const [tab, setTab] = useState<Tab>(tabFromPath)
   const [chat, setChat] = useState<ChatView>(chatFromPath)
   const [focus, setFocus] = useState<{ bot: string; thread: string; ms: number } | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === 'collapsed'
+    } catch {
+      return false
+    }
+  })
+  const toggleSidebar = () =>
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? 'collapsed' : 'expanded')
+      } catch {
+        // Ignore storage errors in restricted contexts.
+      }
+      return next
+    })
+  useEffect(() => {
+    const onShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === '\\') {
+        event.preventDefault()
+        toggleSidebar()
+      }
+    }
+    window.addEventListener('keydown', onShortcut)
+    return () => window.removeEventListener('keydown', onShortcut)
+  }, [])
   // Which Settings tab opens: Connections from the menu, another when a chat card sends the person there.
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('conexoes')
   const bots = useBots(report.bots)
@@ -227,7 +255,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
   const heading = HEADINGS[tab]
   return (
-    <div className={`app ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'recolhida' : ''} ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
       <Sidebar
         tab={tab}
         chat={chat}
@@ -235,6 +263,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         unread={unread}
         channels={channelList}
         updatedAt={at}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
         onTab={(next) => {
           setSettingsTab('conexoes')
           go(next)
@@ -253,6 +283,8 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
           <UpdateNote />
           {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
+        {/* The page itself, on a canvas inside the frame the sidebar and this title bar make. */}
+        <div className="palco">
         {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onSettings={(tab) => {
           setSettingsTab(tab)
           go('settings')
@@ -268,7 +300,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
         {tab === 'wiki' && <WikiView bots={bots.state.bots} />}
-        {tab === 'efficiency' && <EfficiencyView report={report} onChanged={onChanged} />}
+        {tab === 'efficiency' && <EfficiencyView report={report} bots={bots} nav={nav} onGo={go} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />
         )}
@@ -281,15 +313,16 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
               streak={longestStreak(days)}
               bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
             />
-            <Clock hours={hours(report)} />
+            <Clock hours={hours(report)} hourProjects={hourProjects(report)} bots={bots.state.bots} onOpenBot={(id) => openChat(`bot:${id}`)} />
             <ContextRuler sources={sources} main={main} onCut={() => go('efficiency')} />
             <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
             <RowsCard className="projetos" title={t.projects} hint={t.projectsHint} rows={projects} />
             <SecretsCard totals={secretTotals(report)} />
           </main>
         )}
+        </div>
       </div>
-      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} />
+      <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
     </div>
   )
 }

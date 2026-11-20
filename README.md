@@ -43,11 +43,28 @@ Intel Macs and Linux: [build from source](docs/building.md).
 - **A team**: channels with a free router, a wiki every AI reads, routines,
   and Ray, Diet and Memo, three built-in helpers that answer from your logs
   at no cost.
+- **Self-improving agent**: a built-in project template under Add a project
+  that interviews you for a niche, tracks real experiments (including free X
+  Analytics CSV exports) and evolves versioned playbooks through a statistical
+  gate.
+- **Dev/Infra Auditor**: opt-in per project in its Settings; audits scripts,
+  CI workflows, raiox routines, skills (`SKILL.md`) and instruction files using
+  raiox's runtime rules and recent failure logs, optionally on a second AI CLI,
+  delivering verified fixes through drafts.
 - **Anywhere**: your phone (pairing by QR) or Telegram.
 
 Every feature, in detail: [docs/features.md](docs/features.md).
 
 ![A chat with a project's AI: the steps it took, what it read, and a proposal waiting for approval](docs/screenshots/chat.webp)
+
+## On by default: Runs without asking
+
+Like a coding CLI in auto mode, each AI runs on its own the commands that only
+read, test, lint, build or install the project's locked dependencies, and starts
+the project's app (installing its dependencies when they are missing) with a
+screenshot. Anything else it asks for (deleting, moving, `git push`, adding a
+package, other scripts) still waits for your click. Turn it off per AI in its
+settings.
 
 ## Off by default: what acts on its own
 
@@ -56,10 +73,10 @@ you ask it to or turn it on. These switches do, so read them before you flip the
 
 | Switch | What it does | The risk |
 |---|---|---|
-| **Runs without asking** (per AI) | Runs the commands it asks for and starts the project's app (See the app), then shows you a screenshot | Its commands run without your click; raiox still refuses ones that change files, open secrets or chain a shell |
 | **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |
+| **Dev/Infra Auditor** (per AI) | Audits project scripts, workflows, routines and skills on demand, on infra change, or weekly | Spends your plan on each audit; proposals always wait in a draft for your approval |
 | **Reads the web** (per AI) | Lets it open pages and search | What it reads can try to steer it |
 | **Phone access** (Settings › Phone) | Opens the panel to a public address through Cloudflare Tunnel | The temporary link is on the internet; only devices you pair get in, and Remove cuts one off at once |
 | **Telegram** (Settings › Phone) | Lets one paired Telegram chat talk to your AIs | Anyone holding that phone can use them; proposals still wait in raiox |

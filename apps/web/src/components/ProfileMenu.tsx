@@ -9,6 +9,7 @@ import './profile.css'
 interface ProfileMenuProps {
   bots: Bot[]
   updatedAt: Date
+  collapsed?: boolean
   onSettings: (tab: 'conexoes' | 'celular') => void
   onSetup: () => void
 }
@@ -20,17 +21,17 @@ function initials(profile: Profile | null): string {
   return letters.toUpperCase()
 }
 
-const UPDATE_ICON = <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14" />
+const UPDATE_ICON = <path pathLength={100} d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14" />
 
 const ITEMS: { id: 'settings' | 'phone' | 'help' | 'setup'; icon: ReactNode }[] = [
-  { id: 'settings', icon: <path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4" /> },
-  { id: 'phone', icon: <path d="M9 2.5h6a2.5 2.5 0 0 1 2.5 2.5v14a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 19V5A2.5 2.5 0 0 1 9 2.5zM10.5 18.5h3" /> },
-  { id: 'help', icon: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4V14M12 17.2v.1" /> },
-  { id: 'setup', icon: <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" /> },
+  { id: 'settings', icon: <path pathLength={100} d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4" /> },
+  { id: 'phone', icon: <path pathLength={100} d="M9 2.5h6a2.5 2.5 0 0 1 2.5 2.5v14a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 19V5A2.5 2.5 0 0 1 9 2.5zM10.5 18.5h3" /> },
+  { id: 'help', icon: <path pathLength={100} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4V14M12 17.2v.1" /> },
+  { id: 'setup', icon: <path pathLength={100} d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" /> },
 ]
 
 /** The sidebar's foot: who uses the panel, and a menu with settings, the phone, help and the first setup. */
-export function ProfileMenu({ bots, updatedAt, onSettings, onSetup }: ProfileMenuProps) {
+export function ProfileMenu({ bots, updatedAt, collapsed = false, onSettings, onSetup }: ProfileMenuProps) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [open, setOpen] = useState(false)
   const [touring, setTouring] = useState(false)
@@ -119,7 +120,15 @@ export function ProfileMenu({ bots, updatedAt, onSettings, onSetup }: ProfileMen
           {app && <p className="perfil-versao">{t.appVersion.replace('{v}', app.version)}</p>}
         </div>
       )}
-      <button type="button" className={`perfil-botao ${open ? 'aberto' : ''}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button
+        type="button"
+        className={`perfil-botao ${open ? 'aberto' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={collapsed ? name : undefined}
+        title={collapsed ? name : undefined}
+        onClick={() => setOpen(!open)}
+      >
         <span className="perfil-monograma" aria-hidden="true">
           {initials(profile)}
           <i />

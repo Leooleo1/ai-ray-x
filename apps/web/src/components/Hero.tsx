@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { DayTotal } from '../model'
 import { compact, locale, splitCompact, t, usd } from '../i18n'
 import { useCountUp } from '../motion'
@@ -5,6 +6,12 @@ import { useCountUp } from '../motion'
 const ROWS = 8
 const STEP = 10
 const DOT = 3
+
+const dayStamp = (iso: string) =>
+  new Date(`${iso}T12:00:00`)
+    .toLocaleDateString(locale, { weekday: 'short', day: '2-digit', month: 'short' })
+    .replace(/\./g, '')
+    .replace(' de ', ' ')
 
 interface SourceTotal {
   label: string
@@ -21,10 +28,12 @@ interface HeroProps {
 
 /** The signature: the hero number and the days share one dot grid, like an X-ray plate. */
 export function Hero({ total, cost, days, streak, bySource }: HeroProps) {
+  const [hovered, setHovered] = useState<number | null>(null)
   const shown = useCountUp(total)
   const { unit } = splitCompact(total, true)
   // Count inside the final scale, so the unit never changes mid-count.
   const value = (shown / scaleOf(total)).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const activeDay = hovered !== null ? days[hovered] : undefined
   return (
     <section className="cartao heroi">
       <span className="rotulo">{t.tokens}</span>
@@ -40,16 +49,27 @@ export function Hero({ total, cost, days, streak, bySource }: HeroProps) {
           </span>
         )}
       </div>
-      <DotPlate days={days} />
+      <DotPlate days={days} hovered={hovered} onHover={setHovered} />
       <div className="rodape">
-        {bySource.map((s) => (
-          <span key={s.label}>
-            {s.label} <b>{compact(s.tokens)}</b>
+        {activeDay ? (
+          <span className="rodape-dia">
+            <b>{dayStamp(activeDay.date)}</b>
+            {' · '}
+            <b>{compact(activeDay.tokens)}</b>
+            {' tokens'}
           </span>
-        ))}
-        <span>
-          <b>{streak}</b> {t.streak}
-        </span>
+        ) : (
+          <>
+            {bySource.map((s) => (
+              <span key={s.label}>
+                {s.label} <b>{compact(s.tokens)}</b>
+              </span>
+            ))}
+            <span>
+              <b>{streak}</b> {t.streak}
+            </span>
+          </>
+        )}
       </div>
     </section>
   )
@@ -57,20 +77,24 @@ export function Hero({ total, cost, days, streak, bySource }: HeroProps) {
 
 interface DotPlateProps {
   days: DayTotal[]
+  hovered: number | null
+  onHover: (col: number | null) => void
 }
 
-function DotPlate({ days }: DotPlateProps) {
+function DotPlate({ days, hovered, onHover }: DotPlateProps) {
   const max = Math.max(1, ...days.map((d) => d.tokens))
   const busiest = days.findIndex((d) => d.tokens === max)
   const dots = days.flatMap((day, col) => {
     const lit = day.tokens > 0 ? Math.max(1, Math.round(Math.sqrt(day.tokens / max) * ROWS)) : 0
+    const active = hovered === col
+    const muted = hovered !== null && hovered !== col
     return Array.from({ length: ROWS }, (_, row) => {
       const on = ROWS - row <= lit
       const tone = !on ? 'apagado' : col === busiest ? 'pico' : 'aceso'
       return (
         <circle
           key={`${col}-${row}`}
-          className={tone}
+          className={`${tone} ${active ? 'ativo' : ''} ${muted ? 'suave' : ''}`.trim()}
           style={on ? { animationDelay: `${col * 14 + (ROWS - row) * 30}ms` } : undefined}
           cx={col * STEP + STEP / 2}
           cy={row * STEP + STEP / 2}
@@ -80,8 +104,19 @@ function DotPlate({ days }: DotPlateProps) {
     })
   })
   return (
-    <svg className="chapa" viewBox={`0 0 ${days.length * STEP} ${ROWS * STEP}`} role="img" aria-label={`${days.length} ${t.days}`}>
+    <svg className="chapa" viewBox={`0 0 ${days.length * STEP} ${ROWS * STEP}`} role="img" aria-label={`${days.length} ${t.days}`} onMouseLeave={() => onHover(null)}>
       {dots}
+      {days.map((day, col) => (
+        <rect
+          key={`hit-${day.date}`}
+          className="chapa-hit"
+          x={col * STEP}
+          y={0}
+          width={STEP}
+          height={ROWS * STEP}
+          onMouseEnter={() => onHover(col)}
+        />
+      ))}
     </svg>
   )
 }

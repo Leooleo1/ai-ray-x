@@ -16,6 +16,8 @@ use crate::{commands, drafts};
 
 /// Commands that run without asking, per question, before the bot has to answer.
 const MAX_AUTO_RUNS: usize = 3;
+/// Commands one answer may run by itself when the bot runs without asking (a multi-step loop, like a CLI in auto mode).
+const MAX_ALONE_RUNS: usize = 12;
 /// Screenshots the bot gets per question.
 const MAX_SHOTS: usize = 2;
 const SHOT_SIZE: (u32, u32) = (1280, 800);
@@ -32,6 +34,12 @@ pub(super) struct Turn {
     pub command: Option<String>,
     /// Images the person attached to this message, stored in `<state>/uploads/<bot>`.
     pub images: Vec<PathBuf>,
+    /// Whether this turn's CLI session is saved on the thread (false for cross-CLI audits).
+    pub keep_session: bool,
+    /// True for Dev/Infra audit turns (skips chained proposal review and marks answers).
+    pub is_audit: bool,
+    /// CLI id that ran the audit, recorded on audit answers for transparency.
+    pub auditor_agent: Option<String>,
 }
 
 /// How this bot's CLI is called, the same for every round of the turn.
@@ -114,7 +122,8 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
     let mut app_started = false;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
-        let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
+        let conversation = turn.keep_session.then(|| format!("{}:{thread}", bot.id));
+        let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, conversation.as_deref(), &images);
         images.clear();
         let reply = match asked {
             Ok(reply) => reply,
@@ -130,7 +139,7 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
                     };
                     if reached.is_some() {
                         session = reached;
-                        if bot_run::keeps_session(turn.mode) {
+                        if turn.keep_session && bot_run::keeps_session(turn.mode) {
                             let _ = set_thread_session(state_dir, &bot.id, thread, session.clone());
                         }
                     }
@@ -143,16 +152,25 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             }
         };
         // Messages for projects without a bot are dropped: nobody there would read them.
-        let reply = Reply { to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(), ..reply };
-        if bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
+        let reply = Reply {
+            to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(),
+            model: setup.model.clone(),
+            effort: setup.effort.clone(),
+            ..reply
+        };
+        if turn.keep_session && bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
             let _ = set_thread_session(state_dir, &bot.id, thread, reply.session.clone());
+            session = reply.session.clone();
+        } else if !turn.keep_session && bot_run::keeps_session(turn.mode) && reply.session.is_some() {
+            // Keep resuming within this single multi-round audit turn without saving across CLI boundaries.
             session = reply.session.clone();
         }
         if let Some(work) = &work {
             return say(drafted(state_dir, &bot.id, work, &reply));
         }
         // Past the project's daily limit, allowed commands wait for a click like any other.
-        let within = runs < MAX_AUTO_RUNS && crate::budget::check(state_dir, &bot.name).is_ok();
+        let limit = if runs_alone(state_dir, bot) { MAX_ALONE_RUNS } else { MAX_AUTO_RUNS };
+        let within = runs < limit && crate::budget::check(state_dir, &bot.name).is_ok();
         let next = if within { allowed_command(state_dir, bot, &reply) } else { None };
         let wanted: Vec<String> = if next.is_none() && shots_taken < MAX_SHOTS && crate::budget::check(state_dir, &bot.name).is_ok() {
             reply.shots.iter().take(MAX_SHOTS - shots_taken).cloned().collect()
@@ -162,11 +180,18 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         let proposed = reply.proposal.is_some();
         // Tasks it left for the board go there, for this bot.
         crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
-        let answer = note("answer", json!({ "mode": "talk", "reply": reply }));
+        let mut answer_data = json!({ "mode": "talk", "reply": reply });
+        if turn.is_audit {
+            answer_data["audit"] = json!(true);
+            if let Some(agent) = &turn.auditor_agent {
+                answer_data["auditor_agent"] = json!(agent);
+            }
+        }
+        let answer = note("answer", answer_data);
         let answer_ms = answer.ms;
         say(answer);
-        // A project pair: the chosen reviewer reads every proposal before the person approves it.
-        if proposed && let Some(reviewer) = find(state_dir, &bot.id).ok().and_then(|b| b.reviewer)
+        // A project pair: the chosen reviewer reads every proposal before the person approves it (skipped for audit turns).
+        if !turn.is_audit && proposed && let Some(reviewer) = find(state_dir, &bot.id).ok().and_then(|b| b.reviewer)
             && let Err(error) = super::review::request(state_dir, jobs, &bot.id, thread, answer_ms, &reviewer)
         {
             say(note("failed", json!({ "error": format!("{error:#}"), "review": answer_ms })));
@@ -301,11 +326,12 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
 }
 
 /// The first command in the answer that runs without a click: one the person allowed for this
-/// project, or any raiox allows at all when the bot runs without asking.
+/// project, or, for a bot that runs without asking, one that only reads, checks or installs.
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
     // Read again: the person may have changed the list or the grant while the bot was answering.
     let now = find(state_dir, &bot.id).ok()?;
-    reply.run.iter().find(|r| r.refused.is_none() && (now.grants.auto_run || now.allowed.contains(&r.command))).map(|r| r.command.clone())
+    let safe = |command: &str| now.grants.auto_run && commands::check(command).is_ok_and(|words| crate::safe_commands::runs_alone(&words, &bot.dir));
+    reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
 }
 
 /// Whether the bot runs without asking now (the grant may change while it answers).
@@ -320,10 +346,16 @@ fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) ->
     let stop = || jobs.should_stop(&bot.id);
     match crate::app_start::start_and_wait(state_dir, &bot.id, &bot.dir, &stop) {
         Ok(url) => {
+            // Its output too: a second command (an API) may have stopped, for a missing .env say.
+            let log = crate::preview::status(state_dir, &bot.id, &bot.dir).ok().and_then(|s| s["log"].as_str().map(str::to_string)).unwrap_or_default();
+            let started = format!(
+                "(raiox started the project's app for the person: it answers at {url}. Its output so far:\n{log}\nIf a command stopped, \
+                 say which and what it needs; a missing secrets file is for the person to fill, from its example if there is one.)"
+            );
             let Some((prompt, files)) = screenshots(state_dir, jobs, bot, std::slice::from_ref(&url), say) else {
-                return Some((format!("raiox started the project's app and it answers at {url}, but could not take a screenshot. Tell the person briefly."), Vec::new()));
+                return Some((format!("{started}\n\nraiox could not take a screenshot. Tell the person briefly."), Vec::new()));
             };
-            Some((format!("(raiox started the project's app for the person: it answers at {url}.)\n\n{prompt}"), files))
+            Some((format!("{started}\n\n{prompt}"), files))
         }
         Err(_) if stop() => None,
         Err(error) => {

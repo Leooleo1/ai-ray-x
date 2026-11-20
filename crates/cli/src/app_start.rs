@@ -1,9 +1,11 @@
 //! Starting a project's app by itself, for a bot that runs without asking: the
-//! dev command See the app would run starts, and raiox waits until its page
+//! project's locked dependencies are installed when they are missing, the dev
+//! command See the app would run starts, and raiox waits until its page
 //! answers, so the bot can look at it and tell the person it is up.
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
@@ -14,6 +16,60 @@ use crate::preview;
 const READY_WAIT: Duration = Duration::from_secs(90);
 const POLL: Duration = Duration::from_millis(500);
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(500);
+/// How long installing a project's dependencies may take.
+const INSTALL_WAIT: Duration = Duration::from_secs(10 * 60);
+/// The end of a failed install's output kept for the bot, in characters.
+const INSTALL_TAIL: usize = 2000;
+
+/// The install a JavaScript project's lockfile asks for, when its dependencies are missing.
+fn missing_install(dir: &Path) -> Option<(&'static str, &'static [&'static str])> {
+    if !dir.join("package.json").exists() || dir.join("node_modules").exists() {
+        return None;
+    }
+    Some(if dir.join("pnpm-lock.yaml").exists() {
+        ("pnpm", &["install"])
+    } else if dir.join("yarn.lock").exists() {
+        ("yarn", &["install"])
+    } else if dir.join("bun.lockb").exists() || dir.join("bun.lock").exists() {
+        ("bun", &["install"])
+    } else {
+        ("npm", &["install"])
+    })
+}
+
+/// Installs the project's dependencies when they are missing (the dev server would not find its tools).
+fn install_if_missing(dir: &Path, stop: &dyn Fn() -> bool) -> Result<()> {
+    let Some((program, args)) = missing_install(dir) else { return Ok(()) };
+    let scratch = std::env::temp_dir().join(format!("raiox-install-{}.log", std::process::id()));
+    let out = std::fs::File::create(&scratch)?;
+    let mut child = crate::procs::command(program)
+        .args(args)
+        .current_dir(dir)
+        .stdin(Stdio::null())
+        .stdout(out.try_clone()?)
+        .stderr(out)
+        .spawn()
+        .with_context(|| format!("could not run {program} install"))?;
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if stop() || started.elapsed() > INSTALL_WAIT {
+            let _ = child.kill();
+            let _ = std::fs::remove_file(&scratch);
+            bail!("installing the dependencies ({program} install) was stopped");
+        }
+        std::thread::sleep(POLL);
+    };
+    let log = std::fs::read_to_string(&scratch).unwrap_or_default();
+    let _ = std::fs::remove_file(&scratch);
+    if !status.success() {
+        let tail: String = log.chars().rev().take(INSTALL_TAIL).collect::<Vec<_>>().into_iter().rev().collect();
+        bail!("{program} install failed:\n{tail}");
+    }
+    Ok(())
+}
 
 /// Whether something answers at a local URL (a dev server that is up).
 pub fn answers(url: &str) -> bool {
@@ -39,6 +95,7 @@ pub fn command_for(state_dir: &Path, bot: &str, dir: &Path) -> Option<String> {
 pub fn start_and_wait(state_dir: &Path, bot: &str, dir: &Path, stop: &dyn Fn() -> bool) -> Result<String> {
     if !preview::is_running(bot) {
         let command = command_for(state_dir, bot, dir).context("raiox found no dev command for this project; the person can set one in See the app")?;
+        install_if_missing(dir, stop)?;
         preview::start(state_dir, bot, dir, &command)?;
     }
     let started = Instant::now();
@@ -63,6 +120,21 @@ pub fn start_and_wait(state_dir: &Path, bot: &str, dir: &Path, stop: &dyn Fn() -
 mod tests {
     use super::*;
     use std::net::TcpListener;
+
+    #[test]
+    fn missing_dependencies_are_installed_with_the_lockfile_s_manager() {
+        let dir = std::env::temp_dir().join(format!("raiox-install-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert_eq!(missing_install(&dir), None, "not a JavaScript project");
+        std::fs::write(dir.join("package.json"), "{}").unwrap();
+        assert_eq!(missing_install(&dir).map(|(p, _)| p), Some("npm"));
+        std::fs::write(dir.join("pnpm-lock.yaml"), "").unwrap();
+        assert_eq!(missing_install(&dir).map(|(p, _)| p), Some("pnpm"));
+        std::fs::create_dir(dir.join("node_modules")).unwrap();
+        assert_eq!(missing_install(&dir), None, "already installed");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn a_page_answers_only_while_something_listens() {

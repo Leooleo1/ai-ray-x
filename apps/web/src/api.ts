@@ -30,6 +30,8 @@ export interface Overview {
   daily: DayPoint[]
   active_hours: number
   by_hour: number[]
+  /** Each hour's projects that used it most: [project, tokens]. */
+  by_hour_projects: [string, number][][]
   by_weekday: number[]
   projects: [string, number][]
   tools: [string, number][]
@@ -101,9 +103,16 @@ export interface CompactionModel {
   best: CompactionPlan | null
 }
 
+export interface Rewrite {
+  reason: string
+  count: number
+  tokens: number
+}
+
 export interface Efficiency {
   compaction: CompactionModel
   fixed: { kind: string; median_first_request: number; share_of_context: number }[]
+  rewrites?: Rewrite[]
   skills_used: [string, number][]
   snapshots: Record<string, unknown>
   cost_shares: [string, number][]
@@ -111,6 +120,7 @@ export interface Efficiency {
   buckets: { up_to: number | null; share_of_calls: number; share_of_tokens: number }[]
   compaction_pre_median: number
   carried: Carried[]
+  output_trim?: [string, number, number][]
 }
 
 export interface SourceReport {
@@ -274,7 +284,7 @@ export interface BotMessage {
   ms: number
   /** The person, the bot, or one of the house agents (Raio, Dieta, Memo). */
   author: 'you' | 'bot' | AgentAuthor
-  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot'
+  kind: 'ask' | 'answer' | 'approve' | 'failed' | 'reset' | 'sent' | 'stopped' | 'house' | 'draft' | 'draft_applied' | 'draft_discarded' | 'draft_undone' | 'ran' | 'remembered' | 'review' | 'review_asked' | 'pass' | 'carried' | 'shot' | 'switched'
   data: {
     text?: string
     proposal?: string
@@ -319,6 +329,11 @@ export interface BotMessage {
     agent?: BotAgent
     /** A failed review: the answer it was about. */
     review?: number
+    /** A switch to another AI (its `from` and `to` are CLI ids): the model it went on with. */
+    model?: string | null
+    /** A Dev/Infra audit message and the CLI that ran it. */
+    audit?: boolean
+    auditor_agent?: BotAgent
   }
 }
 
@@ -364,6 +379,16 @@ export interface Bot {
     web_possible: boolean
     mcp_possible: boolean
   }
+  /** Built-in Dev/Infra auditor: opt-in per project, audits scripts, workflows, routines and skills. */
+  auditor?: {
+    enabled: boolean
+    agent: string | null
+    effective_agent: BotAgent
+    cadence: 'manual' | 'on_change' | 'weekly'
+    thread: string | null
+    last_ms: number | null
+    skipped_ms: number | null
+  }
   name: string
   dir: string
   has_session: boolean
@@ -402,6 +427,8 @@ export interface BotsState {
   channels: Channel[]
   /** Changes an AI asked for from a chat (raiox's MCP), waiting for the person. Absent on paired devices. */
   requests?: ChatRequest[]
+  /** Detected Python 3 command for the built-in self-improving agent template, or null when missing. */
+  rsi_python?: string | null
   max_text: number
 }
 
@@ -447,7 +474,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'request_approve' | 'request_discard'
+export type BotAction = 'activate' | 'deactivate' | 'ask' | 'approve' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create'
 
 export interface InboxMessage {
   id: string
@@ -640,6 +667,17 @@ export function cloneRepo(repo: string): Promise<SetupState> {
 
 export function finishSetup(): Promise<{ done: boolean }> {
   return request<{ done: boolean }>('/api/setup/finish', {})
+}
+
+/** Another AI a bot can switch to, installed and turned on, with its models. */
+export interface OtherAgent {
+  agent: string
+  name: string
+  models: string[]
+}
+
+export function otherAgents(id: string): Promise<{ agents: OtherAgent[] }> {
+  return request<{ agents: OtherAgent[] }>('/api/bot/other_agents', { id })
 }
 
 export function botUsage(id: string): Promise<BotUsage> {
@@ -846,7 +884,7 @@ export function updateApp(): Promise<AppVersion> {
   return request<AppVersion>('/api/app/update', {})
 }
 
-export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'task'
+export type DeliveryKind = 'change' | 'draft' | 'shot' | 'routine' | 'audit' | 'task'
 
 /** Something a bot produced: a change to its project, a screenshot, a routine's result, a finished task. */
 export interface Delivery {
@@ -891,6 +929,13 @@ export interface TaskBoardState {
   threads: (string | null)[]
   /** The bots pick their next task up by themselves. */
   auto: boolean
+  /** Only in these local hours (end not included); none: at any hour. */
+  window: HourWindow | null
+}
+
+export interface HourWindow {
+  start: number
+  end: number
 }
 
 export function fetchTasks(): Promise<TaskBoardState> {
@@ -974,8 +1019,11 @@ async function post(path: string, body: Record<string, string>): Promise<{ error
 }
 
 /** A change goes to the bot's project when `bot` is given, else to the project `raiox open` started in. */
-export function applySuggestion(id: string, source: Source, bot?: string): ReturnType<typeof post> {
-  return post('/api/apply', bot ? { id, source, bot } : { id, source })
+export function applySuggestion(id: string, source: Source, bot?: string, value?: string | null): ReturnType<typeof post> {
+  const body: Record<string, string> = { id, source }
+  if (bot) body.bot = bot
+  if (value) body.value = value
+  return post('/api/apply', body)
 }
 
 /** The session working in a project now: the bot's project, else the one `raiox open` started in; null when it has none. */

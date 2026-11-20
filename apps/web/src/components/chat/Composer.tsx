@@ -205,6 +205,7 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
   }
 
   const hasContent = Boolean(draft.trim()) || (allowImages && images.length > 0)
+  const nearLimit = maxLength > 0 && draft.length >= Math.floor(maxLength * 0.85)
 
   return (
     <form
@@ -279,6 +280,11 @@ export function Composer({ draftKey, placeholder, maxLength, busy, allowImages =
           onKeyDown={onKey}
           onPaste={onPaste}
         />
+        {nearLimit && (
+          <small className={`compositor-contador ${draft.length >= maxLength ? 'limite' : ''}`}>
+            {`${draft.length}/${maxLength}`}
+          </small>
+        )}
         {correcting && draft.trim() ? (
           <button className="enviar corrigir" type="submit" disabled={sending} aria-label={t.correctSend} title={t.correctSend}>
             <svg viewBox="0 0 24 24" aria-hidden="true">

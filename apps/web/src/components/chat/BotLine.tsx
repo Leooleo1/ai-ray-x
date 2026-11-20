@@ -79,8 +79,18 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
   )
   if (message.kind === 'reset') {
     return (
-      <div className="dia">
+      <div className="dia aviso">
         <span>{t.conversationReset}</span>
+      </div>
+    )
+  }
+  if (message.kind === 'switched') {
+    const target = typeof message.data.to === 'string' ? message.data.to : ''
+    const to = (AGENT_LABEL as Record<string, string>)[target] ?? target
+    const model = message.data.model ? ` · ${message.data.model}` : ''
+    return (
+      <div className="dia aviso">
+        <span>{t.switchedTo.replace('{agent}', `${to}${model}`)}</span>
       </div>
     )
   }
@@ -195,6 +205,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
           {meta && (
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}
+              {message.data.audit && message.data.auditor_agent && (
+                <span className="auditor-selo">{t.auditorBadge.replace('{agent}', AGENT_LABEL[message.data.auditor_agent] ?? message.data.auditor_agent)}</span>
+              )}
               {/* Each part stays whole ("12 s", "62 mil tokens"); the line breaks only between parts. */}
               <span className="bot-meta-texto">{[clock(message.ms), ...meta].filter(Boolean).map((part) => part.replace(/ /g, '\u00a0')).join(' · ')}</span>
               <span className="bot-meta-acoes">

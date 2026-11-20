@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Bot, BotMessage } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import type { Bots } from '../../bots'
@@ -16,6 +16,22 @@ interface CarryMenuProps {
 /** "Take to…": this conversation's last exchanges go to another AI (a new conversation) or into a channel. */
 export function CarryMenu({ bot, thread, bots, nav }: CarryMenuProps) {
   const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return undefined
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
   const others = bots.state.bots.filter((b) => b.id !== bot.id)
   const channels = bots.state.channels ?? []
   const toBot = async (target: Bot) => {
@@ -30,7 +46,7 @@ export function CarryMenu({ bot, thread, bots, nav }: CarryMenuProps) {
     if (await bots.act('carry', { id: bot.id, thread, to_channel: id })) nav.openChannel(id)
   }
   return (
-    <div className="levar" onBlur={(event) => !event.currentTarget.contains(event.relatedTarget) && setOpen(false)}>
+    <div className="levar" ref={box}>
       <button type="button" className={`icone-btn ${open ? 'ativo' : ''}`} title={t.carryTo} aria-label={t.carryTo} aria-expanded={open} onClick={() => setOpen(!open)}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M14 4h6v6M20 4l-9 9M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />
@@ -39,6 +55,7 @@ export function CarryMenu({ bot, thread, bots, nav }: CarryMenuProps) {
       {open && (
         <div className="levar-painel" role="menu">
           <p className="levar-nota">{t.carryHint}</p>
+          {others.length === 0 && channels.length === 0 && <p className="levar-nota">{t.carryEmpty}</p>}
           {others.length > 0 && <span className="levar-grupo">{t.carryOtherAi}</span>}
           {others.map((other) => (
             <button key={other.id} type="button" role="menuitem" onClick={() => void toBot(other)}>

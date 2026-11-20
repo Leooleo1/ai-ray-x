@@ -14,7 +14,7 @@
   flex-direction: column;
   width: min(420px, 100%);
   background: #101015;
-  box-shadow: inset 1px 0 0 var(--fio), -24px 0 48px rgb(0 0 0 / 45%);
+  box-shadow: var(--sombra-flutua);
   animation: ajustes-entra 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -57,12 +57,11 @@
   flex: none;
 }
 
+/* A section's label: normal case, small and grey (capitals are for short metadata only). */
 .ajustes-grupo {
   margin-top: 6px;
   color: var(--nevoa);
-  font: 11px/14px var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 500 12px/16px var(--sans);
 }
 
 .ajustes-campo {
@@ -71,16 +70,125 @@
   gap: 8px;
 }
 
-.ajustes-campo > span {
+.ajustes-campo > span,
+.ajustes-campo > label {
   color: var(--nevoa);
   font: 11px/14px var(--mono);
+}
+
+.ajustes-rodape {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #14141b;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.ajustes-pendente {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: var(--alerta);
+  font: 12px/16px var(--sans);
+}
+
+.ajustes-rodape button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 12px/16px var(--sans);
+  cursor: pointer;
+}
+
+.ajustes-rodape .cheio {
+  background: var(--giz);
+  color: var(--noite);
+}
+
+.ajustes-rodape .link {
+  padding: 0 4px;
+  background: transparent;
+  color: var(--nevoa);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Searchable model dropdown replacing native <datalist>. */
+.ajustes-combo {
+  position: relative;
+}
+
+.ajustes-combo-wrap {
+  position: relative;
+  display: flex;
+}
+
+.ajustes-combo-wrap .ajustes-modelo {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.ajustes-combo-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--raio-painel);
+  background: #16161c;
+  box-shadow: var(--sombra-flutua);
+  scrollbar-width: none;
+}
+
+.ajustes-combo-lista li button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--giz);
+  font: 14px/18px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ajustes-combo-lista li button:hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+.ajustes-combo-lista li button.ativo {
+  background: rgb(255 255 255 / 10%);
+}
+
+.ajustes-combo-lista li button small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ajustes-campo input,
 .ajustes-campo textarea {
   padding: 8px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--raio-item);
   outline: 0;
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
@@ -94,35 +202,49 @@
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
 }
 
-/* One grouped panel of equal cells: never wraps, the chosen cell is ringed. */
+/* One flat row of equal cells, one line: no frame, no fill, no depth. The
+   chosen cell is marked by bright text and a short line under it. */
 .ajustes-grade {
   display: grid;
-  overflow: hidden;
-  border: 1px solid var(--fio);
-  border-radius: 12px;
-  background: var(--fio);
-  gap: 1px;
+  gap: 2px;
 }
 
 .ajustes-grade button {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  height: 46px;
+  height: 40px;
   padding: 0 4px;
   border: 0;
-  background: #101015;
+  border-radius: var(--raio-item);
+  background: transparent;
   color: var(--nevoa);
   cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.ajustes-grade button::after {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--giz);
+  content: '';
+  opacity: 0;
+  transform: translateX(-50%) scaleX(0.4);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .ajustes-grade b {
   max-width: 100%;
   overflow: hidden;
-  font: 500 13px/16px var(--sans);
+  font: 500 12px/16px var(--sans);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -130,23 +252,36 @@
 .ajustes-grade small {
   max-width: 100%;
   overflow: hidden;
-  font: 10px/12px var(--mono);
+  color: var(--nevoa);
+  font: 11px/12px var(--mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ajustes-grade button:hover {
-  background: #15151b;
+.ajustes-grade button:hover,
+.ajustes-grade button.ativo {
+  color: var(--giz);
 }
 
-.ajustes-grade button.ativo {
-  background: #1c1c24;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
-  color: var(--giz);
+.ajustes-grade button.ativo::after {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
+}
+
+.ajustes-grade button:focus-visible {
+  outline: 1px solid rgb(255 255 255 / 40%);
+  outline-offset: -1px;
 }
 
 .ajustes-grade button:disabled {
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ajustes-grade button,
+  .ajustes-grade button::after {
+    transition: none;
+  }
 }
 
 .ajustes-nota {
@@ -182,9 +317,9 @@
   max-width: 640px;
   margin: 4px 0;
   padding: 14px 16px;
-  border-radius: 14px;
+  border-radius: var(--raio-painel);
   background: #15151b;
-  box-shadow: inset 0 0 0 1px var(--fio), inset 0 1px 0 rgb(255 255 255 / 4%);
+  box-shadow: var(--sombra-card);
 }
 
 .barras figcaption {
@@ -239,36 +374,24 @@
 .barras-rotulo {
   overflow: hidden;
   color: var(--giz);
-  font-size: 13px;
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* A bar is a small field of pixels in the bot's color (the panel's data language, as in the effort
+   field): lit up to the value, dithered past it, sweeping in column by column. */
 .barras-trilho {
-  height: 16px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgb(255 255 255 / 6%);
+  display: grid;
+  grid-template-columns: repeat(26, minmax(0, 1fr));
+  gap: 2px;
 }
 
 .barras-trilho i {
-  position: relative;
-  display: block;
-  height: 100%;
-  overflow: hidden;
-  border-radius: inherit;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--cor) 40%, #fff) 0%, var(--cor) 100%);
-  transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-/* The pixel band: a 4 px dither that thickens toward the end of the bar. */
-.barras-trilho i::after {
-  position: absolute;
-  inset: 0;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='2' height='2' fill='%23000' fill-opacity='.28'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23fff' fill-opacity='.22'/%3E%3C/svg%3E")
-    0 0 / 4px 4px;
-  content: '';
-  mask-image: linear-gradient(90deg, transparent 10%, #000 55%, rgb(0 0 0 / 35%) 100%);
+  aspect-ratio: 1;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--cor) var(--luz), rgb(255 255 255 / 6%));
+  transition: background-color 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -288,7 +411,7 @@
 .barras table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .barras th,
@@ -314,12 +437,12 @@
   height: 32px;
   padding: 0 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--raio-item);
   outline: 0;
   background: var(--vidro-7);
   box-shadow: inset 0 0 0 1px var(--fio);
   color: var(--giz);
-  font: 13px/16px var(--mono);
+  font: 12px/16px var(--mono);
 }
 
 .ajustes-modelo:focus {
@@ -346,7 +469,7 @@
   gap: 10px;
   min-width: 0;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: var(--raio-item);
   background: rgb(255 255 255 / 4%);
 }
 
@@ -392,7 +515,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -417,7 +540,7 @@
 }
 
 .permissao b {
-  font: 500 13px/18px var(--sans);
+  font: 500 14px/20px var(--sans);
 }
 
 .permissao small {
@@ -428,4 +551,97 @@
 
 .permissao small.permissao-alerta {
   color: var(--alerta);
+}
+
+/* The Dev/Infra auditor, once on: labeled rows (who audits, when) with flat
+   pickers, then one status line with the last audit and the one action. No box. */
+.auditor-opcoes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auditor-linha {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.auditor-linha > span {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  white-space: nowrap;
+}
+
+.auditor-linha .ajustes-campo {
+  gap: 0;
+}
+
+.auditor-estado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 6px;
+  padding-top: 10px;
+  box-shadow: inset 0 1px 0 var(--fio);
+}
+
+.auditor-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 11px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auditor-meta::before {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 30%);
+  content: '';
+}
+
+.auditor-meta.rodando::before {
+  background: var(--cobalto);
+}
+
+.auditor-ver {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--giz);
+  font: 12px/16px var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgb(255 255 255 / 30%);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auditor-rodar {
+  flex: none;
+  height: 30px;
+  margin-left: auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.auditor-rodar:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
