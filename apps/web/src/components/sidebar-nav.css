@@ -1,0 +1,175 @@
+/* The consumption pages share one title: their three names are the tabs, set as type. The open
+   one is in full white, the others wait in grey; nothing else marks them. */
+.titulo-abas {
+  display: flex;
+  align-items: baseline;
+  gap: 22px;
+  min-width: 0;
+}
+
+.titulo-abas button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(255 255 255 / 34%);
+  font: 500 22px/28px var(--sans);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.titulo-abas button:hover {
+  color: rgb(255 255 255 / 64%);
+}
+
+.titulo-abas button.ativa {
+  color: var(--giz);
+  cursor: default;
+}
+
+.titulo-abas button:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgb(255 255 255 / 32%);
+  outline-offset: 4px;
+}
+
+/* Consumption sits apart from the work above it. */
+.lateral .lado-menu .lado-item.lado-consumo {
+  margin-top: 12px;
+}
+
+/* Projects' title with its + : a new project, a channel or a question to several. */
+.lado-titulo.lado-titulo-acao {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.lado-novo {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--nevoa);
+  cursor: pointer;
+  place-items: center;
+}
+
+.lado-novo:hover,
+.lado-novo[aria-expanded='true'] {
+  background: var(--vidro-7);
+  color: var(--giz);
+}
+
+.lado-novo .icone {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.lado-novo-menu,
+.lado-mais-folha {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #16161c;
+  box-shadow: var(--sombra-flutua);
+}
+
+.lado-novo-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: -4px;
+  z-index: 40;
+  width: 224px;
+}
+
+.lado-novo-menu button,
+.lado-mais-folha button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: transparent;
+  color: var(--giz);
+  font: 14px/18px var(--sans);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lado-novo-menu button:hover,
+.lado-mais-folha button:hover,
+.lado-mais-folha button.ativo {
+  background: var(--vidro-7);
+}
+
+/* Collapsed rail: the title is a hairline, the + stays as an icon under it. */
+.lateral.recolhida .lado-titulo.lado-titulo-acao {
+  height: auto;
+  margin: 8px 0 4px;
+  overflow: visible;
+  text-indent: 0;
+  background: none;
+  justify-content: center;
+}
+
+.lateral.recolhida .lado-titulo-acao > span {
+  display: none;
+}
+
+.lateral.recolhida .lado-novo-menu {
+  top: 0;
+  right: auto;
+  left: calc(100% + 12px);
+}
+
+.lado-mais-folha {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  /* Four sections and More on the phone's bar; Deliveries, Wiki and Settings live under More. */
+  .lateral .lado-menu .lado-item.no-mais {
+    display: none;
+  }
+
+  .lateral .lado-menu .lado-item.lado-consumo {
+    margin-top: 0;
+  }
+
+  .lado-mais-folha {
+    position: fixed;
+    right: 8px;
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    z-index: 35;
+    display: flex;
+    width: 200px;
+  }
+
+  .titulo-abas {
+    gap: 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .titulo-abas button {
+    font-size: 20px;
+  }
+}
+
+/* Channels start a little below the projects. */
+.lateral:not(.recolhida) .lado-titulo-canais {
+  margin-top: 14px;
+}

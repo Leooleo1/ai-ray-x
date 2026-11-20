@@ -21,7 +21,7 @@ import type { ChatNav } from './components/chat/nav'
 import { TipToast } from './components/TipToast'
 import { Hero } from './components/Hero'
 import { RowsCard, SecretsCard } from './components/Lists'
-import { type ChatView, Sidebar, type Tab } from './components/Sidebar'
+import { CONSUMPTION, type ChatView, keepConsumption, Sidebar, type Tab } from './components/Sidebar'
 import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
@@ -44,16 +44,16 @@ const PATHS: Record<Tab, string[]> = {
   wiki: ['/wiki'],
   settings: ['/configuracoes', '/settings'],
 }
-const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
-  xray: { title: t.title, subtitle: t.subtitle },
-  usage: { title: t.usageTitle, subtitle: t.usageSubtitle },
-  efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
-  agents: { title: t.botsTitle, subtitle: t.botsHint },
-  desk: { title: t.deskTitle, subtitle: t.deskSubtitle },
-  flows: { title: t.flowsTitle, subtitle: t.flowsSubtitle },
-  deliveries: { title: t.deliveriesTitle, subtitle: t.deliveriesSubtitle },
-  wiki: { title: t.wikiTitle, subtitle: t.wikiSubtitle },
-  settings: { title: t.settingsTitle, subtitle: t.settingsSubtitle },
+const HEADINGS: Record<Tab, { title: string }> = {
+  xray: { title: t.title },
+  usage: { title: t.usageTitle },
+  efficiency: { title: t.dietTitleMain },
+  agents: { title: t.botsTitle },
+  desk: { title: t.deskTitle },
+  flows: { title: t.flowsTitle },
+  deliveries: { title: t.deliveriesTitle },
+  wiki: { title: t.wikiTitle },
+  settings: { title: t.settingsTitle },
 }
 
 const BOTS_PATH = '/bots'
@@ -219,6 +219,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   }, [])
   const go = (next: Tab) => {
     if (next !== tab) history.pushState(null, '', PATHS[next][0])
+    keepConsumption(next)
     setTab(next)
   }
   const openChat = (view: ChatView) => {
@@ -284,10 +285,21 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
       />
       <div className="principal">
         <div className="titulo">
-          <h1>{heading.title}</h1>
-          <p>{heading.subtitle}</p>
+          {CONSUMPTION.includes(tab) ? (
+            // The three consumption pages share one title: their names are the tabs.
+            <nav className="titulo-abas" aria-label={t.consumptionPages}>
+              {CONSUMPTION.map((page) => (
+                <button key={page} type="button" className={page === tab ? 'ativa' : ''} aria-current={page === tab ? 'page' : undefined} onClick={() => go(page)}>
+                  {HEADINGS[page].title}
+                </button>
+              ))}
+            </nav>
+          ) : (
+            <h1>{heading.title}</h1>
+          )}
           <UpdateNote />
-          {days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
+          {/* The period of the logs read: only where the figures come from them (Usage picks its own). */}
+          {(tab === 'xray' || tab === 'efficiency') && days.length > 0 && <span className="periodo">{period(days[0].date, days[days.length - 1].date, activeDays)}</span>}
         </div>
         {/* The page itself, on a canvas inside the frame the sidebar and this title bar make. */}
         <div className="palco">
