@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 export type IconName =
   | 'xray'
   | 'efficiency'
+  | 'usage'
   | 'agents'
   | 'desk'
   | 'deliveries'
@@ -29,6 +30,7 @@ const STROKES: Record<IconName, string[]> = {
     'M4 12h16',
   ],
   efficiency: ['M5 17a8 8 0 1 1 14 0', 'M12 13l3.5-3.5', 'M12 13h.01'],
+  usage: ['M4 4v16h16', 'M7.5 15l3.5-4 3 2.5 4.5-6'],
   agents: [
     'M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v4a2.5 2.5 0 0 1-2.5 2.5H9l-3.5 3v-3.1A2.5 2.5 0 0 1 4 10.5z',
     'M19 9.5a1.8 1.8 0 0 1 1 1.6V15a2 2 0 0 1-2 2v2.5L15 17h-3.2',

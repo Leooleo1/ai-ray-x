@@ -810,6 +810,40 @@ export interface PlanWindow {
 /** How much of each AI's plan is used, as far as raiox can tell (Claude Code and Codex). */
 export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean }>>
 
+/** One day of use: what each AI's use would cost at API prices, and its tokens. */
+export interface UsageDay {
+  date: string
+  usd: Record<string, number>
+  tokens: number
+}
+
+/** A slice of the use (a model, an AI, a project or a day); usd is null when no model in it has a price. */
+export interface UsageSlice {
+  key: string
+  label?: string
+  source: string | null
+  usd: number | null
+  tokens: number
+  calls: number
+}
+
+export interface Usage {
+  since: string
+  usd: number
+  sessions: number
+  calls: number
+  unpriced_calls: number
+  totals: { input: number; cache_read: number; cache_write: number; output: number }
+  daily: UsageDay[]
+  by_source: UsageSlice[]
+  by_model: UsageSlice[]
+  by_project: UsageSlice[]
+}
+
+export function fetchUsage(days: number, source?: 'claude' | 'codex'): Promise<Usage> {
+  return request<Usage>(`/api/usage?days=${days}${source ? `&source=${source}` : ''}`)
+}
+
 export function fetchLimits(): Promise<PlanLimits> {
   return request<PlanLimits>('/api/limits')
 }

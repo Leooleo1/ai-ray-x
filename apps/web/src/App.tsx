@@ -26,6 +26,7 @@ import { period, t } from './i18n'
 import { Onboarding } from './onboarding/Onboarding'
 import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows, reportedCost, secretTotals, totalTokens } from './model'
 import { UpdateNote } from './components/UpdateNote'
+import { UsageView } from './components/UsageView'
 
 const REFRESH_MS = 30_000
 const LIST_ROWS = 12
@@ -33,6 +34,7 @@ const SIDEBAR_KEY = 'raiox.sidebar'
 const SOURCE_LABELS: Record<string, string> = { claude: 'CLAUDE', codex: 'CODEX' }
 const PATHS: Record<Tab, string[]> = {
   xray: ['/'],
+  usage: ['/uso', '/usage'],
   efficiency: ['/eficiencia', '/efficiency'],
   agents: ['/agentes', '/agents'],
   desk: ['/mesa', '/desk'],
@@ -42,6 +44,7 @@ const PATHS: Record<Tab, string[]> = {
 }
 const HEADINGS: Record<Tab, { title: string; subtitle: string }> = {
   xray: { title: t.title, subtitle: t.subtitle },
+  usage: { title: t.usageTitle, subtitle: t.usageSubtitle },
   efficiency: { title: t.dietTitleMain, subtitle: t.dietSubtitle },
   agents: { title: t.botsTitle, subtitle: t.botsHint },
   desk: { title: t.deskTitle, subtitle: t.deskSubtitle },
@@ -297,6 +300,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && openChannel && <ChannelView key={openChannel.id} channel={openChannel} bots={bots} nav={nav} onDeleted={() => openChat('bots')} />}
         {tab === 'agents' && chat === 'canal:novo' && <ChannelNew bots={bots} onCreated={(id) => openChat(`canal:${id}`)} />}
         {tab === 'agents' && !openBot && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
+        {tab === 'usage' && <UsageView />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
         {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
         {tab === 'wiki' && <WikiView bots={bots.state.bots} />}

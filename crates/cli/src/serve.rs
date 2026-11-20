@@ -241,6 +241,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Err(reply) => reply,
         },
         (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
+        (Method::Get, "/api/usage") => respond(usage(panel, request.url())),
         (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
         // The person's name and photo: from this computer only.
         (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
@@ -611,6 +612,19 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("bots".into(), bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs)?);
     }
     Ok(value)
+}
+
+/// The longest period the Usage page offers, in days.
+const USAGE_MAX_DAYS: i64 = 365;
+
+/// What the AIs' use would cost at API prices: `?days=30&source=claude` (no source: every AI).
+fn usage(panel: &Panel, url: &str) -> anyhow::Result<Value> {
+    let query = url.split_once('?').map_or("", |(_, q)| q);
+    let param = |name: &str| query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='));
+    let days = param("days").and_then(|d| d.parse::<i64>().ok()).unwrap_or(30).clamp(1, USAGE_MAX_DAYS);
+    let source = param("source").filter(|s| matches!(*s, "claude" | "codex"));
+    let since = (chrono::Local::now().date_naive() - chrono::Duration::days(days - 1)).format("%Y-%m-%d").to_string();
+    Ok(json!(raiox_core::usage::usage(panel.store.conn(), &since, source)?))
 }
 
 pub(crate) fn respond(result: anyhow::Result<Value>) -> Reply {

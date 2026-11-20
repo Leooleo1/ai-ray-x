@@ -7,7 +7,7 @@ import { Icon, type IconName } from './Icons'
 import { PlanRings } from './PlanRings'
 import { ProfileMenu } from './ProfileMenu'
 
-export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
+export type Tab = 'xray' | 'usage' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
 export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
 
 interface SidebarProps {
@@ -48,6 +48,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
   })
   const nav: { id: Tab; label: string; short?: string; icon: IconName }[] = [
     { id: 'xray', label: t.tabXray, icon: 'xray' },
+    { id: 'usage', label: t.usageTab, icon: 'usage' },
     { id: 'efficiency', label: t.tabEfficiency, short: t.efficiencyShort, icon: 'efficiency' },
     { id: 'agents', label: t.tabAgents, short: t.agentsShort, icon: 'agents' },
     { id: 'desk', label: t.deskTab, icon: 'desk' },
