@@ -422,6 +422,10 @@ export interface Bot {
   trail?: Trail | null
   /** When the running turn started. */
   started_ms?: number | null
+  /** Timestamp of the latest message in the main conversation. */
+  last_ms?: number | null
+  /** Short one-line preview of the latest sentence in the main conversation. */
+  last_line?: string | null
   messages: BotMessage[]
   /** Parallel conversations besides the main one. */
   threads: BotThread[]

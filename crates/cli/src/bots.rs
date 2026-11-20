@@ -335,7 +335,46 @@ pub struct Candidate {
     pub last_ms: i64,
 }
 
-pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
+/// Maximum characters kept in a bot card's one-line preview of the main conversation.
+const PREVIEW_CHARS: usize = 140;
+
+/// True when `candidate_dir` is the raiox state folder itself or lives inside it.
+fn inside_state_dir(candidate_dir: &Path, state_dir: &Path) -> bool {
+    let Ok(cand) = candidate_dir.canonicalize() else { return false };
+    let Ok(state) = state_dir.canonicalize() else { return false };
+    cand.starts_with(&state)
+}
+
+/// Cleans a message into one short preview line for the Chats card.
+fn preview_line(text: &str) -> Option<String> {
+    let line = text
+        .lines()
+        .map(|raw| raw.trim().trim_start_matches(['#', '>', '-', '*', '`']).trim())
+        .find(|l| !l.is_empty())?;
+    let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ").replace('`', "");
+    let trimmed = collapsed.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.chars().take(PREVIEW_CHARS).collect())
+}
+
+/// Latest timestamp and one-line preview from the tail of a bot's main conversation.
+fn main_preview(messages: &[Message]) -> (Option<i64>, Option<String>) {
+    let last_ms = messages.last().map(|m| m.ms);
+    let last_line = messages.iter().rev().find_map(|m| {
+        let raw = match m.kind.as_str() {
+            "answer" | "draft" => m.data.pointer("/reply/text").and_then(Value::as_str),
+            "ask" => m.data.get("text").and_then(Value::as_str),
+            "failed" => m.data.get("error").and_then(Value::as_str),
+            _ => None,
+        }?;
+        preview_line(raw)
+    });
+    (last_ms, last_line)
+}
+
+pub fn candidates(store: &Store, home: &Path, state_dir: &Path) -> Result<Vec<Candidate>> {
     let mut statement = store.conn().prepare(
         "SELECT project, source, COUNT(*), MAX(ts_ms) FROM calls
          WHERE is_sub = 0 AND project IS NOT NULL AND project NOT IN ('', '~') AND ts_ms IS NOT NULL
@@ -347,11 +386,12 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
     let mut seen_dirs: HashMap<crate::setup::Identity, Vec<String>> = HashMap::new();
     let mut list = Vec::new();
     for (project, agent, requests, last_ms) in rows.flatten() {
-        // Hidden folders (.claude, .codex, .config…) hold the tools' own data, not projects.
-        if !crate::connections::bot_agents().any(|a| a == agent) || project.starts_with('.') {
+        let dir = home.join(&project);
+        // Hidden, Library/Caches and raiox's own state folder hold tool data, not projects.
+        if !crate::connections::bot_agents().any(|a| a == agent) || crate::setup::is_non_project_path(&project) || inside_state_dir(&dir, state_dir) {
             continue;
         }
-        let Some(id) = crate::setup::identity(&home.join(&project)) else {
+        let Some(id) = crate::setup::identity(&dir) else {
             continue;
         };
         let agents = seen_dirs.entry(id).or_default();
@@ -374,7 +414,11 @@ pub fn candidates(store: &Store, home: &Path) -> Result<Vec<Candidate>> {
         if list.len() >= CANDIDATES {
             break;
         }
-        let Some(id) = crate::setup::identity(&home.join(&project.project)) else {
+        let dir = home.join(&project.project);
+        if crate::setup::is_non_project_path(&project.project) || inside_state_dir(&dir, state_dir) {
+            continue;
+        }
+        let Some(id) = crate::setup::identity(&dir) else {
             continue;
         };
         if seen_dirs.contains_key(&id) {
@@ -1098,6 +1142,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .into_iter()
         .map(|bot| {
             let messages = room::read_messages(&chat_file(state_dir, &bot.id));
+            let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
                 .into_iter()
                 .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
@@ -1123,6 +1168,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "step": jobs.step_of(&bot.id),
                 "trail": jobs.trail_of(&bot.id),
                 "started_ms": jobs.started_of(&bot.id),
+                "last_ms": last_ms,
+                "last_line": last_line,
                 "messages": messages,
                 "threads": side,
                 "pins": crate::pins::list(state_dir, &bot.id),
@@ -1140,7 +1187,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
     let requests = crate::requests::list(state_dir);
     Ok(json!({
         "bots": bots,
-        "candidates": candidates(store, home)?,
+        "candidates": candidates(store, home, state_dir)?,
         "agents": agents,
         "links": crate::links::list(state_dir),
         "batches": crate::batches::list(state_dir),
@@ -1282,27 +1329,62 @@ mod tests {
     #[test]
     fn candidates_include_local_git_folders_after_usage_without_duplicates() {
         let home = temp_dir("candidates-git");
+        let state = home.join("raiox-state");
         fs::create_dir_all(home.join("Projects/used-app/.git")).unwrap();
         fs::create_dir_all(home.join("Projects/fresh-repo/.git")).unwrap();
         fs::create_dir_all(home.join("Projects/plain-dir")).unwrap();
+        fs::create_dir_all(home.join("Projects/.secret/.git")).unwrap();
         fs::create_dir_all(home.join(".hidden/.git")).unwrap();
+        fs::create_dir_all(home.join("Library/Caches/raiox")).unwrap();
+        fs::create_dir_all(home.join("Caches/scratch")).unwrap();
+        fs::create_dir_all(&state).unwrap();
         let store = Store::open_in_memory().unwrap();
-        store
-            .conn()
-            .execute(
-                "INSERT INTO calls(id, source, file, session, project, model, is_sub, ts_ms, input, cache_read, cache_write_5m, cache_write_1h, output, thinking, web_searches, seq, segment, is_first)
-                 VALUES('c1', 'claude', 'f1', 's1', 'Projects/used-app', 'm', 0, 5000, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1)",
-                [],
-            )
-            .unwrap();
-        let list = candidates(&store, &home).unwrap();
+        for (id, project, ts) in [
+            ("c1", "Projects/used-app", 5000),
+            ("c2", "Library/Caches/raiox", 9000),
+            ("c3", "Caches/scratch", 8500),
+            ("c4", "Projects/.secret", 8000),
+            ("c5", ".hidden", 7500),
+            ("c6", "raiox-state", 7000),
+        ] {
+            store
+                .conn()
+                .execute(
+                    "INSERT INTO calls(id, source, file, session, project, model, is_sub, ts_ms, input, cache_read, cache_write_5m, cache_write_1h, output, thinking, web_searches, seq, segment, is_first)
+                     VALUES(?1, 'claude', 'f1', 's1', ?2, 'm', 0, ?3, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1)",
+                    rusqlite::params![id, project, ts],
+                )
+                .unwrap();
+        }
+        let list = candidates(&store, &home, &state).unwrap();
         let names: Vec<&str> = list.iter().map(|c| c.name.as_str()).collect();
-        assert_eq!(names, vec!["used-app", "fresh-repo"], "usage projects come first, git projects after, without duplicates");
+        assert_eq!(names, vec!["used-app", "fresh-repo"], "usage projects come first, git projects after, excluding hidden/cache/state dirs");
         assert_eq!(list[0].agent.as_deref(), Some("claude"));
         assert_eq!(list[0].requests, 1);
         assert_eq!(list[1].agent, None);
         assert_eq!(list[1].requests, 0);
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn main_preview_extracts_last_timestamp_and_clean_line() {
+        assert_eq!(main_preview(&[]), (None, None));
+        let mut first = said("ask", json!({ "text": "  First question  " }));
+        first.ms = 1000;
+        let mut second = note("answer", json!({ "reply": { "text": "   \n## Resumo do `fix`   aqui\nSegunda linha" } }));
+        second.ms = 2000;
+        let mut third = note("remembered", json!({}));
+        third.ms = 3000;
+        let (last_ms, last_line) = main_preview(&[first, second, third]);
+        assert_eq!(last_ms, Some(3000));
+        assert_eq!(last_line.as_deref(), Some("Resumo do fix aqui"));
+
+        let long = "a".repeat(PREVIEW_CHARS + 20);
+        let mut fourth = said("ask", json!({ "text": long }));
+        fourth.ms = 4000;
+        let (last_ms, last_line) = main_preview(&[fourth]);
+        assert_eq!(last_ms, Some(4000));
+        assert_eq!(last_line.as_deref().map(|s| s.chars().count()), Some(PREVIEW_CHARS));
     }
 
     #[test]

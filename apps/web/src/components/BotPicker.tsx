@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { IS_REMOTE, type Bot, type BotAgent, type BotsState, type CliInstall, fetchInstalls, installCli } from '../api'
-import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
+import { AGENT_LABEL, AGENT_SHORT, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
 import { PRESETS } from '../onboarding/presets'
+import { AgentLogo } from './AgentLogo'
 import { Avatar } from './Avatar'
+import { waitingOf } from './chat/waiting'
 
 /** Projects offered before searching; the search reaches all of them. */
 const FIRST_ROWS = 12
@@ -46,6 +48,56 @@ const day = (ms: number) => new Date(ms).toLocaleDateString(locale, { day: '2-di
 const usageLine = (row: Row) =>
   [...(Object.entries(row.usage) as [BotAgent, number][]).map(([agent, n]) => `${AGENT_LABEL[agent]} ${compact(n)}`), row.lastMs ? day(row.lastMs) : ''].filter(Boolean).join(' · ')
 
+function relativeTime(ms: number): string {
+  const mins = Math.max(0, Math.floor((Date.now() - ms) / 60_000))
+  if (mins < 1) return t.planNow
+  if (mins < 60) return t.planMinutes.replace('{n}', String(mins))
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return t.planHours.replace('{n}', String(hours))
+  const days = Math.floor(hours / 24)
+  return days === 1 ? t.planDayOne : t.planDays.replace('{n}', String(days))
+}
+
+function previewOf(bot: Bot): string | null {
+  if (bot.last_line) return bot.last_line
+  for (let i = bot.messages.length - 1; i >= 0; i -= 1) {
+    const m = bot.messages[i]
+    const raw = m.kind === 'answer' || m.kind === 'draft' ? m.data.reply?.text : m.kind === 'ask' ? m.data.text : m.kind === 'failed' ? m.data.error : undefined
+    const line = raw?.split('\n').map((l) => l.trim()).find(Boolean)
+    if (line) return line
+  }
+  return null
+}
+
+function lastTimeOf(bot: Bot): number | null {
+  if (typeof bot.last_ms === 'number') return bot.last_ms
+  return bot.messages.length > 0 ? bot.messages[bot.messages.length - 1].ms : null
+}
+
+interface ActiveCard {
+  bot: Bot
+  waiting: boolean
+  busy: boolean
+  lastMs: number | null
+  preview: string | null
+}
+
+/** Active bots ordered: waiting for you first, then working, then most recent. */
+function activeCards(list: Bot[]): ActiveCard[] {
+  return list
+    .map((bot) => ({
+      bot,
+      waiting: waitingOf(bot).length > 0,
+      busy: bot.busy,
+      lastMs: lastTimeOf(bot),
+      preview: previewOf(bot),
+    }))
+    .sort((a, b) => {
+      const rank = (card: ActiveCard) => (card.waiting ? 0 : card.busy ? 1 : 2)
+      return rank(a) - rank(b) || (b.lastMs ?? 0) - (a.lastMs ?? 0) || a.bot.name.localeCompare(b.bot.name)
+    })
+}
+
 interface BotPickerProps {
   bots: Bots
   onOpen: (id: string) => void
@@ -85,6 +137,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
   const canInstallPython = Boolean(bots.state.rsi_python_can_install)
   const pythonInstalling = pythonJob?.state === 'running'
   const validNewName = PROJECT_NAME_RE.test(newName.trim())
+  const cards = activeCards(bots.state.bots)
   const mine = all.filter((row) => row.bots.length > 0)
   const needle = query.trim().toLowerCase()
   const others = all.filter((row) => row.bots.length === 0 && (!needle || `${row.name} ${row.project}`.toLowerCase().includes(needle)))
@@ -171,30 +224,38 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
   return (
     <main className="chat">
       <section className="cartao projetos-pagina">
-        {mine.length > 0 && (
+        {cards.length > 0 && (
           <>
             {/* On a phone the menu has no room for it, so Ask several lives here too. */}
             <button type="button" className="projetos-varios so-celular" onClick={onAskMany}>
               {t.askMany}
             </button>
             <h2 className="projetos-secao">{t.yourProjects}</h2>
-            <ul className="projetos-lista projetos-ativos">
-              {mine.map((row) => {
-                const latest = row.bots[0]
-                return (
-                  <li key={row.project} className="projeto-linha">
-                    <Avatar agent={faceForBot(latest)} size={32} state="still" />
-                    <span className="projeto-nome">
-                      <b>{row.name}</b>
-                      <small>{row.bots.map((b) => AGENT_LABEL[b.agent]).join(' · ')}</small>
+            <div className="projetos-grade">
+              {cards.map(({ bot, waiting, busy, lastMs, preview }) => (
+                <button
+                  key={bot.id}
+                  type="button"
+                  className={`projeto-cartao ${waiting ? 'projeto-cartao-espera' : ''}`}
+                  onClick={() => onOpen(bot.id)}
+                >
+                  <span className="projeto-cartao-topo">
+                    <Avatar agent={faceForBot(bot)} size={32} state={busy ? 'thinking' : 'still'} />
+                    <b className="projeto-cartao-nome">{bot.name}</b>
+                    <span className="projeto-cartao-ia">
+                      <AgentLogo agent={bot.agent} size={14} />
+                      <span>{AGENT_SHORT[bot.agent]}</span>
                     </span>
-                    <button type="button" className="acao-texto" onClick={() => onOpen(latest.id)}>
-                      {t.openProject}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+                  </span>
+                  <span className={`projeto-cartao-estado ${waiting ? 'espera' : busy ? 'trabalha' : ''}`}>
+                    {waiting && <i className="ponto alerta" aria-hidden="true" />}
+                    {!waiting && busy && <i className="ponto trabalhando" aria-hidden="true" />}
+                    <span>{waiting ? t.cardWaiting : busy ? t.cardWorking : lastMs ? relativeTime(lastMs) : t.cardEmpty}</span>
+                  </span>
+                  {preview && <span className="projeto-cartao-frase">{preview}</span>}
+                </button>
+              ))}
+            </div>
           </>
         )}
         {mine.length > 0 && (

@@ -98,9 +98,19 @@ pub(crate) fn identity(path: &Path) -> Option<Identity> {
     path.canonicalize().ok().filter(|p| p.is_dir())
 }
 
+/// System, cache or hidden folder names that are never user projects.
+const NON_PROJECT_SEGMENTS: [&str; 3] = ["library", "caches", "appdata"];
+
+/// True when a home-relative path points into a hidden, Library or Caches folder.
+pub(crate) fn is_non_project_path(project: &str) -> bool {
+    project.split(['/', '\\']).any(|seg| {
+        seg.starts_with('.') || NON_PROJECT_SEGMENTS.iter().any(|bad| seg.eq_ignore_ascii_case(bad))
+    })
+}
+
 fn label(home: &Path, dir: &Path) -> Option<String> {
     let rest = dir.strip_prefix(home).ok()?.to_string_lossy().into_owned();
-    (!rest.is_empty() && !rest.starts_with('.')).then_some(rest)
+    (!rest.is_empty() && !is_non_project_path(&rest)).then_some(rest)
 }
 
 /// Projects with Claude Code or Codex usage, plus git checkouts in the usual folders.
@@ -122,7 +132,7 @@ pub fn projects(store: &Store, home: &Path) -> Result<Vec<Project>> {
         last_ms: None,
     };
     for (project, source, count, last) in rows.flatten() {
-        if project.starts_with('.') || !home.join(&project).is_dir() {
+        if is_non_project_path(&project) || !home.join(&project).is_dir() {
             continue;
         }
         let entry = by_label.entry(project.clone()).or_insert_with(|| empty(&project));
