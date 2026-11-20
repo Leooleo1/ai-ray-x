@@ -68,13 +68,16 @@ plan. With Claude Code, a conversation keeps its CLI process open between
 messages (closed after ten idle minutes), so a follow-up skips the CLI's start:
 about 0.9 s instead of 1.7 s for a short answer, with the same tokens.
 
-![A chat with a project's AI: the steps it took, what it read, and a proposal waiting for approval](screenshots/chat.webp)
+![A chat with a project's AI that has full access: it fixed a bug test-first, committed and pushed, started the app and checked its screenshot](screenshots/chat.webp)
 
-**Desk.** Every agent working now in one grid, ordered by project: what it
-does, for how long, the tokens so far (Claude Code), its last steps, and Stop,
-Correct and Open. Below, what waits for you across all projects (proposals to
-approve, drafts to apply, commands asked), and the team: each agent with the
-role you gave it (it knows its role), its project, CLI, model and what it used
+**Desk.** One board in four lanes: to do, doing, waiting for you, done.
+Doing holds every AI working now, live: what it does, for how long, the tokens
+so far (Claude Code), its last steps, and Open, Correct and Stop. Waiting for
+you gathers, across all projects, the proposals to approve, drafts to apply,
+commands asked, changes asked from a chat and finished tasks to wrap up. A lane
+lights up at its foot when something is in it (ember when it waits for you,
+cobalt while an AI works). Under the board, the team: each AI with the role
+you gave it (it knows its role), its project, CLI, model and what it used
 through raiox this week.
 
 **Telegram.** Talk to your AIs from Telegram, through a bot of your own: make
@@ -86,13 +89,17 @@ them, `/bot 2` picks who answers. Proposals and drafts still wait in raiox for
 your approval. The token stays in a private file next to the index and never
 goes on a command line.
 
-**Deliveries.** One page with what your AIs produced, by day: the changes
-they made to a project (with the files), drafts you applied (marked when
-undone), screenshots, routine results and finished tasks. Each opens the
-conversation it came from.
+**Deliveries.** One page with what your AIs produced. On top, the last two
+weeks as a dot-matrix: one pixel per delivery, cobalt for code changed, green
+for a task done, grey for screenshots and reports; a day filters the list on a
+click. Below, each day on a rail: the changes they made to a project (approved
+ones, and what an AI with full access edited, with the files), drafts you
+applied (struck through when undone), screenshots, routine results and finished
+tasks. Each opens the conversation it came from.
 
-**Board.** On the Desk, a board of tasks for the AIs, in four columns: to
-do, doing, waiting for you, done. Add one and pick the AI, or let an AI leave
+![Deliveries: two weeks of output as pixels, then each day on a rail](screenshots/deliveries.webp)
+
+**Board.** The Desk's lanes are also a board of tasks for the AIs. Add one and pick the AI, or let an AI leave
 up to three follow-ups at the end of an answer (a `RAIOX-TASK:` line). A task
 runs in that AI's "Tasks" conversation, from a fresh session; when the turn
 ends it is done, or waiting for you when the AI proposes a change, runs a
@@ -100,7 +107,7 @@ command or writes a draft. Each card shows what its task cost in tokens. With
 "Bots pick tasks up" on, each idle AI starts its next task by itself, on the
 routines' clock.
 
-![The Desk: the task board, what waits for you and the team](screenshots/desk.webp)
+![The Desk: tasks for each AI, what they do now and what waits for you](screenshots/desk.webp)
 
 **Permissions per AI.** In each AI's settings: whether it is reachable from
 your paired phone (off keeps it, and the channels it is in, on the computer,
@@ -127,7 +134,11 @@ hard to undo beyond the project, such as a force push or a deploy.
 of things. A page goes with every question, or only when the question shares
 its words; raiox hands the pages over itself, so the Wiki tab shows how many
 times each page was read this week, by which AI, and roughly what that cost in
-tokens. Any answer can be kept as a page (its question becomes the title).
+tokens. The index splits the pages the same way (every question, or when the
+subject matches), each with that cost as a strip of pixels. Any answer can be
+kept as a page (its question becomes the title).
+
+![The Wiki: pages split by what they cost, one open to write](screenshots/wiki.webp)
 
 **Channels.** Rooms with several of your AIs, from any projects. `@handle`
 calls a member (several handles call several; `@all` calls them all). With
