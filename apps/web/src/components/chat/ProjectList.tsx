@@ -86,7 +86,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
       {needle.length >= MIN_QUERY ? (
         <SearchHits bots={bots.state.bots} needle={needle} onOpen={nav.openMessage} />
       ) : (
-        <>
+        <div className="conversas-rolagem">
           {team.map((bot) => (
             <section key={bot.id} className="conversas-ia">
               {team.length > 1 && <span className="conversas-grupo">{[AGENT_LABEL[bot.agent], personaName(bot)].filter(Boolean).join(' · ')}</span>}
@@ -99,6 +99,9 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                   return (
                     <li key={key} className="conversa-item">
                       <button type="button" className={`${current === key ? 'ativo' : ''} ${fresh ? 'nao-lido' : ''}`} onClick={() => onThread(bot.id, row.thread)}>
+                        <span className="conversa-rosto">
+                          <Avatar agent={faceForBot(bot)} size={30} state={busy ? 'thinking' : 'still'} />
+                        </span>
                         <span className="conversa-texto">
                           <span className="conversa-linha">
                             <b>{row.title}</b>
@@ -148,9 +151,11 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                 {pairs.map((pair) => {
                   const other = pair.a === project ? pair.b : pair.a
                   const key = `troca:${pair.a}|${pair.b}`
+                  const face = bots.state.bots.find((b) => b.name === other)
                   return (
                     <li key={key} className="conversa-item">
                       <button type="button" className={current === key ? 'ativo' : ''} onClick={() => nav.openExchange(pair.a, pair.b)}>
+                        <span className="conversa-rosto">{face && <Avatar agent={faceForBot(face)} size={30} state="still" />}</span>
                         <span className="conversa-texto">
                           <span className="conversa-linha">
                             <b>{`⇄ ${other}`}</b>
@@ -172,6 +177,11 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                 {groups.map((group) => (
                   <li key={group.id} className="conversa-item">
                     <button type="button" className={current === `grupo:${group.id}` ? 'ativo' : ''} onClick={() => nav.openBatch(group.id)}>
+                      <span className="conversa-rosto grupo" aria-hidden="true">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M4 12h5M9 12l4-6 7-2M9 12h11M9 12l4 6 7 2" />
+                        </svg>
+                      </span>
                       <span className="conversa-texto">
                         <span className="conversa-linha">
                           <b>{group.text}</b>
@@ -185,7 +195,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
               </ul>
             </section>
           )}
-        </>
+        </div>
       )}
     </nav>
   )
