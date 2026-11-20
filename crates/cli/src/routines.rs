@@ -155,7 +155,7 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
                 Err(_) => continue,
             },
         };
-        let _ = bots::ask(state_dir, jobs, &routine.bot, &thread, &routine.text);
+        let _ = bots::ask(state_dir, jobs, &routine.bot, &thread, &routine.text, &[]);
         let last = Some(now.timestamp_millis());
         let thread_kept = Some(thread);
         // Marked as run even when the ask was refused, so a broken routine does not retry every 30 seconds.

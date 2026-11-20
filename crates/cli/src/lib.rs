@@ -9,6 +9,7 @@ pub mod bot_mail;
 pub mod bot_marks;
 pub mod bot_run;
 pub mod app_update;
+pub mod app_start;
 pub mod auto_edit;
 pub mod batches;
 pub mod bot_steps;
@@ -52,6 +53,7 @@ pub mod telegram;
 pub mod team;
 pub mod threads;
 pub mod tunnel;
+pub mod uploads;
 pub mod wiki;
 
 use std::path::PathBuf;

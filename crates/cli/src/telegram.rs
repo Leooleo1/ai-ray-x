@@ -242,7 +242,7 @@ fn on_message(state_dir: &Path, jobs: &Jobs, config: &mut Config, chat: i64, nam
         },
     };
     let since = room::now_ms();
-    match bots::ask(state_dir, jobs, &bot.id, &thread, text) {
+    match bots::ask(state_dir, jobs, &bot.id, &thread, text, &[]) {
         Ok(()) => {
             config.waiting.push(Waiting { bot: bot.id, thread, since });
             None

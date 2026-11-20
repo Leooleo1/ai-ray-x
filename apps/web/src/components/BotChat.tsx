@@ -123,9 +123,11 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   )
   const waiting = (pending >= 0 ? 1 : 0) + mail.length
 
-  const send = async (text: string) => {
+  const send = async (text: string, images?: string[]) => {
     askToNotify()
-    return (await bots.act('ask', { id: bot.id, thread: current, text })) !== null
+    const payload: Record<string, unknown> = { id: bot.id, thread: current, text }
+    if (images && images.length > 0) payload.images = images
+    return (await bots.act('ask', payload)) !== null
   }
   const see = () => document.getElementById(pending >= 0 ? PROPOSAL_ID : INBOX_ID)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
@@ -286,6 +288,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           placeholder={`${t.composeBot} ${speaker}`}
           maxLength={bots.state.max_text}
           busy={bot.busy}
+          allowImages
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id })}
           onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}

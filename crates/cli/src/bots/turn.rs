@@ -30,6 +30,8 @@ pub(super) struct Turn {
     pub home: Option<PathBuf>,
     /// A command the person approved, run before the CLI goes on with its output.
     pub command: Option<String>,
+    /// Images the person attached to this message, stored in `<state>/uploads/<bot>`.
+    pub images: Vec<PathBuf>,
 }
 
 /// How this bot's CLI is called, the same for every round of the turn.
@@ -96,15 +98,20 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
         Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),
         Mode::Edit => turn.text,
     };
+    let mut images: Vec<PathBuf> = Vec::new();
     if let Some(command) = &turn.command {
         let Some(output) = command_output(jobs, bot, command, false, &say) else { return };
         text = output;
+    } else if !turn.images.is_empty() {
+        let (prompt, files) = attach_images(state_dir, &bot.id, &turn.images, text, &say);
+        text = prompt;
+        images = files;
     }
     // A draft starts a fresh session in its copy; talk continues the conversation's own.
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;
     let mut shots_taken = 0;
-    let mut images: Vec<PathBuf> = Vec::new();
+    let mut app_started = false;
     loop {
         let dir = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
         let asked = ask_cli(jobs, bot, &setup, dir, session.as_deref(), turn.mode, &text, Some(&format!("{}:{thread}", bot.id)), &images);
@@ -168,6 +175,16 @@ pub(super) fn run(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: 
             runs += 1;
             let Some(output) = command_output(jobs, bot, &command, true, &say) else { return };
             text = output;
+            continue;
+        }
+        // Running without asking, the app it offers (or needs for a screenshot) starts by itself, once a turn.
+        let wants_app = reply.open.iter().any(|p| p == "app") || (wanted.iter().any(|w| w.starts_with('/')) && !crate::preview::is_running(&bot.id));
+        if wants_app && !app_started && shots_taken < MAX_SHOTS && runs_alone(state_dir, bot) {
+            app_started = true;
+            shots_taken += 1;
+            let Some((prompt, files)) = start_app(state_dir, jobs, bot, &say) else { return };
+            text = prompt;
+            images = files;
             continue;
         }
         if wanted.is_empty() {
@@ -283,11 +300,66 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
     }
 }
 
-/// The first command in the answer that the person allowed for this project.
+/// The first command in the answer that runs without a click: one the person allowed for this
+/// project, or any raiox allows at all when the bot runs without asking.
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
-    // Read again: the person may have changed the list while the bot was answering.
-    let allowed = find(state_dir, &bot.id).ok()?.allowed;
-    reply.run.iter().find(|r| r.refused.is_none() && allowed.contains(&r.command)).map(|r| r.command.clone())
+    // Read again: the person may have changed the list or the grant while the bot was answering.
+    let now = find(state_dir, &bot.id).ok()?;
+    reply.run.iter().find(|r| r.refused.is_none() && (now.grants.auto_run || now.allowed.contains(&r.command))).map(|r| r.command.clone())
+}
+
+/// Whether the bot runs without asking now (the grant may change while it answers).
+fn runs_alone(state_dir: &Path, bot: &Bot) -> bool {
+    find(state_dir, &bot.id).is_ok_and(|now| now.grants.auto_run)
+}
+
+/// Starts the project's app for a bot that runs without asking, and gives the CLI's next prompt:
+/// a screenshot of the page that came up, or what went wrong.
+fn start_app(state_dir: &Path, jobs: &Jobs, bot: &Bot, say: &dyn Fn(Message)) -> Option<(String, Vec<PathBuf>)> {
+    jobs.set_step(&bot.id, crate::bot_steps::Step { kind: "run", target: "See the app".to_string() });
+    let stop = || jobs.should_stop(&bot.id);
+    match crate::app_start::start_and_wait(state_dir, &bot.id, &bot.dir, &stop) {
+        Ok(url) => {
+            let Some((prompt, files)) = screenshots(state_dir, jobs, bot, std::slice::from_ref(&url), say) else {
+                return Some((format!("raiox started the project's app and it answers at {url}, but could not take a screenshot. Tell the person briefly."), Vec::new()));
+            };
+            Some((format!("(raiox started the project's app for the person: it answers at {url}.)\n\n{prompt}"), files))
+        }
+        Err(_) if stop() => None,
+        Err(error) => {
+            say(note("failed", json!({ "error": format!("raiox could not start the app: {error:#}") })));
+            let log = crate::preview::status(state_dir, &bot.id, &bot.dir).ok().and_then(|s| s["log"].as_str().map(str::to_string)).unwrap_or_default();
+            Some((format!("raiox tried to start the project's app and it failed ({error:#}). Its last output:\n{log}\n\nTell the person briefly what went wrong and how to fix it."), Vec::new()))
+        }
+    }
+}
+
+/// Hands the person's attached images over to the CLI through `ai_dir`, and tells the CLI where they are.
+fn attach_images(state_dir: &Path, bot: &str, files: &[PathBuf], text: String, say: &dyn Fn(Message)) -> (String, Vec<PathBuf>) {
+    let mut handed = Vec::new();
+    for file in files {
+        match crate::preview::hand_over(state_dir, bot, file) {
+            Ok(path) => handed.push(path),
+            Err(error) => say(note("failed", json!({ "error": format!("raiox could not hand the image over: {error:#}") }))),
+        }
+    }
+    if handed.is_empty() {
+        return (text, Vec::new());
+    }
+    let list: Vec<String> = handed.iter().map(|path| format!("- {}", path.display())).collect();
+    let noun = if handed.len() == 1 { "image" } else { "images" };
+    let pronoun = if handed.len() == 1 { "it" } else { "them" };
+    let header = format!(
+        "(raiox: the person attached {} {noun}:\n{}\nLook at {pronoun} — open each file with your Read tool if you do not see {pronoun} directly.)",
+        handed.len(),
+        list.join("\n"),
+    );
+    let prompt = if text.trim().is_empty() {
+        format!("{header}\n\nLook at the attached {noun} and help the person.")
+    } else {
+        format!("{header}\n\n{text}")
+    };
+    (prompt, handed)
 }
 
 /// Runs a command in the project, shows what it did, and gives the CLI's next prompt
@@ -310,4 +382,35 @@ fn command_output(jobs: &Jobs, bot: &Bot, command: &str, allowed: bool, say: &dy
         return None;
     }
     Some(prompt)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attach_images_hands_files_over_into_ai_dir_and_mentions_them() {
+        let state = std::env::temp_dir().join(format!("raiox-turn-images-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&state);
+        let uploads = crate::uploads::dir(&state, "b1");
+        std::fs::create_dir_all(&uploads).unwrap();
+        let img = uploads.join("abc1-0001.png");
+        std::fs::write(&img, [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]).unwrap();
+
+        crate::preview::clear_ai_dir(&state, "b1");
+        let (prompt, handed) = attach_images(&state, "b1", std::slice::from_ref(&img), "what is this?".into(), &|_| {});
+        assert_eq!(handed.len(), 1);
+        assert_eq!(handed[0], crate::preview::ai_dir(&state, "b1").join("abc1-0001.png"));
+        assert!(handed[0].exists());
+        assert!(prompt.contains(&handed[0].display().to_string()));
+        assert!(prompt.contains("what is this?"));
+
+        // Image-only message still produces a clear instruction for the CLI.
+        crate::preview::clear_ai_dir(&state, "b1");
+        let (prompt_only, handed_only) = attach_images(&state, "b1", &[img], String::new(), &|_| {});
+        assert_eq!(handed_only.len(), 1);
+        assert!(prompt_only.contains("attached image"));
+
+        let _ = std::fs::remove_dir_all(&state);
+    }
 }

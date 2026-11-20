@@ -36,11 +36,15 @@ pub struct Grants {
     /// Edits without asking: its proposals are approved and their drafts applied by themselves (each can be undone).
     #[serde(default)]
     pub auto_edit: bool,
+    /// Runs without asking: the commands it asks for (those raiox allows at all) run, and the
+    /// project's app starts when it offers See the app.
+    #[serde(default)]
+    pub auto_run: bool,
 }
 
 impl Default for Grants {
     fn default() -> Self {
-        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false }
+        Grants { devices: true, web: false, mcp: false, week_limit: None, auto_edit: false, auto_run: false }
     }
 }
 
@@ -88,7 +92,7 @@ pub fn changed(current: &Grants, agent: &str, input: &Value) -> Result<Grants> {
             Some(_) => bail!("pick one of the offered ceilings"),
         },
     };
-    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit) })
+    Ok(Grants { devices: flag("devices", current.devices), web, mcp, week_limit, auto_edit: flag("auto_edit", current.auto_edit), auto_run: flag("auto_run", current.auto_run) })
 }
 
 /// The bots kept on this computer: paired devices neither see nor reach them.
@@ -166,6 +170,7 @@ pub fn state(state_dir: &Path, bot: &crate::bots::Bot) -> Value {
         "mcp": bot.grants.mcp,
         "week_limit": bot.grants.week_limit,
         "auto_edit": bot.grants.auto_edit,
+        "auto_run": bot.grants.auto_run,
         "week_used": week_used(state_dir, &bot.id),
         "week_choices": WEEK_CHOICES,
         "web_possible": web_possible(&bot.agent),
@@ -202,7 +207,7 @@ mod tests {
         let site = crate::bots::activate(&state, &home, "Projects/site", "claude", None).unwrap();
         let channel = crate::channels::create(&state, "time", &[mail.id.clone(), site.id.clone()]).unwrap();
         assert!(device_may(&state, &json!({ "id": mail.id })).is_ok(), "every bot reaches the phone at first");
-        crate::bots::set_grants(&state, &crate::bots::Jobs::default(), &mail.id, &json!({ "devices": false })).unwrap();
+        crate::bots::set_grants(&state, &mail.id, &json!({ "devices": false })).unwrap();
         assert!(device_may(&state, &json!({ "id": mail.id, "text": "oi" })).is_err());
         assert!(device_may(&state, &json!({ "channel": channel.id, "text": "oi" })).is_err(), "nor through a channel it is in");
         assert!(device_may(&state, &json!({ "id": site.id })).is_ok());

@@ -77,6 +77,8 @@ the repository:
 # the key: ~/.tauri/raiox-updater.key; its password: in the macOS Keychain
 export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/raiox-updater.key)"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(security find-generic-password -s raiox-updater-key -w)"
+# keeps your home folder's path (and so your user name) out of the binary
+export RUSTFLAGS="--remap-path-prefix=$HOME=~"
 CI=true pnpm --dir crates/desktop build      # also makes raiox.app.tar.gz and its .sig
 ```
 

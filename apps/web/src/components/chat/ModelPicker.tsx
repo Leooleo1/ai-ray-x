@@ -59,7 +59,7 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
 
   return (
     <div className="modelo-escolha" ref={box}>
-      <button type="button" className="modelo-botao" aria-expanded={open} disabled={bot.busy} onClick={() => setOpen(!open)}>
+      <button type="button" className="modelo-botao" aria-expanded={open} onClick={() => setOpen(!open)}>
         <b>{model ? nameOf(model) : AGENT_LABEL[bot.agent]}</b>
         {effort && <span>{`· ${effort}`}</span>}
         <svg viewBox="0 0 24 24" aria-hidden="true">

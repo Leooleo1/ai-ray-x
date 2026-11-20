@@ -396,10 +396,8 @@ pub fn deactivate(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
 }
 
 /// Changes how a bot runs and looks. Empty model or effort means the CLI's default.
-pub fn configure(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>, effort: Option<&str>, persona: Option<Persona>) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
-    }
+pub fn configure(state_dir: &Path, id: &str, model: Option<&str>, effort: Option<&str>, persona: Option<Persona>) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let (model, effort) = (check_model(model)?, check_effort(&bot.agent, effort)?);
     if let Some(p) = &persona {
@@ -508,16 +506,31 @@ fn said(kind: &str, data: Value) -> Message {
 /// The person talks to a bot. The answer arrives later, on its own thread.
 /// Asks with a prompt the person did not type (an ai-memory message); `shown` is what the chat displays.
 pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Value) -> Result<()> {
-    start(state_dir, jobs, id, MAIN, Turn { mode: Mode::Talk, text: prompt.to_string(), asked: Some(said("ask", shown)), home: None, command: None })
+    start(state_dir, jobs, id, MAIN, Turn { mode: Mode::Talk, text: prompt.to_string(), asked: Some(said("ask", shown)), home: None, command: None, images: Vec::new() })
 }
 
-pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) -> Result<()> {
+pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, images: &[String]) -> Result<()> {
     let text = text.trim();
-    if text.is_empty() || text.chars().count() > MAX_TEXT {
+    let validated = crate::uploads::validate_all(images)?;
+    if (text.is_empty() && validated.is_empty()) || text.chars().count() > MAX_TEXT {
         bail!("a message has 1 to {MAX_TEXT} characters");
     }
+    if !threads::valid(thread) {
+        bail!("invalid conversation");
+    }
+    // Verify the bot exists before writing uploaded files to disk.
+    find(state_dir, id)?;
+    let saved = crate::uploads::save(state_dir, id, &validated)?;
     if thread != MAIN {
-        threads::name_after(state_dir, id, thread, text, DEFAULT_THREAD_TITLE)?;
+        let title = if text.is_empty() {
+            if saved.len() == 1 { "Image" } else { "Images" }
+        } else {
+            text
+        };
+        if let Err(error) = threads::name_after(state_dir, id, thread, title, DEFAULT_THREAD_TITLE) {
+            crate::uploads::remove(&saved);
+            return Err(error);
+        }
     }
     // What happened to a draft since the last question, so the conversation knows.
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
@@ -534,7 +547,14 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str) ->
     // Context the person brought from another conversation goes with the first question after it.
     let brought: String = crate::carry::unread(&messages).into_iter().map(crate::carry::for_cli).collect();
     let for_cli = format!("{brought}{for_cli}");
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", json!({ "text": text }))), home: None, command: None })
+    let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
+    let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
+    let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
+    if let Err(error) = start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", shown)), home: None, command: None, images: paths }) {
+        crate::uploads::remove(&saved);
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
@@ -552,7 +572,7 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
     let review = last.and_then(|m| review::for_answer(&messages, m.ms)).unwrap_or_default();
     let text = format!("{proposal}\n\nWhat you said before the approval:\n{answer}{review}\n\nAnswer in the same language as that earlier answer.");
     let asked = Some(said("approve", json!({ "proposal": proposal })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text, asked, home: Some(home.to_path_buf()), command: None, images: Vec::new() })
 }
 
 /// Most commands a bot may run without asking, per project.
@@ -579,14 +599,12 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, index:
     } else {
         crate::commands::check(&command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
     }
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command) })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: String::new(), asked: None, home: None, command: Some(command), images: Vec::new() })
 }
 
 /// Sets the model the bot talks on (empty: the same as for changes).
-pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&str>) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
-    }
+pub fn set_talk_model(state_dir: &Path, id: &str, model: Option<&str>) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     find(state_dir, id)?;
     let talk_model = check_model(model)?;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { talk_model: talk_model.clone(), ..b } } else { b }).collect()))
@@ -596,7 +614,7 @@ pub fn set_talk_model(state_dir: &Path, jobs: &Jobs, id: &str, model: Option<&st
 /// context goes to the CLI, the person's words to the screen.
 pub fn ask_shown(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, shown: &str, cli: &str, channel: &str) -> Result<()> {
     let asked = Some(said("ask", json!({ "text": shown, "channel": channel })));
-    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None })
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: cli.to_string(), asked, home: None, command: None, images: Vec::new() })
 }
 
 /// Asks another bot of the project to review a proposal in this conversation.
@@ -618,10 +636,8 @@ pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
 
 /// Sets or clears the daily token limit of this bot's project (0 clears it).
 /// Changes what a bot may do (phone, web, MCP, weekly ceiling).
-pub fn set_grants(state_dir: &Path, jobs: &Jobs, id: &str, input: &Value) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; change it when it is done");
-    }
+pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
+    // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))
@@ -801,5 +817,32 @@ mod tests {
         room::append_messages(&chat_file(&state, "b1"), aside).unwrap();
         // With a proposal it gets past the check and fails only because no bot b1 is registered.
         assert!(approve(&state, Path::new("/home"), &jobs, "b1", MAIN).unwrap_err().to_string().contains("no bot"));
+    }
+
+    #[test]
+    fn ask_validates_images_and_leaves_no_orphans_on_failure() {
+        use base64::Engine;
+        let home = temp_dir("ask-images");
+        fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let bot = activate(&state, &home, "Projects/app", "claude", None).unwrap();
+        let jobs = Jobs::default();
+
+        // Empty text and no images is rejected.
+        assert!(ask(&state, &jobs, &bot.id, MAIN, "   ", &[]).is_err());
+
+        // Invalid image bytes (e.g. text disguised as PNG data URL) are rejected before writing anything.
+        let fake = format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(b"not a png"));
+        assert!(ask(&state, &jobs, &bot.id, MAIN, "look", &[fake]).is_err());
+        assert!(!crate::uploads::dir(&state, &bot.id).exists());
+
+        // If the bot is busy, validated images saved before start are cleaned up.
+        assert!(jobs.start(&bot.id, MAIN));
+        let valid_png = base64::engine::general_purpose::STANDARD.encode([0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0]);
+        assert!(ask(&state, &jobs, &bot.id, MAIN, "", &[valid_png]).unwrap_err().to_string().contains("still answering"));
+        let remaining: Vec<_> = fs::read_dir(crate::uploads::dir(&state, &bot.id)).into_iter().flatten().flatten().collect();
+        assert!(remaining.is_empty(), "failed ask must not leave orphan upload files");
+        jobs.finish(&bot.id);
+        let _ = fs::remove_dir_all(&home);
     }
 }

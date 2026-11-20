@@ -18,7 +18,11 @@ export function preview(m: BotMessage | undefined): string {
   if (m.kind === 'remembered') return t.rememberedLine
   if (m.kind === 'ran') return `${t.ranLine} ${m.data.ran?.command ?? ''}`
   const text = m.data.reply?.text ?? m.data.text ?? m.data.proposal ?? m.data.error ?? ''
-  return text.replace(/[`*#>]/g, '').split('\n').find((l) => l.trim()) ?? ''
+  const line = text.replace(/[`*#>]/g, '').split('\n').find((l) => l.trim())
+  if (line) return line
+  const images = m.data.images?.length ?? 0
+  if (images > 0) return images === 1 ? t.imageCountOne : t.imageCount.replace('{n}', String(images))
+  return ''
 }
 
 /** A time today, else a short date. */

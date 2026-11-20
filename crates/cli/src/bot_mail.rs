@@ -192,9 +192,11 @@ pub fn pages(dir: &Path) -> Result<Option<Vec<Value>>> {
 /// The durable pages ai-memory keeps for a bot's project, newest first.
 pub fn memories(state_dir: &Path, id: &str) -> Result<Value> {
     let bot = bot(state_dir, id)?;
-    let Some(mut pages) = pages(&bot.dir)? else {
+    let Some(pages) = pages(&bot.dir)? else {
         return Ok(json!({ "known": false, "pages": [] }));
     };
+    // The pages someone kept, as the bots count them: session transcripts are not "saved memories".
+    let mut pages: Vec<Value> = pages.into_iter().filter(|p| p["path"].as_str().is_some_and(crate::memory::is_kept)).collect();
     let address = server_address(&bot.dir);
     pages.sort_by(|a, b| b["updated_at"].as_str().cmp(&a["updated_at"].as_str()));
     let shown: Vec<Value> = pages
