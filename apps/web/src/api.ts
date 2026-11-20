@@ -1069,6 +1069,8 @@ export interface Task {
   started_ms: number | null
   answer_ms: number | null
   tokens: number
+  /** Done in a copy of its own; what it changed comes back as a draft to apply. */
+  isolated?: boolean
 }
 
 export interface TaskBoardState {

@@ -496,7 +496,8 @@ fn task_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Val
     let state_dir = &panel.state_dir;
     match action {
         "add" => {
-            crate::tasks::add(state_dir, field("bot"), field("title"), field("detail"), "person")?;
+            let isolated = input.get("isolated").and_then(Value::as_bool).unwrap_or(false);
+            crate::tasks::add_with(state_dir, field("bot"), field("title"), field("detail"), "person", isolated)?;
         }
         "start" => crate::tasks::start(state_dir, &panel.jobs, field("id"))?,
         "done" | "reopen" | "delete" => crate::tasks::mark(state_dir, field("id"), action)?,

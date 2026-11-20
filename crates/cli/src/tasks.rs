@@ -55,6 +55,10 @@ pub struct Task {
     pub answer_ms: Option<i64>,
     #[serde(default)]
     pub tokens: u64,
+    /// Done in a copy of the project of its own, so several run at once without touching each
+    /// other or the project; what it changed comes back as a draft to apply.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub isolated: bool,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -124,6 +128,11 @@ fn clean(text: &str, max: usize) -> String {
 
 /// A task for a bot; gives its id.
 pub fn add(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &str) -> Result<String> {
+    add_with(state_dir, bot, title, detail, from, false)
+}
+
+/// A task, done in a copy of its own when `isolated`.
+pub fn add_with(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &str, isolated: bool) -> Result<String> {
     bots::find(state_dir, bot)?;
     let title = clean(title, MAX_TITLE);
     if title.is_empty() {
@@ -131,7 +140,7 @@ pub fn add(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &str) -
     }
     let now = room::now_ms();
     let id = format!("k{now:x}{}", load(state_dir).tasks.len());
-    let task = Task { id: id.clone(), title, detail: clean(detail, MAX_DETAIL), bot: bot.to_string(), status: Status::Todo, from: from.to_string(), created_ms: now, updated_ms: now, started_ms: None, answer_ms: None, tokens: 0 };
+    let task = Task { id: id.clone(), title, detail: clean(detail, MAX_DETAIL), bot: bot.to_string(), status: Status::Todo, from: from.to_string(), created_ms: now, updated_ms: now, started_ms: None, answer_ms: None, tokens: 0, isolated };
     change(state_dir, |board| {
         if board.tasks.len() >= MAX_TASKS {
             bail!("the board holds at most {MAX_TASKS} tasks; delete done ones");
@@ -152,6 +161,14 @@ fn task_thread(state_dir: &Path, bot: &str) -> Result<String> {
 
 fn prompt(task: &Task) -> String {
     let detail = if task.detail.is_empty() { String::new() } else { format!("\n\n{}", task.detail) };
+    if task.isolated {
+        return format!(
+            "Task from the team's board: {}{detail}\n\nDo it now, here: this is a copy of the project of your own, and \
+             what you change comes back to the person as a draft to apply. Make the whole change and check it; do not \
+             commit, push or deploy.",
+            task.title
+        );
+    }
     format!("Task from the team's board: {}{detail}\n\nDo it now. If it needs a change to the project, propose it as usual.", task.title)
 }
 
@@ -165,7 +182,12 @@ pub fn start(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
     // Each task starts clean: the last one's context would only cost tokens here.
     threads::set_session(state_dir, &task.bot, &thread, None)?;
     let started = room::now_ms();
-    bots::ask(state_dir, jobs, &task.bot, &thread, &prompt(&task), &[])?;
+    if task.isolated {
+        let home = dirs::home_dir().context("home folder not found")?;
+        bots::ask_in_copy(state_dir, &home, jobs, &task.bot, &thread, &prompt(&task), &task.title)?;
+    } else {
+        bots::ask(state_dir, jobs, &task.bot, &thread, &prompt(&task), &[])?;
+    }
     change(state_dir, |board| {
         if let Some(t) = board.tasks.iter_mut().find(|t| t.id == id) {
             t.status = Status::Doing;
@@ -184,6 +206,21 @@ fn outcome(answer: &room::Message) -> Status {
         "answer" if !asks("proposal") && !asks("run") => Status::Done,
         _ => Status::Waiting,
     }
+}
+
+/// A task done in its own copy: its draft waits for the person; a turn that changed nothing is done.
+fn copy_outcome(ended: &room::Message) -> Status {
+    match ended.kind.as_str() {
+        "draft" if ended.data["draft"].is_null() => Status::Done,
+        "answer" => outcome(ended),
+        _ => Status::Waiting,
+    }
+}
+
+/// Whether the draft an isolated task left was applied: then the task is done.
+fn draft_applied(messages: &[room::Message], answer_ms: i64) -> bool {
+    let Some(draft) = messages.iter().find(|m| m.ms == answer_ms && m.kind == "draft").and_then(|m| m.data["draft"].as_str()) else { return false };
+    messages.iter().any(|m| m.kind == "draft_applied" && m.data["draft"].as_str() == Some(draft))
 }
 
 /// Tokens of a turn: what its answers read and wrote since it started.
@@ -207,7 +244,8 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
         let since = task.started_ms.unwrap_or(0);
         let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped"));
         let Some(ended) = ended else { continue };
-        let (status, at, tokens) = (outcome(ended), ended.ms, spent(&messages, since));
+        let status = if task.isolated { copy_outcome(ended) } else { outcome(ended) };
+        let (at, tokens) = (ended.ms, spent(&messages, since));
         let _ = change(state_dir, |b| {
             if let Some(t) = b.tasks.iter_mut().find(|t| t.id == task.id) {
                 t.status = status;
@@ -217,6 +255,13 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
             }
             Ok(())
         });
+    }
+    // An isolated task whose draft the person applied is done.
+    for task in board.tasks.iter().filter(|t| t.isolated && t.status == Status::Waiting) {
+        let (Some(at), Ok(thread)) = (task.answer_ms, task_thread(state_dir, &task.bot)) else { continue };
+        if draft_applied(&room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread)), at) {
+            let _ = mark(state_dir, &task.id, "done");
+        }
     }
     if !board.auto || board.window.is_some_and(|w| !w.holds(chrono::Timelike::hour(&chrono::Local::now()))) {
         return;
@@ -308,6 +353,16 @@ mod tests {
 
     fn message(kind: &str, reply: Value) -> room::Message {
         room::Message { ms: 10, author: "bot".into(), kind: kind.into(), data: json!({ "reply": reply }) }
+    }
+
+    #[test]
+    fn a_task_in_its_own_copy_waits_on_its_draft_and_ends_when_applied() {
+        let draft = |id: Value| room::Message { ms: 10, author: "bot".into(), kind: "draft".into(), data: json!({ "draft": id }) };
+        assert_eq!(copy_outcome(&draft(json!("d1"))), Status::Waiting, "a draft waits for the person");
+        assert_eq!(copy_outcome(&draft(Value::Null)), Status::Done, "nothing changed");
+        let applied = room::Message { ms: 20, author: "you".into(), kind: "draft_applied".into(), data: json!({ "draft": "d1" }) };
+        assert!(!draft_applied(&[draft(json!("d1"))], 10));
+        assert!(draft_applied(&[draft(json!("d1")), applied], 10));
     }
 
     #[test]

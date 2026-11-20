@@ -619,6 +619,13 @@ pub fn ask_aside(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &s
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked, home: None, command: None, images: Vec::new(), keep_session: false, is_audit: false, auditor_agent: None })
 }
 
+/// A task done in a copy of the project of the bot's own: what it changes comes back as a draft
+/// to apply, so it never touches the project, nor what another AI does in it meanwhile.
+pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, prompt: &str, shown: &str) -> Result<()> {
+    let asked = Some(said("ask", json!({ "text": shown, "copy": true })));
+    start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
+}
+
 /// The person approves the proposal in the bot's latest answer: the AI makes it in a draft copy.
 pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms: Option<i64>) -> Result<()> {
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
