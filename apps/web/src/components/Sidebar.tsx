@@ -4,6 +4,7 @@ import { faceForBot } from '../avatars'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
 import { Icon, type IconName } from './Icons'
+import { PlanRings } from './PlanRings'
 import { ProfileMenu } from './ProfileMenu'
 
 export type Tab = 'xray' | 'efficiency' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
@@ -177,6 +178,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
         </div>
       </div>
       <footer className="lado-rodape">
+        <PlanRings collapsed={collapsed} />
         <ProfileMenu bots={bots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
       </footer>
       {collapsed && tip && (

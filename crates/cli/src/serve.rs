@@ -241,6 +241,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Err(reply) => reply,
         },
         (Method::Get, "/api/profile") => respond(Ok(crate::profile::get(&panel.roots.home, &panel.state_dir))),
+        (Method::Get, "/api/limits") => respond(Ok(crate::limits::state(&panel.state_dir, &panel.roots.codex))),
         // The person's name and photo: from this computer only.
         (Method::Post, "/api/profile") if !remote => match body_limit(request, MAX_ASK_BODY) {
             Ok(input) => {

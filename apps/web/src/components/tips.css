@@ -162,3 +162,16 @@
     left: 76px;
   }
 }
+
+/* With the plan rings above the profile, the tip rises above them too (on a computer). */
+@media (min-width: 961px) {
+  body:has(.aneis:not(.recolhidos)) .dica-flutuante,
+  body:has(.aneis:not(.recolhidos)) .dica-rosto {
+    bottom: 134px;
+  }
+
+  body:has(.aneis.recolhidos) .dica-flutuante,
+  body:has(.aneis.recolhidos) .dica-rosto {
+    bottom: 182px;
+  }
+}

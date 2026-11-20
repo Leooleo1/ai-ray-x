@@ -801,6 +801,19 @@ export interface Profile {
   photo: string | null
 }
 
+/** One window of an AI's plan: how much is used (0–100) and when it starts again (seconds). */
+export interface PlanWindow {
+  used: number
+  resets_at: number | null
+}
+
+/** How much of each AI's plan is used, as far as raiox can tell (Claude Code and Codex). */
+export type PlanLimits = Partial<Record<'claude' | 'codex', { five_hour: PlanWindow; week: PlanWindow; read_at: number; old?: boolean }>>
+
+export function fetchLimits(): Promise<PlanLimits> {
+  return request<PlanLimits>('/api/limits')
+}
+
 export function fetchProfile(): Promise<Profile> {
   return request<Profile>('/api/profile')
 }
