@@ -1,3 +1,5 @@
+import { Skeleton } from './Skeleton'
+import { notify } from '../notify'
 import { useEffect, useState } from 'react'
 import { type Bot, type WikiEntry, deleteWiki, fetchWiki, saveWiki, wikiPage } from '../api'
 import { t } from '../i18n'
@@ -69,6 +71,7 @@ export function WikiView({ bots }: { bots: Bot[] }) {
       setDraft(next)
       setBaseline(next)
       setSaved(true)
+      notify(t.noticeSaved)
     } catch (failure: unknown) {
       setError(messageOf(failure))
     }
@@ -96,7 +99,7 @@ export function WikiView({ bots }: { bots: Bot[] }) {
         onBlurConfirm={() => setConfirming(null)}
       />
       <section className="wiki-pagina">
-        {loadingPage && <p className="wiki-vazio">{t.wikiLoading}</p>}
+        {loadingPage && <Skeleton shape="rows" rows={6} />}
         {!loadingPage && !draft && (
           <div className="wiki-convite">
             {pages?.length === 0 && <img className="arte-vazia pelucia" src="/mascotes/vazio-wiki.webp" alt="" />}

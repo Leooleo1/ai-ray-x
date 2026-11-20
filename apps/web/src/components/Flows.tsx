@@ -1,3 +1,5 @@
+import { Skeleton } from './Skeleton'
+import { notify } from '../notify'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { type Flow, type FlowAction, fetchFlows, flowAct, saveFlow } from '../api'
 import type { Bots } from '../bots'
@@ -70,6 +72,8 @@ export function Flows({ bots, pick }: FlowsProps) {
         setFlows(next)
         setError(null)
         if (action === 'delete') setChosen(null)
+        const note = { run: t.noticeRunning, approve: t.noticeApproved, decline: t.noticeStopped, stop: t.noticeStopped, delete: t.noticeDeleted }[action]
+        notify(note, action === 'run' || action === 'approve' ? 'ok' : 'undo')
       })
       .catch((failure: unknown) => setError(messageOf(failure)))
   }
@@ -81,7 +85,7 @@ export function Flows({ bots, pick }: FlowsProps) {
         return load()
       })
       .catch((failure: unknown) => setError(messageOf(failure)))
-  if (!flows) return <main className="fluxos">{<p className={error ? 'nota failed quebra' : 'fluxo-vazio'}>{error ?? t.flowLoading}</p>}</main>
+  if (!flows) return <main className="fluxos">{error ? <p className="nota failed quebra">{error}</p> : <Skeleton rows={4} />}</main>
   const running = isLive(flow)
   const run = flow?.run ?? flow?.runs[0] ?? null
   const scheduled = draft?.trigger && draft.trigger.kind !== 'manual'

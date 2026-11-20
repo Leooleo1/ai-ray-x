@@ -1,3 +1,4 @@
+import { Skeleton } from '../Skeleton'
 import type { WikiEntry } from '../../api'
 import { compact, t } from '../../i18n'
 import { CostBar } from './CostBar'
@@ -52,7 +53,7 @@ export function WikiIndex({ pages, query, onQuery, open, confirming, onPick, onN
         </button>
       </header>
       <div className="wiki-grupos">
-        {pages === null && <p className="wiki-vazio">{t.wikiLoading}</p>}
+        {pages === null && <Skeleton shape="rows" rows={5} />}
         {pages?.length === 0 && <p className="wiki-vazio">{t.wikiEmpty}</p>}
         {pages && pages.length > 0 && visible.length === 0 && <p className="wiki-vazio">{t.noMatches}</p>}
         {groups.map((group) => (

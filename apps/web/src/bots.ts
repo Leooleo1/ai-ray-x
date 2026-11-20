@@ -1,5 +1,7 @@
 // The person's own AI as bots in their projects: shared state for the sidebar and the chat.
 
+import { t } from './i18n'
+import { notify, type NoticeKind } from './notify'
 import { useCallback, useEffect, useState } from 'react'
 import { type BotAction, type BotsState, botAction, fetchBots } from './api'
 
@@ -13,6 +15,21 @@ export interface Bots {
   act: (action: BotAction, body: Record<string, unknown>) => Promise<BotsState | null>
   /** Asks for the bots' state again (after settings change which CLIs are on). */
   refresh: () => void
+}
+
+/** Saved settings: one note, so a change never goes unconfirmed. */
+const SAVED_ACTIONS = new Set(['configure', 'grants', 'routine_new', 'routine_toggle', 'routine_delete', 'routine_changed', 'link_toggle', 'limit', 'reviewer', 'auditor'])
+
+/** What a finished action says at the foot of the panel; none for the ones that show their own result. */
+function noticeFor(action: string, body: Record<string, unknown>): { text: string; kind: NoticeKind } | null {
+  if (action === 'approve' || action === 'request_approve') return { text: t.noticeApproved, kind: 'ok' }
+  if (action === 'request_discard') return { text: t.noticeDiscarded, kind: 'undo' }
+  if (action === 'draft') {
+    if (body.action === 'apply') return { text: t.noticeApplied, kind: 'ok' }
+    if (body.action === 'discard') return { text: t.noticeDiscarded, kind: 'undo' }
+    if (body.action === 'undo') return { text: t.noticeUndone, kind: 'undo' }
+  }
+  return SAVED_ACTIONS.has(action) ? { text: t.noticeSaved, kind: 'ok' } : null
 }
 
 export function useBots(initial: BotsState): Bots {
@@ -36,6 +53,8 @@ export function useBots(initial: BotsState): Bots {
     try {
       const next = await botAction(action, body)
       setState(next)
+      const note = noticeFor(action, body)
+      if (note) notify(note.text, note.kind)
       return next
     } catch (failure: unknown) {
       setError(failure instanceof Error ? failure.message : String(failure))

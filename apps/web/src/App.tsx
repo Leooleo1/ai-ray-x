@@ -28,6 +28,7 @@ import { carriedRows, hourProjects, hours, longestStreak, plateDays, projectRows
 import { UpdateNote } from './components/UpdateNote'
 import { UsageView } from './components/UsageView'
 import { CommandPalette } from './components/CommandPalette'
+import { Notices } from './components/Notices'
 import { flushSync } from 'react-dom'
 import { Flows } from './components/Flows'
 
@@ -363,6 +364,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         </div>
       </div>
       <TipToast bots={bots} report={report} nav={nav} raised={tab === 'agents'} folded={sidebarCollapsed} />
+      <Notices />
       {paletteOpen && (
         <CommandPalette
           bots={bots.state.bots}

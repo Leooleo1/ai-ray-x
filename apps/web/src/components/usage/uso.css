@@ -25,10 +25,6 @@
   margin-left: 0;
 }
 
-.uso-vazio {
-  color: var(--nevoa);
-}
-
 /* The total and each AI on the left, the days on a ruler on the right. */
 .uso-topo {
   display: grid;

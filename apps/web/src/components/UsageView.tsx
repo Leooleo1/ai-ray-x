@@ -1,3 +1,4 @@
+import { Skeleton } from './Skeleton'
 import { useEffect, useMemo, useState } from 'react'
 import { type Usage, type UsageSlice, fetchUsage } from '../api'
 import { AGENT_LABEL, DEFAULT_COLOR } from '../avatars'
@@ -80,7 +81,7 @@ export function UsageView() {
     return (
       <main className="uso">
         {controls}
-        <p className={error ? 'nota failed quebra' : 'uso-vazio'}>{error ?? t.usageLoading}</p>
+        {error ? <p className="nota failed quebra">{error}</p> : <Skeleton shape="usage" rows={5} />}
       </main>
     )
   }

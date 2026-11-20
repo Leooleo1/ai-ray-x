@@ -1,3 +1,4 @@
+import { Skeleton } from '../Skeleton'
 import type { ReactNode } from 'react'
 import type { TaskStatus } from '../../api'
 
@@ -14,11 +15,13 @@ interface LaneProps {
   empty: string
   /** A picture over that sentence, for the lane that sits empty most of the time. */
   emptyArt?: string
+  /** The lane's items are still on their way: its shape shows instead. */
+  loading?: boolean
   children?: ReactNode
 }
 
 /** One lane of the desk: its name, how many things are in it, and the things. */
-export function Lane({ status, title, count, tone, empty, emptyArt, children }: LaneProps) {
+export function Lane({ status, title, count, tone, empty, emptyArt, loading = false, children }: LaneProps) {
   const lit = tone && count > 0 ? `acesa ${tone}` : ''
   return (
     <section className={`mesa-raia ${status} ${lit}`} aria-label={`${title}: ${count}`}>
@@ -28,7 +31,9 @@ export function Lane({ status, title, count, tone, empty, emptyArt, children }: 
           {count}
         </span>
       </header>
-      {count === 0 ? (
+      {loading && count === 0 ? (
+        <Skeleton rows={3} />
+      ) : count === 0 ? (
         <div className="mesa-raia-vazia">
           {emptyArt && <img className="arte-vazia pelucia" src={emptyArt} alt="" />}
           <p>{empty}</p>

@@ -1,3 +1,4 @@
+import { Skeleton } from './Skeleton'
 import { useEffect, useState } from 'react'
 import { type Bot, type Delivery, fetchDeliveries } from '../api'
 import { t } from '../i18n'
@@ -56,7 +57,7 @@ export function Deliveries({ bots, nav }: DeliveriesProps) {
   if (!items) {
     return (
       <main className="mesa entregas">
-        <p className={error ? 'nota failed quebra' : 'entregas-vazio'}>{error ?? t.deliveriesLoading}</p>
+        {error ? <p className="nota failed quebra">{error}</p> : <Skeleton rows={6} />}
       </main>
     )
   }
