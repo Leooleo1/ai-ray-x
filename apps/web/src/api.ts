@@ -1011,6 +1011,8 @@ export interface AppVersion {
   available: string | null
   installing: boolean
   can_update: boolean
+  /** A new version installs itself once no AI is answering. */
+  auto: boolean
 }
 
 export function fetchAppVersion(): Promise<AppVersion> {

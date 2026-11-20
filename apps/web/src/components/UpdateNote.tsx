@@ -45,7 +45,7 @@ export function UpdateNote() {
         </svg>
       </span>
       <span className="atu-texto">
-        <small>{installing ? t.updating : error ?? t.updateNew}</small>
+        <small>{installing ? t.updating : error ?? (app.auto ? t.updateOnItsOwn : t.updateNew)}</small>
         <b>
           <span className="atu-de">{app.version}</span>
           <svg viewBox="0 0 24 24" aria-hidden="true">

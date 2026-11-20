@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type AppVersion, type Bot, IS_REMOTE, type Profile, checkApp, fetchAppVersion, fetchProfile } from '../api'
+import { type AppVersion, type Bot, IS_REMOTE, type Profile, checkApp, fetchAppVersion, fetchProfile, saveSettings } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import { nowStamp, t } from '../i18n'
 import { PRESETS } from '../onboarding/presets'
@@ -78,6 +78,16 @@ export function ProfileMenu({ bots, updatedAt, collapsed = false, onSettings, on
       setChecking(false)
     }
   }
+  const toggleAuto = async () => {
+    if (!app) return
+    try {
+      await saveSettings({ auto_update: !app.auto })
+      setApp(await fetchAppVersion())
+      window.dispatchEvent(new Event('raiox:update'))
+    } catch (failure: unknown) {
+      setChecked(failure instanceof Error ? failure.message : String(failure))
+    }
+  }
   const name = profile?.name ?? profile?.github ?? 'raiox'
   const labels = { settings: t.settingsTitle, phone: t.tabPhone, help: t.profileHelp, setup: t.profileRedo }
   const pick = (id: (typeof ITEMS)[number]['id']) => {
@@ -113,6 +123,20 @@ export function ProfileMenu({ bots, updatedAt, collapsed = false, onSettings, on
               <span className="perfil-item-texto">
                 {checking ? t.checkingUpdates : t.checkUpdates}
                 {checked && <small>{checked}</small>}
+              </span>
+            </button>
+          )}
+          {app?.can_update && !IS_REMOTE && (
+            <button type="button" role="menuitemcheckbox" aria-checked={app.auto} className="perfil-item perfil-auto" title={t.autoUpdateHint} onClick={() => void toggleAuto()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18.5 3.5v3.6h-3.6M5.5 20.5v-3.6h3.6" />
+              </svg>
+              <span className="perfil-item-texto">
+                {t.autoUpdate}
+                <small>{t.autoUpdateShort}</small>
+              </span>
+              <span className={`config-chave ${app.auto ? 'ligada' : ''}`} aria-hidden="true">
+                <i />
               </span>
             </button>
           )}
