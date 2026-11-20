@@ -12,10 +12,11 @@ use std::path::Path;
 
 const FILE: &str = "regras-lidas.json";
 
-/// The rules' version: the guide's fixed text (no project, persona, team or pages in it).
-pub fn version() -> u64 {
+/// The rules' version: the guide's fixed text (no project, persona, team or pages in it). Turning
+/// full access on or off changes it, so a conversation already going reads what it may do now.
+pub fn version(full: bool) -> u64 {
     let mut hasher = DefaultHasher::new();
-    crate::bot_run::guide("project", "", &[], &[]).hash(&mut hasher);
+    crate::bot_run::guide("project", "", &[], &[], full).hash(&mut hasher);
     hasher.finish()
 }
 
@@ -46,9 +47,10 @@ mod tests {
         let state = std::env::temp_dir().join(format!("raiox-rules-{}", std::process::id()));
         fs::create_dir_all(&state).unwrap();
         assert_eq!(read_by(&state, "b:main"), None, "a conversation from before raiox kept versions reads them again");
-        remember(&state, "b:main", version());
-        assert_eq!(read_by(&state, "b:main"), Some(version()));
-        assert_eq!(version(), version(), "the version does not depend on the moment");
+        remember(&state, "b:main", version(false));
+        assert_eq!(read_by(&state, "b:main"), Some(version(false)));
+        assert_eq!(version(false), version(false), "the version does not depend on the moment");
+        assert_ne!(version(true), version(false), "turning full access on or off gives the conversation the guide again");
         let _ = fs::remove_dir_all(&state);
     }
 }

@@ -1,0 +1,486 @@
+/*
+ * Deliveries: the last two weeks as a dot-matrix (one pixel per delivery, its colour the kind),
+ * then a diary of each day on a dotted rail. Colour only where it means something: cobalt for
+ * code an AI changed, green for a task it finished, light grey for what it showed or reported.
+ */
+
+.entregas {
+  --entregas-codigo: var(--cobalto);
+  --entregas-feita: var(--ok);
+  --entregas-outra: rgb(255 255 255 / 55%);
+  --entregas-desfeita: rgb(255 255 255 / 18%);
+}
+
+/* The kinds as quiet tabs with their counts, and the project picker. */
+.entregas-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.entregas-abas {
+  display: flex;
+  gap: 4px 20px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.entregas-abas button {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 6px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nevoa);
+  font: 500 13px/32px var(--sans);
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.entregas-abas button small {
+  font: 12px/32px var(--mono);
+}
+
+.entregas-abas button:hover,
+.entregas-abas button.ativo {
+  color: var(--giz);
+}
+
+.entregas-abas button.ativo::after {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  left: 0;
+  height: 2px;
+  background: var(--giz);
+  content: '';
+}
+
+/* The rhythm: fourteen small fields of pixels. */
+.entregas-ritmo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+}
+
+.entregas-ritmo > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.entregas-ritmo h2 {
+  margin: 0;
+  font: 500 14px/20px var(--sans);
+}
+
+.entregas-ritmo header > small {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+.entregas-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.entregas-legenda li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.entregas-legenda li::before {
+  width: 8px;
+  height: 8px;
+  background: var(--entregas-outra);
+  content: '';
+}
+
+.entregas-legenda .codigo::before {
+  background: var(--entregas-codigo);
+}
+
+.entregas-legenda .feita::before {
+  background: var(--entregas-feita);
+}
+
+.entregas-ritmo-dias {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.entregas-ritmo-dias button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 6px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--nevoa);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.entregas-ritmo-dias button:disabled {
+  cursor: default;
+}
+
+.entregas-ritmo-dias button:not(:disabled):hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.entregas-ritmo-dias button.escolhido {
+  background: rgb(255 255 255 / 7%);
+}
+
+.entregas-ritmo-dias button:focus-visible {
+  outline: 2px solid var(--cobalto);
+  outline-offset: 2px;
+}
+
+.entregas-ritmo-dias small {
+  font: 12px/16px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.entregas-ritmo-dias .hoje small,
+.entregas-ritmo-dias .escolhido small {
+  color: var(--giz);
+}
+
+.entregas-campo {
+  display: grid;
+  grid-template-columns: repeat(3, 8px);
+  gap: 4px;
+}
+
+.entregas-campo i {
+  width: 8px;
+  height: 8px;
+  background: rgb(255 255 255 / 6%);
+}
+
+.entregas-campo i.codigo,
+.entregas-item.codigo .entregas-no {
+  background: var(--entregas-codigo);
+}
+
+.entregas-campo i.feita,
+.entregas-item.feita .entregas-no {
+  background: var(--entregas-feita);
+}
+
+.entregas-campo i.outra,
+.entregas-item.outra .entregas-no {
+  background: var(--entregas-outra);
+}
+
+.entregas-campo i.desfeita,
+.entregas-item.desfeita .entregas-no {
+  background: var(--entregas-desfeita);
+}
+
+/* The diary: one panel, a sticky heading per day, the deliveries on a dotted rail. */
+.entregas-diario {
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px 4px;
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+}
+
+.entregas-vazio {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--nevoa);
+  font: 14px/20px var(--sans);
+}
+
+.entregas-dia h3 {
+  position: sticky;
+  z-index: 1;
+  top: -16px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 0 12px;
+  background: var(--carvao);
+  font: 500 14px/20px var(--sans);
+}
+
+.entregas-dia h3 small {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+.entregas-dia h3 .acao-texto {
+  margin-left: auto;
+}
+
+.entregas-dia ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entregas-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 8px minmax(0, 1fr);
+  column-gap: 16px;
+  padding-bottom: 20px;
+}
+
+/* The rail: a dotted line from one delivery's pixel to the next. */
+.entregas-item:not(:last-child)::before {
+  position: absolute;
+  top: 18px;
+  bottom: 0;
+  left: 63.5px;
+  width: 1px;
+  background: linear-gradient(rgb(255 255 255 / 16%) 50%, transparent 0) 0 0 / 1px 4px repeat-y;
+  content: '';
+}
+
+.entregas-hora {
+  color: var(--nevoa);
+  font: 12px/20px var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.entregas-no {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+}
+
+.entregas-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.entregas-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 20px;
+}
+
+/* As wide as the longest kind, so every project name starts in the same column. */
+.entregas-tipo {
+  flex: 0 0 112px;
+  overflow: hidden;
+  color: #c9c9d1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 12px/16px var(--sans);
+}
+
+.entregas-item.codigo .entregas-tipo {
+  color: #7d9ff5;
+}
+
+.entregas-item.feita .entregas-tipo {
+  color: var(--ok);
+}
+
+.entregas-item.desfeita .entregas-tipo {
+  color: var(--nevoa);
+}
+
+.entregas-quem {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #c9c9d1;
+  font: 12px/16px var(--sans);
+}
+
+.entregas-quem span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entregas-quem small {
+  flex: none;
+  color: var(--nevoa);
+  font-size: 12px;
+}
+
+.entregas-cifra {
+  flex: none;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.entregas-titulo {
+  display: -webkit-box;
+  max-width: 76ch;
+  margin: 0;
+  overflow: hidden;
+  color: var(--giz);
+  font: 500 14px/20px var(--sans);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.entregas-item.desfeita .entregas-titulo {
+  color: var(--nevoa);
+  text-decoration: line-through;
+}
+
+.entregas-arquivos {
+  margin: 0;
+  color: var(--nevoa);
+  font: 12px/18px var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.entregas-trecho {
+  display: -webkit-box;
+  max-width: 76ch;
+  margin: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 13px/19px var(--sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.entregas-print {
+  width: 280px;
+  margin-top: 4px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: #141419;
+  box-shadow: var(--sombra-card);
+  cursor: zoom-in;
+  aspect-ratio: 16 / 10;
+}
+
+.entregas-print img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.entregas-print.largo {
+  width: min(100%, 880px);
+  cursor: zoom-out;
+  aspect-ratio: auto;
+}
+
+.entregas-print.largo img {
+  height: auto;
+}
+
+.entregas-print:focus-visible {
+  outline: 2px solid var(--cobalto);
+  outline-offset: 2px;
+}
+
+.entregas-print.vazio {
+  display: block;
+  width: auto;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  box-shadow: none;
+  cursor: default;
+  aspect-ratio: auto;
+}
+
+@media (max-width: 720px) {
+  .entregas-ritmo {
+    padding: 14px 12px 10px;
+  }
+
+  .entregas-ritmo-dias {
+    gap: 0;
+  }
+
+  .entregas-campo {
+    grid-template-columns: repeat(3, 4px);
+    gap: 2px;
+  }
+
+  .entregas-campo i {
+    width: 4px;
+    height: 4px;
+  }
+
+  .entregas-legenda {
+    margin-left: 0;
+  }
+
+  .entregas-diario {
+    padding: 0 14px 4px;
+  }
+
+  .entregas-item {
+    grid-template-columns: 38px 8px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+
+  .entregas-item:not(:last-child)::before {
+    left: 51.5px;
+  }
+
+  /* On a phone the line keeps the kind, the project and Open; an undone one is struck through below. */
+  .entregas-quem small,
+  .entregas-custo,
+  .entregas-desfeito {
+    display: none;
+  }
+
+  .entregas-tipo {
+    flex: none;
+  }
+
+  /* The tabs scroll sideways; the last one fades instead of being cut. */
+  .entregas-abas {
+    width: 100%;
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+
+  .entregas-print {
+    width: 100%;
+  }
+}

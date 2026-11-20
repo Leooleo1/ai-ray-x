@@ -1,5 +1,6 @@
 //! Entregas: what the bots produced, in one place, newest first. Changes they
-//! made to a project (approved edits and applied drafts, marked when undone),
+//! made to a project (approved edits, applied drafts marked when undone, and the
+//! files an AI with full access edited in a conversation),
 //! screenshots, routine results and finished tasks. Read from the
 //! conversations as they are; nothing new is stored.
 
@@ -93,6 +94,12 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
                     Some(Delivery { detail: cut(text, EXCERPT), tokens, ..base("audit", m.ms, cut(headline, 140)) })
                 }
                 ("bot", "answer") if routine.is_some() => Some(Delivery { detail: cut(text, EXCERPT), ..base("routine", m.ms, routine.unwrap_or("").to_string()) }),
+                // An AI with full access edits in the conversation itself: what it changed is a delivery,
+                // named by the start of its answer.
+                ("bot", "answer") if !edited(reply).is_empty() => {
+                    let said = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                    Some(Delivery { files: edited(reply), tokens, ..base("change", m.ms, cut(&said, 140)) })
+                }
                 ("you", "draft_applied") => {
                     let draft = m.data["draft"].as_str().unwrap_or("");
                     // Older applies wrote "files", newer ones "paths".
@@ -177,5 +184,20 @@ mod tests {
         let audit = of_conversation("b", "t2", crate::auditor::THREAD_TITLE, &audit_msgs);
         assert_eq!(audit.len(), 1, "intermediate run steps stay out of audit deliveries");
         assert_eq!((audit[0].kind, audit[0].title.as_str(), audit[0].tokens), ("audit", "Fix test script", 350));
+    }
+
+    #[test]
+    fn an_ai_with_full_access_delivers_the_files_it_edited_in_the_conversation() {
+        let messages = vec![
+            message(1, "bot", "answer", json!({ "mode": "talk", "reply": { "text": "Li o projeto.", "trail": { "items": [{ "kind": "read", "target": "a.js" }] } } })),
+            message(2, "bot", "answer", json!({ "mode": "talk", "reply": { "text": "Troquei o título e fiz o commit.\n\nDetalhes...", "read_tokens": 900, "output_tokens": 100, "trail": { "items": [
+                { "kind": "edit", "target": "titulo.js" }, { "kind": "run", "target": "npm test" }, { "kind": "edit", "target": "titulo.test.js" }
+            ] } } })),
+        ];
+        let found = of_conversation("b", "main", "", &messages);
+        assert_eq!(found.len(), 1, "an answer that only read is not a delivery");
+        assert_eq!(found[0].kind, "change");
+        assert_eq!(found[0].files, vec!["titulo.js".to_string(), "titulo.test.js".to_string()]);
+        assert_eq!((found[0].title.as_str(), found[0].tokens), ("Troquei o título e fiz o commit. Detalhes...", 1000), "the start of its answer, and what it cost");
     }
 }

@@ -230,7 +230,7 @@ export interface Week {
   top: { tool: string; tokens: number } | null
 }
 
-export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' | 'app'
+export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' | 'app' | 'access'
 
 export interface BotReply {
   text: string
@@ -374,6 +374,8 @@ export interface Bot {
     week_limit: number | null
     auto_edit: boolean
     auto_run: boolean
+    /** Works in the project like its CLI in auto mode: edits, runs any command, git, starts the app. */
+    full_access: boolean
     week_used: number
     week_choices: number[]
     web_possible: boolean
@@ -724,6 +726,8 @@ export interface Preview {
   log: string
   /** A booted iOS simulator device, if any. */
   simulator: string | null
+  /** The project's dependencies are installing; the app starts when they are in. */
+  installing?: boolean
 }
 
 export function botPreview(id: string): Promise<Preview> {

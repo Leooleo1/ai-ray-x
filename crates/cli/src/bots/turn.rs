@@ -72,7 +72,7 @@ impl Setup {
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
         Setup {
             state_dir: state_dir.to_path_buf(),
-            stable: bot_run::guide(&bot.name, &persona, &others, &unwired),
+            stable: bot_run::guide(&bot.name, &persona, &others, &unwired, bot.grants.full_access),
             team: crate::team::context_for(state_dir, bot),
             // The project's own pages that relate to the question, kept decisions included.
             related: format!("{}{}", crate::memory::related(&bot.dir, question), crate::wiki::for_turn(state_dir, &bot.id, question)),
@@ -290,6 +290,7 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
         images,
         web: bot.grants.web,
         mcp: bot.grants.mcp,
+        full: bot.grants.full_access,
     };
     let stop = || jobs.should_stop(&bot.id);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, trail);
@@ -306,7 +307,7 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
     // in one already going, the question carries its own pages (project memory, the team's wiki).
     let carried = (bot.agent != "claude" && session.is_some() && !setup.related.trim().is_empty()).then(|| format!("{}\n\n{text}", setup.related.trim()));
     // When raiox's rules changed since this conversation read them, it reads the whole guide again, once.
-    let rules = crate::rules::version();
+    let rules = crate::rules::version(bot.grants.full_access);
     let key = conversation.unwrap_or("");
     let stale = bot.agent != "claude" && mode == Mode::Talk && session.is_some() && !key.is_empty() && crate::rules::read_by(&setup.state_dir, key) != Some(rules);
     let again = stale.then(|| format!("{}\n\n---\n\n{text}", target.guide));
@@ -330,13 +331,16 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, setup: &Setup, dir: &Path, session
 fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String> {
     // Read again: the person may have changed the list or the grant while the bot was answering.
     let now = find(state_dir, &bot.id).ok()?;
-    let safe = |command: &str| now.grants.auto_run && commands::check(command).is_ok_and(|words| crate::safe_commands::runs_alone(&words, &bot.dir));
+    // With full access any command raiox can run goes (the CLI runs its own anyway); otherwise only the safe ones.
+    let safe = |command: &str| {
+        commands::check(command).is_ok_and(|words| now.grants.full_access || (now.grants.auto_run && crate::safe_commands::runs_alone(&words, &bot.dir)))
+    };
     reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
 }
 
-/// Whether the bot runs without asking now (the grant may change while it answers).
+/// Whether the bot runs without asking now (the grant may change while it answers); full access includes it.
 fn runs_alone(state_dir: &Path, bot: &Bot) -> bool {
-    find(state_dir, &bot.id).is_ok_and(|now| now.grants.auto_run)
+    find(state_dir, &bot.id).is_ok_and(|now| now.grants.auto_run || now.grants.full_access)
 }
 
 /// Starts the project's app for a bot that runs without asking, and gives the CLI's next prompt:

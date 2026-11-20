@@ -1,0 +1,509 @@
+/*
+ * The desk as one board. Whose move it is decides the colour: a lane lights up in ember when
+ * something waits for the person, in cobalt while an AI works, and stays dark otherwise.
+ * Depth: the stage, the lanes (panels), the cards (items), the controls.
+ */
+
+/* The top line: a task for an AI, and the switch that lets them pick tasks up. */
+.mesa-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.mesa-nova {
+  display: flex;
+  flex: 1 1 520px;
+  gap: 8px;
+  max-width: 760px;
+}
+
+.mesa-nova input {
+  flex: 1 1 240px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+}
+
+.mesa-nova input::placeholder {
+  color: var(--nevoa);
+}
+
+.mesa-nova input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+.mesa-nova .mesa-nova-bot {
+  flex: 0 1 200px;
+  min-width: 150px;
+}
+
+.mesa-nova .mesa-nova-bot .seletor-botao {
+  height: 40px;
+  border-radius: var(--raio-item);
+}
+
+.mesa-nova .mesa-cheio {
+  height: 40px;
+  padding: 0 18px;
+}
+
+.mesa-auto {
+  max-width: 340px;
+}
+
+/* The four lanes fill the page's height; each scrolls on its own, so its light stays in view. */
+.mesa-raias {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  height: calc(100% - 56px);
+  min-height: 440px;
+}
+
+.mesa-raia {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+}
+
+/* The light is a picture made once (public/luz/raia-*.webp): pixels rising from the lane's foot. */
+.mesa-raia.acesa {
+  background: var(--carvao) url('/luz/raia-brasa.webp') center bottom / 100% auto no-repeat;
+}
+
+.mesa-raia.acesa.cobalto {
+  background-image: url('/luz/raia-cobalto.webp');
+}
+
+.mesa-raia-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mesa-raia-topo h3 {
+  margin: 0;
+  color: var(--giz);
+  font: 500 14px/20px var(--sans);
+}
+
+/* The count in the dot-matrix face the X-ray uses for its numbers. */
+.mesa-raia-conta {
+  color: var(--nevoa);
+  font: 700 32px/24px var(--pontos);
+  font-variant-numeric: tabular-nums;
+}
+
+.mesa-raia.acesa.brasa .mesa-raia-conta {
+  color: var(--brasa);
+}
+
+.mesa-raia.acesa.cobalto .mesa-raia-conta {
+  color: #7d9ff5;
+}
+
+.mesa-raia-vazia {
+  margin: 0;
+  color: var(--nevoa);
+  font: 13px/18px var(--sans);
+}
+
+.mesa-raia-itens {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding-bottom: 40px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* A fixed fade, so a card cut by the lane's foot sinks into its light. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+}
+
+.mesa-raia-itens::-webkit-scrollbar {
+  display: none;
+}
+
+/* A card: one thing in a lane. */
+.mesa-cartao {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: var(--raio-item);
+  background: #141419;
+  box-shadow: var(--sombra-card);
+}
+
+/* Why it is here; a square pixel says whose move it is. */
+.mesa-tipo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.mesa-tipo > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-cartao.waiting .mesa-tipo::before,
+.mesa-ao-vivo .mesa-tipo::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  /* As wide as a face, so this line and the name under it start together. */
+  margin: 0 6px;
+  background: var(--brasa);
+  content: '';
+}
+
+.mesa-ao-vivo .mesa-tipo::before {
+  background: var(--cobalto);
+}
+
+.mesa-titulo {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--giz);
+  font: 500 14px/20px var(--sans);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.mesa-cartao.done .mesa-titulo {
+  color: #b9b9c3;
+  font-weight: 400;
+}
+
+.mesa-trecho {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #d2d2da;
+  font: 12px/18px var(--mono);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mesa-apoio {
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.mesa-quem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mesa-quem small {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-cifra {
+  flex: none;
+  margin-left: auto;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The foot of a card that only opens somewhere: whose it is, and Open at the right. */
+.mesa-pe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mesa-pe .mesa-quem {
+  flex: 1;
+}
+
+.mesa-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.mesa-cheio {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mesa-cheio:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mesa-cheio:focus-visible,
+.mesa-equipe button:focus-visible {
+  outline: 2px solid var(--cobalto);
+  outline-offset: 2px;
+}
+
+.mesa-trabalhando {
+  color: #7d9ff5;
+  font: 12px/16px var(--sans);
+}
+
+.mesa-caminho {
+  margin-left: auto;
+}
+
+.mesa-todas {
+  align-self: flex-start;
+}
+
+/* A live card: what the AI does this second. */
+.mesa-passo {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--giz);
+  font: 13px/18px var(--sans);
+}
+
+.mesa-passo code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-formando {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--nevoa);
+  font: italic 13px/18px var(--sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.mesa-corrigir {
+  display: flex;
+  gap: 6px;
+}
+
+.mesa-corrigir input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: rgb(255 255 255 / 6%);
+  color: var(--giz);
+  font: 13px/18px var(--sans);
+}
+
+.mesa-corrigir .mesa-cheio {
+  height: 32px;
+}
+
+/* The team: the same panel as a lane, its people in rows. */
+.mesa-equipe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+}
+
+.mesa-equipe ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mesa-equipe button {
+  display: grid;
+  grid-template-columns: 28px repeat(3, minmax(0, 1fr)) minmax(150px, auto);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+/* The rows are inset by their hover; the title starts where their faces do. */
+.mesa-equipe > .mesa-raia-topo {
+  padding: 0 8px;
+}
+
+.mesa-equipe button:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.mesa-equipe-quem,
+.mesa-equipe-onde,
+.mesa-equipe-estado {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mesa-equipe b {
+  overflow: hidden;
+  font: 500 13px/18px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-equipe small {
+  overflow: hidden;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-equipe .sem-cargo {
+  opacity: 0.6;
+}
+
+.mesa-estado {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nevoa);
+  font: 12px/18px var(--sans);
+  white-space: nowrap;
+}
+
+.mesa-estado .ponto {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: rgb(255 255 255 / 22%);
+}
+
+.mesa-estado.ativo {
+  color: var(--giz);
+}
+
+.mesa-estado.ativo .ponto {
+  background: var(--cobalto);
+}
+
+.mesa-equipe .mesa-cifra {
+  text-align: right;
+}
+
+@media (max-width: 1180px) {
+  .mesa-raias {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: auto;
+    min-height: 0;
+  }
+
+  .mesa-raia {
+    min-height: 240px;
+  }
+
+  .mesa-raia-itens {
+    padding-bottom: 0;
+    overflow: visible;
+    mask-image: none;
+  }
+
+  /* A lit lane keeps room under its last card for the light. */
+  .mesa-raia.acesa .mesa-raia-itens {
+    padding-bottom: 72px;
+  }
+}
+
+/* One column, with what waits for the person first and what the AIs do next. */
+@media (max-width: 720px) {
+  .mesa-raias {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mesa-raia {
+    min-height: 0;
+  }
+
+  .mesa-raia.waiting {
+    order: -2;
+  }
+
+  .mesa-raia.doing {
+    order: -1;
+  }
+
+  .mesa-nova {
+    flex-wrap: wrap;
+  }
+
+  .mesa-equipe button {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+
+  .mesa-equipe-onde,
+  .mesa-equipe .mesa-cifra {
+    display: none;
+  }
+}

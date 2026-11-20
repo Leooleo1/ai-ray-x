@@ -139,8 +139,8 @@ fn turn(live: &mut Live, target: &Target, text: &str, stop: &dyn Fn() -> bool, o
 /// `stable` is the part of the guide that does not change between messages.
 pub fn ask(conversation: &str, stable: &str, target: &Target, text: &str, scratch: &Path, stop: &dyn Fn() -> bool, on_trail: &dyn Fn(&Trail)) -> Result<Reply> {
     reap();
-    // A change of grants (web, MCP) changes the process's tools: it opens again.
-    let grants = format!("{}{}", target.web, target.mcp);
+    // A change of grants (web, MCP, full access) changes the process's tools: it opens again.
+    let grants = format!("{}{}{}", target.web, target.mcp, target.full);
     let setup = hash(&[stable, target.model.unwrap_or(""), target.effort.unwrap_or(""), &grants]);
     let previous = {
         let mut open = lives();

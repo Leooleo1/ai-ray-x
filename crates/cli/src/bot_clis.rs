@@ -5,6 +5,8 @@
 //! without a person to approve them) and opencode as its plan agent with the
 //! shell and edits denied. An approved edit runs in the draft copy: agy in
 //! accept-edits, opencode as its build agent, both still without a shell.
+//! A bot with full access talks in each one's automatic mode (agy's auto,
+//! opencode's build agent with --auto), shell and edits allowed.
 //! Neither has a system-prompt flag, so the guide opens a new session's first
 //! message, as with Codex.
 
@@ -19,14 +21,21 @@ use crate::bot_run::{reply_from, Mode, Reply, Target};
 /// Other folders are denied outright: left to "ask", the run would stop with an error.
 const OPENCODE_TALK: &str = r#"{"permission":{"bash":"deny","edit":"deny","webfetch":"deny","external_directory":"deny"}}"#;
 const OPENCODE_EDIT: &str = r#"{"permission":{"bash":"deny","webfetch":"deny","external_directory":"deny"}}"#;
+/// Full access: the shell and edits allowed in the project, other folders still denied.
+const OPENCODE_FULL: &str = r#"{"permission":{"bash":"allow","edit":"allow","webfetch":"deny","external_directory":"deny"}}"#;
 /// Models opencode serves without an account (its Zen free tier), offered when it lists none.
 pub const OPENCODE_FREE: [&str; 2] = ["opencode/deepseek-v4.1-flash-free", "opencode/mimo-v2.6-flash-free"];
 
 pub fn antigravity(target: &Target, mode: Mode) -> Command {
     let mut command = crate::procs::command("agy");
     // PWD too: the panel's own would point it at the folder raiox was opened in.
-    command.current_dir(target.dir).env("PWD", target.dir).args(["--input-format", "stream-json", "--output-format", "stream-json", "--sandbox"]);
-    command.args(["--mode", if mode == Mode::Talk { "plan" } else { "accept-edits" }]);
+    command.current_dir(target.dir).env("PWD", target.dir).args(["--input-format", "stream-json", "--output-format", "stream-json"]);
+    if target.full && mode == Mode::Talk {
+        // Its automatic mode: it edits and runs commands, the terminal without the sandbox (installs, git).
+        command.args(["--mode", "auto"]);
+    } else {
+        command.args(["--sandbox", "--mode", if mode == Mode::Talk { "plan" } else { "accept-edits" }]);
+    }
     if let Some(id) = target.session {
         command.args(["--conversation", id]);
     }
@@ -43,9 +52,9 @@ pub fn antigravity(target: &Target, mode: Mode) -> Command {
 const ANTIGRAVITY_RULES: &str = "(raiox: terminal commands are denied here and would end your turn without an answer. \
      Look at the project with your file tools only: list a folder, read a file, search. Then answer.)";
 
-/// agy reads its prompt as one stream-json message on stdin.
-pub fn antigravity_input(prompt: &str) -> String {
-    let content = format!("{ANTIGRAVITY_RULES}\n\n{prompt}");
+/// agy reads its prompt as one stream-json message on stdin; with full access its commands run.
+pub fn antigravity_input(prompt: &str, full: bool) -> String {
+    let content = if full { prompt.to_string() } else { format!("{ANTIGRAVITY_RULES}\n\n{prompt}") };
     format!("{}\n", json!({ "event": "user", "message": { "role": "user", "content": content } }))
 }
 
@@ -54,8 +63,16 @@ pub fn opencode(target: &Target, mode: Mode) -> Command {
     // Its own private server: no background service to depend on.
     // PWD too: opencode takes its project folder from it, and the panel's points elsewhere.
     command.current_dir(target.dir).env("PWD", target.dir).args(["run", "--standalone", "--format", "json"]);
-    command.args(["--agent", if mode == Mode::Talk { "plan" } else { "build" }]);
-    let config = if mode == Mode::Talk { OPENCODE_TALK } else { OPENCODE_EDIT };
+    let full = target.full && mode == Mode::Talk;
+    command.args(["--agent", if mode == Mode::Talk && !full { "plan" } else { "build" }]);
+    if full {
+        command.arg("--auto");
+    }
+    let config = match (mode, full) {
+        (Mode::Talk, true) => OPENCODE_FULL,
+        (Mode::Talk, false) => OPENCODE_TALK,
+        (Mode::Edit, _) => OPENCODE_EDIT,
+    };
     // A bot allowed the web reads it (webfetch), the rest stays as it is.
     let config = if target.web { config.replace(r#""webfetch":"deny""#, r#""webfetch":"allow""#) } else { config.to_string() };
     command.env("OPENCODE_CONFIG_CONTENT", config);

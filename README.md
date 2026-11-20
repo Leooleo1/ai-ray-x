@@ -73,6 +73,7 @@ you ask it to or turn it on. These switches do, so read them before you flip the
 
 | Switch | What it does | The risk |
 |---|---|---|
+| **Full access** (per AI; the mode under the message field, or Shift+Tab) | The AI works in the project like its CLI in auto mode: edits files (its .env included), runs any command, installs, commits, pulls and pushes, and starts the app | It acts in your project and your git remote without asking; each CLI's own automatic review (Claude Code's auto mode, Codex's approve-for-me, Antigravity's auto, opencode's auto, Cursor's force) is what stops a risky step |
 | **Edits without asking** (per AI) | Approves that AI's proposals and applies the change to the project | Changes land without you reading them first; each one can still be undone |
 | **Uses your MCP servers** (per AI, Claude Code) | Lets it use your own MCP servers, with no approval step | It can act in your mail, calendar, drive or anything else those servers reach |
 | **Bots pick tasks up** (Desk) | Idle AIs start their next task by themselves | It spends your plan while you are away; set a daily or weekly token ceiling |
