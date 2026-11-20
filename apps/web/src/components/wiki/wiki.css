@@ -1,0 +1,394 @@
+/*
+ * The wiki: an index split by what a page costs (every question, or only when it matches), each
+ * page with its week's reading cost as a strip of pixels; one page open as a writing surface.
+ */
+
+.wiki {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.wiki-indice,
+.wiki-pagina {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--raio-painel);
+  background: var(--carvao);
+  box-shadow: var(--sombra-card);
+}
+
+.wiki-vazio {
+  margin: 0;
+  padding: 8px 16px;
+  color: var(--nevoa);
+  font: 14px/20px var(--sans);
+}
+
+/* The index. */
+.wiki-indice {
+  padding-top: 16px;
+}
+
+.wiki-indice-topo {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.wiki-busca input {
+  height: 36px;
+  padding: 0 32px 0 12px;
+  border: 0;
+  border-radius: var(--raio-item);
+  outline: 0;
+  background: var(--vidro-7);
+  color: var(--giz);
+  font: 14px/20px var(--sans);
+}
+
+.wiki-busca input::placeholder {
+  color: var(--nevoa);
+}
+
+.wiki-busca input:focus-visible {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+.wiki-nova,
+.wiki-salvar {
+  flex: none;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--giz);
+  color: var(--noite);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wiki-nova.confirmar {
+  background: var(--brasa);
+}
+
+.wiki-salvar:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wiki-nova:focus-visible,
+.wiki-salvar:focus-visible,
+.wiki-grupo button:focus-visible,
+.wiki-tipos button:focus-visible {
+  outline: 2px solid var(--cobalto);
+  outline-offset: 2px;
+}
+
+.wiki-grupos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 0 16px 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.wiki-grupo h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 0 8px 6px;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+}
+
+.wiki-grupo h3 small {
+  font: 12px/16px var(--mono);
+}
+
+.wiki-grupo ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wiki-grupo button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: var(--raio-item);
+  background: none;
+  color: var(--giz);
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.wiki-grupo button:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.wiki-grupo button.ativa {
+  background: rgb(255 255 255 / 7%);
+}
+
+.wiki-grupo button b {
+  overflow: hidden;
+  font: 500 14px/20px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-grupo button.confirmar b {
+  color: var(--brasa);
+}
+
+.wiki-grupo button small {
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+/* What a page cost this week, in pixels: the same light as the X-ray's bars. */
+.wiki-custo {
+  display: grid;
+  grid-template-columns: repeat(28, 6px);
+  gap: 2px;
+}
+
+.wiki-custo i {
+  width: 6px;
+  height: 6px;
+  background: color-mix(in srgb, var(--cobalto) var(--luz), rgb(255 255 255 / 6%));
+}
+
+.wiki-semana {
+  padding: 12px 16px;
+  box-shadow: inset 0 1px 0 var(--fio);
+  color: var(--nevoa);
+  font: 12px/16px var(--mono);
+}
+
+/* The page. */
+.wiki-pagina {
+  overflow: hidden;
+}
+
+.wiki-convite {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  margin: auto;
+  padding: 20px;
+  color: var(--nevoa);
+  font: 14px/20px var(--sans);
+  text-align: center;
+}
+
+.wiki-convite p {
+  margin: 0;
+}
+
+.wiki-folha {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wiki-folha-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 16px 20px 8px;
+}
+
+.wiki-voltar {
+  display: none;
+}
+
+.wiki-tipos {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.wiki-tipos button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--nevoa);
+  font: 500 12px/16px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.wiki-tipos button.ativo {
+  background: rgb(255 255 255 / 10%);
+  color: var(--giz);
+}
+
+.wiki-estado {
+  margin-left: auto;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.wiki-folha-topo .wiki-salvar {
+  height: 32px;
+}
+
+.wiki-dica {
+  margin: 0;
+  padding: 0 20px;
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.wiki-titulo {
+  max-width: 72ch;
+  margin: 24px 20px 0;
+  padding: 0 0 4px;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--giz);
+  font: 500 26px/34px var(--sans);
+  letter-spacing: -0.01em;
+}
+
+.wiki-titulo::placeholder,
+.wiki-corpo::placeholder {
+  color: rgb(255 255 255 / 25%);
+}
+
+.wiki-titulo:focus-visible {
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 20%);
+}
+
+.wiki-corpo {
+  flex: 1;
+  max-width: 72ch;
+  min-height: 0;
+  margin: 12px 20px 0;
+  padding: 0 0 20px;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: #dcdce2;
+  font: 15px/25px var(--sans);
+  resize: none;
+  scrollbar-width: thin;
+}
+
+.wiki-folha-pe {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  box-shadow: inset 0 1px 0 var(--fio);
+  color: var(--nevoa);
+  font: 12px/16px var(--sans);
+}
+
+.wiki-leitores {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  min-width: 0;
+}
+
+.wiki-leitor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c9c9d1;
+}
+
+.wiki-conta {
+  flex: none;
+  margin-left: auto;
+  font: 12px/16px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One panel at a time on narrow screens: the pages, or the open page with a way back. */
+@media (max-width: 960px) {
+  .wiki {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wiki.editando .wiki-indice,
+  .wiki:not(.editando) .wiki-pagina {
+    display: none;
+  }
+
+  .wiki-voltar {
+    display: inline-flex;
+  }
+
+  /* Back, Delete and Save on one line; the kind under them, the whole width. */
+  .wiki-folha-topo {
+    display: grid;
+    grid-template-areas: 'voltar apagar salvar' 'tipos tipos tipos';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    padding: 14px 16px 8px;
+  }
+
+  .wiki-voltar {
+    grid-area: voltar;
+    align-self: center;
+    justify-self: start;
+    height: 32px;
+  }
+
+  .wiki-apagar {
+    grid-area: apagar;
+  }
+
+  .wiki-folha-topo .wiki-salvar {
+    grid-area: salvar;
+  }
+
+  .wiki-tipos {
+    display: grid;
+    grid-area: tipos;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .wiki-estado {
+    display: none;
+  }
+
+  .wiki-dica,
+  .wiki-folha-pe {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .wiki-titulo,
+  .wiki-corpo {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+}
