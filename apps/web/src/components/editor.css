@@ -100,7 +100,9 @@
   cursor: default;
 }
 
-/* Pixel finish: the dither filter from index.html, on the avatar's own pixels. */
+/* Pixel finish: every other 2 px square lets the background through, so the shape reads as pixels.
+   A CSS mask, not an SVG filter: WebKit (the desktop app's engine) left filtered avatars blank. */
 .avatar.pixel {
-  filter: url(#raiox-pixel);
+  -webkit-mask: repeating-conic-gradient(#000 0 25%, rgb(0 0 0 / 50%) 0 50%) 0 0 / 4px 4px;
+  mask: repeating-conic-gradient(#000 0 25%, rgb(0 0 0 / 50%) 0 50%) 0 0 / 4px 4px;
 }
