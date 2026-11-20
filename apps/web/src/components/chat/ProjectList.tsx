@@ -47,6 +47,7 @@ function rowsOf(bot: Bot): Row[] {
 /** One project's conversations: each IA's main one and its parallel ones, then its exchanges and group questions. */
 export function ProjectList({ bots, project, current, unread, nav, onThread, onNew, onClose, open }: ProjectListProps) {
   const [query, setQuery] = useState('')
+  const [closing, setClosing] = useState<string | null>(null)
   const needle = query.trim().toLowerCase()
   const team = bots.state.bots.filter((b) => b.name === project).sort((a, b) => AGENT_ORDER.indexOf(a.agent) - AGENT_ORDER.indexOf(b.agent))
   const ids = new Set(team.map((b) => b.id))
@@ -63,7 +64,16 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
         </span>
       </header>
       <div className="conversas-topo">
-        <input value={query} placeholder={t.searchAll} aria-label={t.searchAll} onChange={(event) => setQuery(event.target.value)} />
+        <div className="busca-wrap">
+          <input value={query} placeholder={t.searchAll} aria-label={t.searchAll} onChange={(event) => setQuery(event.target.value)} />
+          {query && (
+            <button type="button" className="campo-limpar" aria-label={t.clearSearch} title={t.clearSearch} onClick={() => setQuery('')}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
         {onNew && (
           <button type="button" aria-label={t.newThread} title={t.newThread} onClick={onNew}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -72,6 +82,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
           </button>
         )}
       </div>
+      {needle.length > 0 && needle.length < MIN_QUERY && <p className="conversas-vazio">{t.searchHint.replace('{n}', String(MIN_QUERY))}</p>}
       {needle.length >= MIN_QUERY ? (
         <SearchHits bots={bots.state.bots} needle={needle} onOpen={nav.openMessage} />
       ) : (
@@ -84,6 +95,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                   const key = `${bot.id}:${row.thread}`
                   const fresh = row.thread === MAIN && unread.has(bot.id)
                   const busy = bot.busy && (bot.busy_thread ?? MAIN) === row.thread
+                  const confirming = closing === key
                   return (
                     <li key={key} className="conversa-item">
                       <button type="button" className={`${current === key ? 'ativo' : ''} ${fresh ? 'nao-lido' : ''}`} onClick={() => onThread(bot.id, row.thread)}>
@@ -99,10 +111,28 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                         </span>
                       </button>
                       {row.thread !== MAIN && (
-                        <button type="button" className="fechar-conversa" aria-label={t.closeThread} title={t.closeThread} disabled={busy} onClick={() => onClose(bot.id, row.thread)}>
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M7 7l10 10M17 7L7 17" />
-                          </svg>
+                        <button
+                          type="button"
+                          className={`fechar-conversa ${confirming ? 'confirmar' : ''}`}
+                          aria-label={confirming ? t.closeThreadSure : t.closeThread}
+                          title={confirming ? t.closeThreadSure : t.closeThread}
+                          disabled={busy}
+                          onBlur={() => setClosing(null)}
+                          onClick={() => {
+                            if (!confirming) setClosing(key)
+                            else {
+                              setClosing(null)
+                              onClose(bot.id, row.thread)
+                            }
+                          }}
+                        >
+                          {confirming ? (
+                            t.closeThreadSure
+                          ) : (
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M7 7l10 10M17 7L7 17" />
+                            </svg>
+                          )}
                         </button>
                       )}
                     </li>

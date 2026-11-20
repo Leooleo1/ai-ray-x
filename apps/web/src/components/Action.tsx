@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { applySuggestion, undoChange, type Change, type Outcome, type Source } from '../api'
 import { explainApply } from '../diet'
 import { compact, fill, t } from '../i18n'
@@ -23,6 +23,7 @@ type Step = { kind: 'idle' } | { kind: 'confirm' } | { kind: 'busy' } | { kind: 
 export function Action({ id, value, source, change, outcome, onChanged, bot, project }: ActionProps) {
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const box = useRef<HTMLDivElement>(null)
+  const tipId = useId()
   // The control grows when it asks for confirmation; keep it in view (the chat scrolls).
   useEffect(() => {
     if (step.kind !== 'idle') box.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -45,7 +46,7 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
           <i className="ponto ok" />
           {t.applied} · {settingLabel(change)}
         </span>
-        <button className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id, bot), () => t.undo)}>
+        <button type="button" className="link" disabled={step.kind === 'busy'} onClick={() => void run(() => undoChange(change.id, bot), () => t.deliveryUndone)}>
           {t.undo}
         </button>
         {outcome && <span className={`nota resultado ${outcome.conclusive ? 'medido' : ''}`}>{describeOutcome(outcome)}</span>}
@@ -56,21 +57,21 @@ export function Action({ id, value, source, change, outcome, onChanged, bot, pro
   if (step.kind === 'confirm') {
     return (
       <div className="acao" ref={box}>
-        <button className="cheio" onClick={() => void run(() => applySuggestion(id, source, bot), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
+        <button type="button" className="cheio" onClick={() => void run(() => applySuggestion(id, source, bot), (kept) => (kept ? t.memoSaved : t.memoFailed))}>
           {t.confirm}
         </button>
-        <button className="link" onClick={() => setStep({ kind: 'idle' })}>
+        <button type="button" className="link" onClick={() => setStep({ kind: 'idle' })}>
           {t.cancel}
         </button>
         <span className="nota explica">{fill(t.applyTarget, id === 'compact-earlier' ? `CLAUDE_CODE_AUTO_COMPACT_WINDOW=${value ?? '400000'}` : id).replace('{project}', project)}</span>
       </div>
     )
   }
-  const tipId = `dica-${id}`
   return (
     <div className="acao" ref={box}>
       <span className="dica-wrap">
         <button
+          type="button"
           className="vidro-btn"
           aria-describedby={tipId}
           disabled={step.kind === 'busy'}

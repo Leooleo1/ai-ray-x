@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IS_REMOTE, type Bot, type BotAgent, type BotsState } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
@@ -50,6 +50,14 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
   const [query, setQuery] = useState('')
   // The project whose AI choice is open, when more than one CLI is on.
   const [choosing, setChoosing] = useState<string | null>(null)
+  useEffect(() => {
+    if (!choosing) return undefined
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setChoosing(null)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [choosing])
   const [rsiOpen, setRsiOpen] = useState(false)
   const [rsiName, setRsiName] = useState(t.rsiDefaultName)
   const [rsiAgent, setRsiAgent] = useState<BotAgent | null>(null)
@@ -183,6 +191,7 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
                     placeholder={t.rsiDefaultName}
                     onChange={(event) => setRsiName(event.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                   />
+                  <small className="rsi-caminho">{t.rsiPathPreview.replace('{name}', rsiName.trim() || t.rsiDefaultName)}</small>
                 </label>
                 {agents.length > 1 && (
                   <div className="rsi-campo">
@@ -216,7 +225,16 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
             )}
           </div>
         )}
-        <input className="projetos-busca" value={query} placeholder={t.searchProjects} aria-label={t.searchProjects} onChange={(event) => setQuery(event.target.value)} />
+        <div className="busca-wrap projetos-busca-wrap">
+          <input className="projetos-busca" value={query} placeholder={t.searchProjects} aria-label={t.searchProjects} onChange={(event) => setQuery(event.target.value)} />
+          {query && (
+            <button type="button" className="campo-limpar" aria-label={t.clearSearch} title={t.clearSearch} onClick={() => setQuery('')}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
         {agents.length === 0 && <p className="nota">{t.noAgentsOn}</p>}
         {shown.length === 0 && <p className="nota">{t.noCandidates}</p>}
         <ul className="projetos-lista">
@@ -234,6 +252,9 @@ export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps
                       {AGENT_LABEL[agent]}
                     </button>
                   ))}
+                  <button type="button" className="lado-link" onClick={() => setChoosing(null)}>
+                    {t.cancel}
+                  </button>
                 </span>
               ) : (
                 <button type="button" className="projeto-acao" disabled={agents.length === 0} onClick={() => turnOn(row)}>

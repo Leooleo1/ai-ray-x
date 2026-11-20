@@ -47,7 +47,7 @@ export function DefaultPicker({ label, value, options, free, show, onPick }: Def
         <div className="cfg-escolha-painel" role="dialog" aria-label={label}>
           <span className="cfg-escolha-titulo">{label}</span>
           {free ? (
-            <FreeValue value={value} onPick={pick} />
+            <FreeValue value={value} options={options} show={show} onPick={pick} />
           ) : (
             <div className="cfg-escolha-grade" role="radiogroup" aria-label={label}>
               {[null, ...options].map((option) => (
@@ -65,20 +65,35 @@ export function DefaultPicker({ label, value, options, free, show, onPick }: Def
 }
 
 /** Any model name, or the CLI's default when left empty. */
-function FreeValue({ value, onPick }: { value: string | null; onPick: (value: string | null) => void }) {
+function FreeValue({ value, options, show, onPick }: { value: string | null; options: string[]; show: (value: string) => string; onPick: (value: string | null) => void }) {
   const [draft, setDraft] = useState(value ?? '')
+  useEffect(() => {
+    setDraft(value ?? '')
+  }, [value])
   const apply = () => onPick(draft.trim() || null)
   return (
-    <form
-      className="cfg-escolha-livre"
-      onSubmit={(event) => {
-        event.preventDefault()
-        apply()
-      }}
-    >
-      {/* The panel opens on a click, so the field takes the focus right away. */}
-      <input autoFocus value={draft} placeholder={t.defaultOption} onChange={(event) => setDraft(event.target.value)} />
-      <button type="submit">{t.applyValue}</button>
-    </form>
+    <div className="cfg-escolha-livre-wrap">
+      <form
+        className="cfg-escolha-livre"
+        onSubmit={(event) => {
+          event.preventDefault()
+          apply()
+        }}
+      >
+        {/* The panel opens on a click, so the field takes the focus right away. */}
+        <input autoFocus value={draft} placeholder={t.defaultOption} onChange={(event) => setDraft(event.target.value)} />
+        <button type="submit">{t.applyValue}</button>
+      </form>
+      {options.length > 0 && (
+        <div className="cfg-escolha-grade" role="radiogroup">
+          {[null, ...options].map((option) => (
+            <button key={option ?? ''} type="button" role="radio" aria-checked={value === option} className={value === option ? 'ativo' : ''} onClick={() => onPick(option)}>
+              <i className="cfg-marca" aria-hidden="true" />
+              {option ? show(option) : t.defaultOption}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

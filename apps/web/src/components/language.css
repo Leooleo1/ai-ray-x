@@ -1,3 +1,11 @@
+.idioma-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  align-self: center;
+}
+
 /* English or Portuguese: two options in one pill. */
 .idioma {
   display: inline-flex;
@@ -6,6 +14,10 @@
   border-radius: 999px;
   background: rgb(255 255 255 / 6%);
   box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.idioma.salvando {
+  opacity: 0.6;
 }
 
 .idioma button {
@@ -20,12 +32,15 @@
   cursor: pointer;
 }
 
+.idioma button:disabled {
+  cursor: default;
+}
+
 .idioma button.ativo {
   background: rgb(255 255 255 / 12%);
   color: var(--giz);
 }
 
 .cfg-abas .idioma {
-  margin-left: auto;
-  align-self: center;
+  margin-left: 0;
 }

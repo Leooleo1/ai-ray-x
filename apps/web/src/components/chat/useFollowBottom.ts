@@ -29,8 +29,16 @@ export function useFollowBottom(list: RefObject<HTMLElement | null>, size: numbe
       atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_END
       if (atEnd.current) setUnseen(false)
     }
+    // An image that loads after the jump (a screenshot, an attached picture) pushes the end down: follow it.
+    const onLoad = () => {
+      if (atEnd.current) el.scrollTo({ top: el.scrollHeight })
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
-    return () => el.removeEventListener('scroll', onScroll)
+    el.addEventListener('load', onLoad, true)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('load', onLoad, true)
+    }
   }, [list])
 
   // A new chat opens at its end, at once.

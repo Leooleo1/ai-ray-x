@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { type Pairing, type RemoteState, type TunnelConfig, fetchRemote, forgetDevice, newPairing, setTunnel } from '../../api'
-import { t } from '../../i18n'
+import { locale, t } from '../../i18n'
 import { Segmented } from '../Segmented'
 import './phone.css'
 import { TelegramPanel } from './TelegramPanel'
@@ -21,7 +21,7 @@ function ago(ms: number, now: number): string {
   return shortDate(ms)
 }
 
-const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
+const shortDate = (ms: number) => new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: '2-digit' })
 
 function countdown(ms: number): string {
   const seconds = Math.max(0, Math.ceil(ms / 1000))
@@ -33,6 +33,7 @@ export function PhonePanel() {
   const [remote, setRemote] = useState<RemoteState | null>(null)
   const [draft, setDraft] = useState<TunnelConfig | null>(null)
   const [pairing, setPairing] = useState<Pairing | null>(null)
+  const [copiedCode, setCopiedCode] = useState(false)
   const [forgetting, setForgetting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -142,7 +143,20 @@ export function PhonePanel() {
           <div className="celular-qr">
             <img src={pairing.qr} alt={t.phonePair} width={232} height={232} />
             <span className="cfg-faz">{t.phonePairTyped}</span>
-            <span className="celular-codigo">{pairing.code}</span>
+            <div className="celular-codigo-linha">
+              <span className="celular-codigo">{pairing.code}</span>
+              <button
+                type="button"
+                className="cfg-btn vidro pequeno"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(pairing.code)
+                  setCopiedCode(true)
+                  window.setTimeout(() => setCopiedCode(false), 1800)
+                }}
+              >
+                {copiedCode ? t.copiedShort : t.copyCode}
+              </button>
+            </div>
             <span className="cfg-faz">{t.phonePairExpires.replace('{t}', countdown(left))}</span>
           </div>
         ) : (

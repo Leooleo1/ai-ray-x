@@ -34,16 +34,14 @@
   font: 14px/18px var(--sans);
 }
 
-.quadro-nova select {
+.quadro-nova .quadro-bot {
   flex: 0 1 220px;
-  min-width: 0;
+  min-width: 160px;
+}
+
+.quadro-nova .quadro-bot .seletor-botao {
   height: 36px;
-  padding: 0 10px;
-  border: 0;
   border-radius: 10px;
-  background: rgb(255 255 255 / 6%);
-  color: var(--giz);
-  font: 13px/16px var(--sans);
 }
 
 .quadro-nova .cheio {
@@ -165,6 +163,10 @@
   color: var(--nevoa);
 }
 
+.quadro-acoes .link.confirmar {
+  color: var(--brasa);
+}
+
 .quadro-trabalhando {
   color: var(--nevoa);
   font: 11px/14px var(--mono);
@@ -180,7 +182,7 @@
     display: none;
   }
 
-  .quadro-nova select {
+  .quadro-nova .quadro-bot {
     flex: 1 1 0;
   }
 }

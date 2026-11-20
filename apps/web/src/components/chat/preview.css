@@ -205,6 +205,13 @@
   white-space: pre-wrap;
 }
 
+.ver-print-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .ver-print {
   max-width: 100%;
   border-radius: 10px;

@@ -7,6 +7,7 @@ import { Action } from './Action'
 import { Avatar } from './Avatar'
 import { CompactionBreakdown } from './Breakdown'
 import { Segmented } from './Segmented'
+import { SelectChip } from './SelectChip'
 
 const RULER_SCALE = 1_000_000
 /** Below this share of the ruler the 'now' label starts at its mark instead of centering on it. */
@@ -44,31 +45,36 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
   return (
     <main className="grade eficiencia">
       <AgentCard agent={AGENTS.dieta} value={best} label={`${t.dietaLine} · ${count} ${t.suggestions}`} isShare isHero />
-      <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} label={t.raioLine.replace('{p}', target.name)} />
+      <AgentCard agent={AGENTS.raio} value={status ? status.context_tokens : 0} loading={status === undefined} label={t.raioLine.replace('{p}', target.name)} />
       <AgentCard agent={AGENTS.memo} value={lessons} label={t.memoLine} />
       <section className="cartao dieta-lista">
-        <h2>
-          {t.dietaTitle}
-          <small>{t.dietaHint}</small>
-          <Segmented
-            label={t.dietaTitle}
-            value={source}
-            onChange={setSource}
-            options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
-          />
-          {targets.length > 1 && (
-            <label className="alvo-projeto">
-              <small>{t.applyIn}</small>
-              <select value={target.dir} onChange={(event) => setTargetDir(event.target.value)}>
-                {targets.map((x) => (
-                  <option key={x.dir} value={x.dir}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </h2>
+        <header className="dieta-topo">
+          <h2>
+            {t.dietaTitle}
+            {targets.length <= 1 && <small>{t.dietaHint}</small>}
+          </h2>
+          <div className="dieta-controles">
+            {report.sources.length > 1 && (
+              <Segmented
+                label={t.dietaTitle}
+                value={source}
+                onChange={setSource}
+                options={report.sources.map((s) => ({ id: s.overview.source, label: SOURCE_NAMES[s.overview.source] }))}
+              />
+            )}
+            {targets.length > 1 && (
+              <SelectChip
+                className="alvo-projeto"
+                label={t.applyIn}
+                prefix={t.applyIn}
+                value={target.dir}
+                align="right"
+                options={targets.map((x) => ({ value: x.dir, label: x.name }))}
+                onChange={setTargetDir}
+              />
+            )}
+          </div>
+        </header>
         <ol className="sugestoes">
           {lines.map((line) => (
             <li key={line.id}>
@@ -85,6 +91,7 @@ export function EfficiencyView({ report, onChanged }: EfficiencyViewProps) {
               <div className="linha-3">{line.how}</div>
               {applicable.includes(line.id) && (
                 <Action
+                  key={`${line.id}:${target.dir}`}
                   id={line.id}
                   value={line.value}
                   source={source}
@@ -132,11 +139,12 @@ interface AgentCardProps {
   value: number
   label: string
   isShare?: boolean
+  loading?: boolean
   /** The tab's one big number: what Dieta could save. */
   isHero?: boolean
 }
 
-function AgentCard({ agent, value, label, isShare = false, isHero = false }: AgentCardProps) {
+function AgentCard({ agent, value, label, isShare = false, loading = false, isHero = false }: AgentCardProps) {
   const big = isShare ? { value: percent(value), unit: '' } : splitCompact(value)
   return (
     <section className={`cartao agente ${isHero ? 'agente-heroi' : ''}`}>
@@ -146,8 +154,14 @@ function AgentCard({ agent, value, label, isShare = false, isHero = false }: Age
       </div>
       <div className="destaque">
         <strong>
-          {isShare && value > 0 && !isHero ? `~${big.value}` : big.value}
-          {big.unit && <span className="unidade-pequena">{big.unit}</span>}
+          {loading ? (
+            '…'
+          ) : (
+            <>
+              {isShare && value > 0 && !isHero ? `~${big.value}` : big.value}
+              {big.unit && <span className="unidade-pequena">{big.unit}</span>}
+            </>
+          )}
         </strong>
         <span>{label}</span>
       </div>
