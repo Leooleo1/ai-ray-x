@@ -829,6 +829,11 @@ export function fetchAppVersion(): Promise<AppVersion> {
   return request<AppVersion>('/api/app')
 }
 
+/** Asks the update server now (the app checks by itself every few hours too). */
+export function checkApp(): Promise<AppVersion> {
+  return request<AppVersion>('/api/app/check', {})
+}
+
 /** Downloads the new version, installs it and restarts the app. */
 export function updateApp(): Promise<AppVersion> {
   return request<AppVersion>('/api/app/update', {})

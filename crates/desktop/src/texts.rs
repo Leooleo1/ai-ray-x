@@ -62,7 +62,15 @@ const EN: Texts = Texts {
 
 pub fn texts() -> &'static Texts {
     static CHOSEN: OnceLock<&'static Texts> = OnceLock::new();
-    CHOSEN.get_or_init(|| if sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("pt")) { &PT } else { &EN })
+    CHOSEN.get_or_init(|| {
+        // The language picked in the panel; otherwise the system's.
+        let picked = raiox::chosen_language(std::env::var_os("RAIOX_DB").map(std::path::PathBuf::from));
+        let portuguese = match picked.as_deref() {
+            Some(language) => language == "pt-BR",
+            None => sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("pt")),
+        };
+        if portuguese { &PT } else { &EN }
+    })
 }
 
 /// The menu bar's line about the AIs at work.

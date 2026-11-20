@@ -23,7 +23,13 @@ pub struct Settings {
     pub enabled: BTreeMap<String, bool>,
     #[serde(default)]
     pub defaults: BTreeMap<String, Defaults>,
+    /// The panel's language, when the person picked one ("en" or "pt-BR"); otherwise the system's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
+
+/// The languages the panel speaks.
+pub const LANGUAGES: [&str; 2] = ["en", "pt-BR"];
 
 fn file(state_dir: &Path) -> PathBuf {
     state_dir.join("settings.json")
@@ -52,7 +58,7 @@ impl Settings {
     }
 }
 
-/// Applies `{ "enabled": { id: bool }, "defaults": { id: { model, effort } } }`.
+/// Applies `{ "enabled": { id: bool }, "defaults": { id: { model, effort } }, "language": "en" | "pt-BR" | null }`.
 pub fn update(state_dir: &Path, input: &Value) -> Result<Settings> {
     let current = Settings::load(state_dir);
     let mut enabled = current.enabled.clone();
@@ -71,7 +77,15 @@ pub fn update(state_dir: &Path, input: &Value) -> Result<Settings> {
         let chosen = Defaults { model: bots::check_model(field("model"))?, effort: bots::check_effort(id, field("effort"))? };
         defaults.insert(id.clone(), chosen);
     }
-    let next = Settings { enabled, defaults };
+    let language = match input.get("language") {
+        None => current.language.clone(),
+        Some(Value::Null) => None,
+        Some(value) => match value.as_str() {
+            Some(language) if LANGUAGES.contains(&language) => Some(language.to_string()),
+            _ => bail!("the panel speaks {}", LANGUAGES.join(" or ")),
+        },
+    };
+    let next = Settings { enabled, defaults, language };
     next.save(state_dir)?;
     Ok(next)
 }

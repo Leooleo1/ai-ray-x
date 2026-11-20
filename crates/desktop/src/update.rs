@@ -53,6 +53,18 @@ pub fn watch(app: AppHandle) {
     raiox::app_update::on_install(move || {
         tauri::async_runtime::spawn(install(handle.clone()));
     });
+    // "Check for updates" in the panel: ask now, and keep what was found for Update.
+    let asking = app.clone();
+    raiox::app_update::on_check(move || {
+        let found = tauri::async_runtime::block_on(check(&asking));
+        Ok(found.map(|update| {
+            let version = update.version.clone();
+            if let Ok(mut pending) = asking.state::<Pending>().0.lock() {
+                *pending = Some(update);
+            }
+            version
+        }))
+    });
     tauri::async_runtime::spawn(async move {
         tokio_sleep(FIRST_CHECK).await;
         let mut told: Option<String> = None;

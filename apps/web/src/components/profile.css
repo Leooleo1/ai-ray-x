@@ -223,3 +223,28 @@
   font: 500 12px/14px var(--sans);
   cursor: pointer;
 }
+
+/* Check for updates: its result under the label. */
+.perfil-item-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.perfil-item-texto small {
+  color: var(--nevoa);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: normal;
+}
+
+/* The version the person runs, at the foot of the menu. */
+.perfil-versao {
+  margin: 0;
+  padding: 2px 10px 6px;
+  color: var(--nevoa);
+  font: 11px/14px var(--mono);
+  opacity: 0.8;
+}

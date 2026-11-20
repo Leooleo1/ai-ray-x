@@ -8,6 +8,7 @@ import { TourDialog } from '../tour/TourDialog'
 import { BotsPanel } from './settings/BotsPanel'
 import { ConnectionTile, GitHubTile } from './settings/ConnectionTile'
 import { type SetupStep, SetupHero, type StepId } from './settings/SetupHero'
+import { LanguagePicker } from './LanguagePicker'
 import { DevicePanel } from './settings/DevicePanel'
 import { PhonePanel } from './settings/PhonePanel'
 import { WiresPanel } from './settings/WiresPanel'
@@ -115,6 +116,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
             {item.count !== null && <small>{item.count}</small>}
           </button>
         ))}
+        <LanguagePicker />
       </div>
       <div className="cfg-painel" role="tabpanel">
         {tab === 'conexoes' && (

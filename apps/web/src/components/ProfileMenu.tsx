@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type Bot, type Profile, fetchProfile } from '../api'
+import { type AppVersion, type Bot, IS_REMOTE, type Profile, checkApp, fetchAppVersion, fetchProfile } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import { nowStamp, t } from '../i18n'
 import { PRESETS } from '../onboarding/presets'
@@ -19,6 +19,8 @@ function initials(profile: Profile | null): string {
   const letters = words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}` : words[0].slice(0, 2)
   return letters.toUpperCase()
 }
+
+const UPDATE_ICON = <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14" />
 
 const ITEMS: { id: 'settings' | 'phone' | 'help' | 'setup'; icon: ReactNode }[] = [
   { id: 'settings', icon: <path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4" /> },
@@ -53,6 +55,28 @@ export function ProfileMenu({ bots, updatedAt, onSettings, onSetup }: ProfileMen
       window.removeEventListener('keydown', escape)
     }
   }, [open])
+  // Check for updates: only the desktop app updates itself, so only it shows the item.
+  const [app, setApp] = useState<AppVersion | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checked, setChecked] = useState<string | null>(null)
+  useEffect(() => {
+    if (open) fetchAppVersion().then(setApp).catch(() => undefined)
+  }, [open])
+  const checkUpdates = async () => {
+    setChecking(true)
+    setChecked(null)
+    try {
+      const next = await checkApp()
+      setApp(next)
+      setChecked(next.available ? t.updateFound.replace('{v}', next.available) : t.upToDate.replace('{v}', next.version))
+      // The note above the profile shows the update at once.
+      window.dispatchEvent(new Event('raiox:update'))
+    } catch (failure: unknown) {
+      setChecked(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      setChecking(false)
+    }
+  }
   const name = profile?.name ?? profile?.github ?? 'raiox'
   const labels = { settings: t.settingsTitle, phone: t.tabPhone, help: t.profileHelp, setup: t.profileRedo }
   const pick = (id: (typeof ITEMS)[number]['id']) => {
@@ -80,7 +104,19 @@ export function ProfileMenu({ bots, updatedAt, onSettings, onSetup }: ProfileMen
               {labels[item.id]}
             </button>
           ))}
+          {app?.can_update && !IS_REMOTE && (
+            <button type="button" role="menuitem" className="perfil-item" disabled={checking} onClick={() => void checkUpdates()}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {UPDATE_ICON}
+              </svg>
+              <span className="perfil-item-texto">
+                {checking ? t.checkingUpdates : t.checkUpdates}
+                {checked && <small>{checked}</small>}
+              </span>
+            </button>
+          )}
           <p className="perfil-nota">{t.roomRule}</p>
+          {app && <p className="perfil-versao">{t.appVersion.replace('{v}', app.version)}</p>}
         </div>
       )}
       <button type="button" className={`perfil-botao ${open ? 'aberto' : ''}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>

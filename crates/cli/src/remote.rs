@@ -19,6 +19,7 @@ fn desk_only(method: &Method, path: &str) -> bool {
     path.starts_with("/api/remote")
         || path.starts_with("/api/telegram")
         || path == "/api/app/update"
+        || path == "/api/app/check"
         || (*method != Method::Get && (path.starts_with("/api/setup") || path == "/api/settings"))
         || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/request_approve", "/api/bot/request_discard"].contains(&path)
 }

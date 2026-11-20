@@ -70,6 +70,12 @@ pub struct Started {
 
 /// Opens the index and starts the panel server on its own thread; the caller shows it.
 /// `db` overrides the index location (tests); `web_dir` is where the built interface is.
+/// The language the person picked in the panel, if any ("en" or "pt-BR"), for the app's own words.
+pub fn chosen_language(db: Option<PathBuf>) -> Option<String> {
+    let db = db.or_else(raiox_core::default_index_path)?;
+    settings::Settings::load(db.parent()?).language
+}
+
 pub fn start_panel(web_dir: PathBuf, db: Option<PathBuf>) -> Result<Started> {
     let roots = Roots::detect()?;
     let db = db.or_else(raiox_core::default_index_path).context("no cache folder found")?;

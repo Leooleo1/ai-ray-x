@@ -1,6 +1,12 @@
 // Texts in English and Portuguese, picked from the browser language, plus number formats.
 
 const en = {
+  language: 'Language',
+  appVersion: 'raiox {v}',
+  checkUpdates: 'Check for updates',
+  checkingUpdates: 'Checking…',
+  upToDate: 'Already the latest',
+  updateFound: 'raiox {v} is available: Update is above your profile',
   updateReady: 'raiox {v} is available',
   updateAction: 'Update',
   updating: 'Updating… raiox restarts by itself',
@@ -595,6 +601,12 @@ const en = {
 type Texts = typeof en
 
 const pt: Texts = {
+  language: 'Idioma',
+  appVersion: 'raiox {v}',
+  checkUpdates: 'Buscar atualizações',
+  checkingUpdates: 'Procurando…',
+  upToDate: 'Já é a mais recente',
+  updateFound: 'raiox {v} disponível: o Atualizar fica acima do seu perfil',
   updateReady: 'raiox {v} disponível',
   updateAction: 'Atualizar',
   updating: 'Atualizando… o raiox reabre sozinho',
@@ -1186,7 +1198,9 @@ const pt: Texts = {
   noLogs: 'nenhum registro do Claude Code ou do Codex nesta máquina',
 }
 
-export const locale = navigator.language.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en-US'
+/** The language picked in Settings (the page comes with it), else the system's. */
+const picked = document.querySelector('meta[name="raiox-lang"]')?.getAttribute('content')
+export const locale = picked === 'pt-BR' ? 'pt-BR' : picked === 'en' ? 'en-US' : navigator.language.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en-US'
 export const t: Texts = locale === 'pt-BR' ? pt : en
 
 const SCALES: [number, string, string][] = [

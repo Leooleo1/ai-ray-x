@@ -134,6 +134,8 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
             Err(reply) => Answer::Now(reply),
         },
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        // Asks the update server: never on the main loop.
+        (Method::Post, "/api/app/check") if !remote => Answer::Later(Box::new(|| respond(crate::app_update::check_now()))),
         // Opening a terminal can take a moment (or wait on the system): never on the main loop.
         (Method::Post, "/api/setup/sign_in") => match body(request) {
             Ok(input) => {
@@ -247,7 +249,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
                 Err(reply) => reply,
             }
         }
-        (Method::Get, _) => static_file(&panel.web_dir, path),
+        (Method::Get, _) => static_file(&panel.web_dir, path, crate::settings::Settings::load(&panel.state_dir).language.as_deref()),
         _ => text(405, "method not allowed"),
     }
 }
@@ -478,7 +480,14 @@ fn session_token() -> String {
         .collect()
 }
 
-fn static_file(root: &Path, url_path: &str) -> Reply {
+/// The page with the language the person picked, so the panel opens in it (no choice: the system's).
+fn with_language(page: Vec<u8>, language: Option<&str>) -> Vec<u8> {
+    let Some(language) = language.filter(|l| crate::settings::LANGUAGES.contains(l)) else { return page };
+    let html = String::from_utf8_lossy(&page);
+    html.replacen("<head>", &format!("<head><meta name=\"raiox-lang\" content=\"{language}\">"), 1).into_bytes()
+}
+
+fn static_file(root: &Path, url_path: &str, language: Option<&str>) -> Reply {
     let relative = match url_path.trim_start_matches('/') {
         "" => "index.html",
         other => other,
@@ -490,10 +499,11 @@ fn static_file(root: &Path, url_path: &str) -> Reply {
     let file = root.join(candidate);
     let is_page = relative == "index.html" || !relative.contains('.');
     match fs::read(&file) {
+        Ok(bytes) if relative == "index.html" => with_type(Response::from_data(with_language(bytes, language)), content_type(&file)),
         Ok(bytes) => with_type(Response::from_data(bytes), content_type(&file)),
         // Client-side routes fall back to the app shell.
         Err(_) if is_page => {
-            let shell = fs::read(root.join("index.html")).unwrap_or_else(|_| MISSING_BUILD.as_bytes().to_vec());
+            let shell = with_language(fs::read(root.join("index.html")).unwrap_or_else(|_| MISSING_BUILD.as_bytes().to_vec()), language);
             with_type(Response::from_data(shell), "text/html; charset=utf-8")
         }
         Err(_) => text(404, "not found"),

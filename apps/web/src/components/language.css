@@ -1,0 +1,31 @@
+/* English or Portuguese: two options in one pill. */
+.idioma {
+  display: inline-flex;
+  flex: none;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 6%);
+  box-shadow: inset 0 0 0 1px var(--fio);
+}
+
+.idioma button {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nevoa);
+  font: 500 12px/14px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.idioma button.ativo {
+  background: rgb(255 255 255 / 12%);
+  color: var(--giz);
+}
+
+.cfg-abas .idioma {
+  margin-left: auto;
+  align-self: center;
+}

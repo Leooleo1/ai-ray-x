@@ -17,9 +17,13 @@ export function UpdateNote() {
     const load = () => fetchAppVersion().then((next) => alive && setApp(next)).catch(() => undefined)
     void load()
     const timer = window.setInterval(() => void load(), POLL_MS)
+    // "Check for updates" in the profile menu found something: show it now.
+    const now = () => void load()
+    window.addEventListener('raiox:update', now)
     return () => {
       alive = false
       window.clearInterval(timer)
+      window.removeEventListener('raiox:update', now)
     }
   }, [])
   if (!app?.available || !app.can_update) return null

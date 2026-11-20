@@ -1,5 +1,6 @@
 import { Frame } from './parts'
 import { o } from './texts'
+import { LanguagePicker } from '../components/LanguagePicker'
 
 export function StepWelcome({ onNext }: { onNext: () => void }) {
   return (
@@ -10,6 +11,7 @@ export function StepWelcome({ onNext }: { onNext: () => void }) {
             <i className="ponto ok" />
             {o.localOnly}
           </span>
+          <LanguagePicker />
           <button className="bv-btn cheio bv-principal" onClick={onNext}>
             {o.start}
           </button>

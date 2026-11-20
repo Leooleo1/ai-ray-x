@@ -9,10 +9,26 @@ use anyhow::{bail, Result};
 use serde_json::{json, Value};
 
 type Installer = Box<dyn Fn() + Send + Sync>;
+/// Asks the update server now; gives the newer version, if there is one.
+type Checker = Box<dyn Fn() -> Result<Option<String>> + Send + Sync>;
 
 static AVAILABLE: Mutex<Option<String>> = Mutex::new(None);
 static INSTALLING: Mutex<bool> = Mutex::new(false);
 static INSTALLER: OnceLock<Installer> = OnceLock::new();
+static CHECKER: OnceLock<Checker> = OnceLock::new();
+
+/// The app's way to look for a new version at once.
+pub fn on_check(check: impl Fn() -> Result<Option<String>> + Send + Sync + 'static) {
+    let _ = CHECKER.set(Box::new(check));
+}
+
+/// The person asked: "Check for updates".
+pub fn check_now() -> Result<Value> {
+    let Some(check) = CHECKER.get() else { bail!("only the raiox app updates itself") };
+    // What the server says now: a newer version, or none (an older notice goes).
+    *AVAILABLE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = check()?;
+    Ok(state())
+}
 
 /// The app found a newer version.
 pub fn set_available(version: &str) {
