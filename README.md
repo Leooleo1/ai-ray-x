@@ -183,7 +183,7 @@ before you flip them.
 
 ## Status
 
-Early (0.1.10). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
+Early (0.1.11). Developed on macOS; tested on Windows 11 (in a VM, ARM64 and
 x64); Linux should work.
 
 ## License
