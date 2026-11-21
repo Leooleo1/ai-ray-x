@@ -1771,6 +1771,12 @@ textarea:focus-visible {
   padding-left: 20px;
 }
 
+.md a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .md code {
   padding: 1px 5px;
   border-radius: 6px;

@@ -143,6 +143,82 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        (Method::Post, "/api/project-skills") => {
+            if remote {
+                return Answer::Now(text(403, "project skills are available from this computer"));
+            }
+            match body_limit(request, 1024) {
+                Ok(input) => {
+                    let state = panel.state_dir.clone();
+                    Answer::Later(Box::new(move || {
+                        let id = input["id"].as_str().unwrap_or("");
+                        respond(bots::project_dir_of(&state, id).map(|root| json!({ "skills": crate::project_skills::names(&root) })))
+                    }))
+                }
+                Err(reply) => Answer::Now(reply),
+            }
+        }
+        (Method::Post, "/api/project-git") => {
+            if remote {
+                return Answer::Now(text(403, "project Git is available from this computer"));
+            }
+            match body_limit(request, 16 * 1024) {
+                Ok(input) => {
+                    let state = panel.state_dir.clone();
+                    Answer::Later(Box::new(move || {
+                        let id = input.get("id").and_then(Value::as_str).unwrap_or("");
+                        respond(bots::project_dir_of(&state, id).and_then(|root| crate::project_git::request(&root, &input)))
+                    }))
+                }
+                Err(reply) => Answer::Now(reply),
+            }
+        }
+        (Method::Post, "/api/project-terminal") => {
+            if remote {
+                return Answer::Now(text(403, "the terminal is available from this computer"));
+            }
+            match body_limit(request, 128 * 1024) {
+                Ok(input) => {
+                    let state = panel.state_dir.clone();
+                    Answer::Later(Box::new(move || {
+                        let id = input.get("id").and_then(Value::as_str).unwrap_or("");
+                        respond(bots::project_dir_of(&state, id).and_then(|root| crate::terminal::request(&root, &input)))
+                    }))
+                }
+                Err(reply) => Answer::Now(reply),
+            }
+        }
+        (Method::Post, "/api/project-files") => {
+            if remote {
+                return Answer::Now(text(403, "project files are available from this computer"));
+            }
+            match body_limit(request, 1024 * 1024) {
+                Ok(input) => {
+                    let state = panel.state_dir.clone();
+                    Answer::Later(Box::new(move || {
+                        let id = input.get("id").and_then(Value::as_str).unwrap_or("");
+                        respond(bots::project_dir_of(&state, id).and_then(|root| crate::project_files::request(&root, &input)))
+                    }))
+                }
+                Err(reply) => Answer::Now(reply),
+            }
+        }
+        (Method::Post, "/api/bot/artifact") => {
+            if remote {
+                return Answer::Now(text(403, "attachments are available from this computer"));
+            }
+            match body(request) {
+                Ok(input) => {
+                    let state = panel.state_dir.clone();
+                    Answer::Later(Box::new(move || {
+                        let id = input.get("id").and_then(Value::as_str).unwrap_or("");
+                        let file = input.get("file").and_then(Value::as_str).unwrap_or("");
+                        respond(bots::find(&state, id).and_then(|bot| crate::artifacts::load(&state, &bot.id, file)))
+                    }))
+                }
+                Err(reply) => Answer::Now(reply),
+            }
+        }
         (Method::Post, "/api/setup/pick_folder") if !remote => {
             let (state_dir, home) = (panel.state_dir.clone(), panel.roots.home.clone());
             Answer::Later(Box::new(move || respond(setup::pick_folder(&state_dir, &home).map(|project| json!({ "project": project })))))
@@ -334,6 +410,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         },
         (Method::Post, "/api/setup/finish") => respond(setup::finish(&panel.state_dir).map(|()| json!({ "done": true }))),
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
+        (Method::Get, "/api/bots/status") => respond(Ok(seen_by(panel, remote, bots::polling_state(&panel.state_dir, &panel.jobs)))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
             let limit = if matches!(action.as_str(), "ask" | "free_ask") { MAX_ASK_BODY } else { MAX_BODY };
@@ -437,7 +514,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             if input.get("aside").and_then(Value::as_bool) == Some(true) {
                 bots::ask_aside(state_dir, jobs, field("id"), thread, field("text"))
             } else {
-                bots::ask(state_dir, jobs, field("id"), thread, field("text"), &images)
+                let copy_home = (input["copy"].as_bool() == Some(true)).then_some(panel.roots.home.as_path());
+                bots::ask_with_workspace(state_dir, jobs, field("id"), thread, field("text"), &images, copy_home)
             }
         }
         "branch" => crate::fork::branch(state_dir, field("id"), thread, input.get("ms").and_then(Value::as_i64).unwrap_or(0), field("title")).map(|_| ()),

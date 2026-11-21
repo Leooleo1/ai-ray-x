@@ -9,6 +9,8 @@ import { CarriedBlock } from './Carry'
 import type { CancellableKind } from './waiting'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { ShotBlock, UploadedImages } from './ShotBlock'
+import { Artifacts } from './Artifacts'
+import type { ProjectFileLinks } from './projectReference'
 import { TrailView } from './TrailView'
 import { trailEvidence } from './trailEvidence'
 import { Expandable } from './Expandable'
@@ -42,6 +44,7 @@ export function separator(previous: BotMessage | undefined, message: BotMessage)
 }
 
 interface BotLineProps {
+  projectFiles?: ProjectFileLinks
   bot: Bot
   message: BotMessage
   previous: BotMessage | undefined
@@ -89,7 +92,7 @@ interface BotLineProps {
   onRetry?: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, busy = false, editBusy = busy, turnUndone = false, onTurnUndo, onBranch, waiting, cancelled, onCancel, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, projectFiles, pinned, onPin, draftState, onDraft, thread, busy = false, editBusy = busy, turnUndone = false, onTurnUndo, onBranch, waiting, cancelled, onCancel, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -187,7 +190,10 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
             <Expandable text={message.data.body ?? ''} />
           </>
         ) : (
-          text
+          <>
+            {message.data.copy && <small className="linha-sistema">{t.copyTurn}</small>}
+            {text}
+          </>
         )}
       </span>
     )
@@ -268,9 +274,10 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
           {message.kind === 'failed' && <p className="nota failed quebra">{message.data.error}</p>}
           {reply?.text && (
             <div className="bolha">
-              <Markdown text={reply.text} color={face.color} />
+              <Markdown text={reply.text} color={face.color} files={projectFiles} />
             </div>
           )}
+          {reply?.artifacts && <Artifacts bot={bot.id} files={reply.artifacts} />}
           {meta && (
             <span className="bot-meta">
               {message.data.mode === 'edit' && <span className="editou">{t.editedBadge}</span>}

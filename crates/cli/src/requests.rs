@@ -40,6 +40,7 @@ fn save(state_dir: &Path, requests: &[Request]) -> Result<()> {
     let temp = state_dir.join(format!("{FILE}.tmp"));
     fs::write(&temp, serde_json::to_string_pretty(requests)?)?;
     fs::rename(temp, state_dir.join(FILE))?;
+    crate::room::chat_changed();
     Ok(())
 }
 

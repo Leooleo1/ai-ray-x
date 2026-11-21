@@ -60,6 +60,7 @@ pub(super) struct Setup {
     shots: PathBuf,
     /// Where raiox keeps which rules each conversation read.
     state_dir: PathBuf,
+    review_required: bool,
 }
 
 /// Per-conversation scratch directory so parallel turns of the same bot never share `out.txt` or `active.json`.
@@ -81,6 +82,7 @@ impl Setup {
         if bot.free {
             return Setup {
                 state_dir: state_dir.to_path_buf(),
+                review_required: false,
                 stable: bot_run::free_guide(&persona),
                 team: String::new(),
                 related: String::new(),
@@ -99,7 +101,9 @@ impl Setup {
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
         Setup {
             state_dir: state_dir.to_path_buf(),
-            stable: bot_run::guide(&bot.name, &persona, &others, &unwired, bot.grants.full_access),
+            review_required: false,
+            stable: if mode == Mode::Edit { bot_run::draft_guide(&bot.name, &persona) }
+                else { bot_run::guide(&bot.name, &persona, &others, &unwired, bot.grants.full_access) },
             team: crate::team::context_for(state_dir, bot),
             // The project's own pages that relate to the question, kept decisions included.
             related: format!("{}{}", crate::memory::related(&bot.dir, question), crate::wiki::for_turn(state_dir, &bot.id, question)),
@@ -158,13 +162,14 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
         },
         _ => None,
     };
-    let setup = Setup::new(state_dir, bot, thread, &turn.text, turn.mode);
+    let mut setup = Setup::new(state_dir, bot, thread, &turn.text, turn.mode);
+    setup.review_required = turn.asked.as_ref().is_some_and(|message| message.data["review_required"].as_bool() == Some(true));
     let _active = super::recover::ActiveGuard::enter(
         &setup.scratch,
         &super::recover::ActiveTurn {
             thread: thread.to_string(),
             agent: bot.agent.clone(),
-            full_access: bot.grants.full_access,
+            full_access: work.is_none() && bot.grants.full_access,
             keep_session: turn.keep_session && bot_run::keeps_session(turn.mode) && work.is_none(),
             started_ms: room::now_ms(),
         },
@@ -186,6 +191,18 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
         text = prompt;
         images = files;
     }
+    if !bot.free && let Some(message) = turn.asked.as_ref().and_then(|message| message.data["text"].as_str()) {
+        let workspace = work.as_ref().map_or(bot.dir.as_path(), |work| work.dir.as_path());
+        match crate::project_skills::instructions(workspace, message) {
+            Ok(instructions) => text.push_str(&instructions),
+            Err(error) => {
+                if work.is_some() {
+                    drafts::abandon(state_dir, &bot.id);
+                }
+                return say(note("failed", json!({ "error": format!("{error:#}") })));
+            }
+        }
+    }
     // A draft starts a fresh session in its copy; talk continues the conversation's own.
     let mut session = if work.is_some() { None } else { session };
     let mut runs = 0;
@@ -205,7 +222,7 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
                 // Stopped to be corrected: the same session goes on with the person's words.
                 if stopped && let Some((correction, reached)) = jobs.take_correction(&bot.id, thread) {
                     say(note("stopped", json!({})));
-                    say(said("ask", json!({ "text": correction, "correction": true })));
+                    say(said("ask", json!({ "text": correction, "correction": true, "copy": work.is_some() })));
                     text = match &reached {
                         Some(_) => format!("(raiox: the person stopped you midway to correct the course.) {correction}"),
                         None => format!("{text}\n\n(raiox: the person stopped you midway to correct the course.) {correction}"),
@@ -233,12 +250,13 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
                 run: Vec::new(),
                 shots: Vec::new(),
                 tasks: Vec::new(),
-                model: setup.model.clone(),
+                    model: setup.model.clone(),
                 effort: setup.effort.clone(),
                 ..reply
             }
         } else {
             Reply {
+                artifacts: crate::artifacts::collect(state_dir, &bot.id, dir, &reply.requested_files),
                 to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(),
                 model: setup.model.clone(),
                 effort: setup.effort.clone(),
@@ -253,7 +271,11 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
             session = reply.session.clone();
         }
         if let Some(work) = &work {
-            return say(drafted(state_dir, &bot.id, work, &reply));
+            let mut message = drafted(state_dir, &bot.id, work, &reply);
+            if setup.review_required {
+                message.data["review_required"] = json!(true);
+            }
+            return say(message);
         }
         // Past the project's daily limit, allowed commands wait for a click like any other.
         let limit = if runs_alone(state_dir, bot) { MAX_ALONE_RUNS } else { MAX_AUTO_RUNS };
@@ -382,8 +404,9 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, thread: &str, setup: &Setup, dir: 
         effort: setup.effort.as_deref(),
         shots,
         images,
-        web: bot.grants.web,
-        mcp: bot.grants.mcp,
+        web: bot.grants.web && !setup.review_required,
+        mcp: bot.grants.mcp && !setup.review_required,
+        copy_checks: setup.review_required && mode == Mode::Edit,
         full: !bot.free && bot.grants.full_access,
         bypass: !bot.free && bot.grants.full_access && bot.grants.bypass,
     };

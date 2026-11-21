@@ -5,6 +5,7 @@ import { compact, t } from '../../i18n'
 import { Avatar } from '../Avatar'
 import { Markdown } from '../Markdown'
 import { clock } from './BotLine'
+import { Artifacts } from './Artifacts'
 import type { ChatNav } from './nav'
 
 interface BatchViewProps {
@@ -76,6 +77,7 @@ function Column({ bot, thread, nav }: ColumnProps) {
           </p>
         )}
         {!working && reply && <Markdown text={[reply.text, reply.question].filter(Boolean).join('\n\n')} />}
+        {!working && reply?.artifacts && <Artifacts bot={bot.id} files={reply.artifacts} />}
         {!working && last?.kind === 'failed' && <p className="nota failed">{last.data.error}</p>}
         {!working && last?.kind === 'stopped' && <p className="nota">{t.stoppedNote}</p>}
         {!working && last?.kind === 'interrupted' && <p className="nota">{t.interruptedNote}</p>}
