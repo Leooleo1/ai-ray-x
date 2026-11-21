@@ -29,6 +29,7 @@ pub mod commands;
 pub mod data;
 pub mod deliveries;
 pub mod devices;
+mod folder_picker;
 pub mod grants;
 pub mod limits;
 pub mod drafts;

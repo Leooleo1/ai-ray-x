@@ -22,7 +22,7 @@ interface StepBotProps {
 export function StepBot({ setup, design, projects, busy, onDesign, onBack, onCreate }: StepBotProps) {
   const custom = design.preset === CUSTOM
   const set = (change: Partial<BotDesign>) => onDesign({ ...design, ...change })
-  const names = projects.map((p) => p.split('/').pop() ?? p)
+  const names = projects.map((p) => p.split(/[/\\]/).pop() ?? p)
   const createLabel = projects.length > 1 ? o.createMany.replace('{n}', String(projects.length)) : o.createOne
   return (
     <Frame

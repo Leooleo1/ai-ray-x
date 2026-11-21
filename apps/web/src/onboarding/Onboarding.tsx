@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup, saveSettings } from '../api'
+import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type PickedProject, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup, saveSettings } from '../api'
 import type { Bots } from '../bots'
 import { AGENT_LABEL, faceOf, stageLight } from '../avatars'
 import { Avatar, type AvatarState } from '../components/Avatar'
@@ -11,7 +11,7 @@ import { StepBot } from './StepBot'
 import { StepDone } from './StepDone'
 import { StepGitHub } from './StepGitHub'
 import { StepProfile } from './StepProfile'
-import { StepProjects } from './StepProjects'
+import { MAX_PICK, StepProjects } from './StepProjects'
 import { StepWires } from './StepWires'
 import { StepWelcome } from './StepWelcome'
 import { o } from './texts'
@@ -31,6 +31,7 @@ const STAGE_SIZE_PHONE = 112
 const PHONE = '(max-width: 760px)'
 
 const errorText = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure))
+const slashPath = (path: string) => path.replace(/\\/g, '/')
 
 interface OnboardingProps {
   onFinish: (firstBot: string | null) => void
@@ -42,6 +43,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const [setup, setSetup] = useState<SetupState | null>(null)
   const [github, setGithub] = useState<GitHubState | null>(null)
   const [selected, setSelected] = useState<string[]>([])
+  const [pickedFolders, setPickedFolders] = useState<PickedProject[]>([])
   const [design, setDesign] = useState<BotDesign>(() => designFrom(PRESETS[0], 'claude'))
   const [created, setCreated] = useState<Bot[]>([])
   const [botsState, setBotsState] = useState<BotsState | null>(null)
@@ -126,12 +128,19 @@ export function Onboarding({ onFinish }: OnboardingProps) {
       // The CLI picked here is turned on, as Settings › Connections would.
       if (setup?.ais.some((ai) => ai.id === design.agent && !ai.enabled)) await saveSettings({ enabled: { [design.agent]: true } })
       let state: BotsState | null = null
+      const madeIds = new Set<string>()
       for (const project of selected) {
-        state = await botAction('activate', { project, agent: design.agent, persona })
-        const made = state.bots.find((bot) => bot.agent === design.agent && bot.dir.endsWith(`/${project}`))
-        if (freeModel && design.agent === 'opencode' && made) state = await botAction('configure', { id: made.id, model: OPENCODE_FREE_MODEL })
+        const picked = pickedFolders.find((folder) => folder.project === project)
+        state = await botAction(picked ? 'activate_folder' : 'activate', { project: picked?.dir ?? project, agent: design.agent, persona })
+        const made = state.bots.find((bot) => bot.agent === design.agent && (
+          picked ? bot.dir === picked.dir : slashPath(bot.dir).endsWith(`/${slashPath(project)}`)
+        ))
+        if (made) {
+          madeIds.add(made.id)
+          if (freeModel && design.agent === 'opencode') state = await botAction('configure', { id: made.id, model: OPENCODE_FREE_MODEL })
+        }
       }
-      const made = (state?.bots ?? []).filter((bot) => bot.agent === design.agent && selected.some((project) => bot.dir.endsWith(`/${project}`)))
+      const made = (state?.bots ?? []).filter((bot) => madeIds.has(bot.id))
       setBotsState(state)
       setCreated(made)
       go(new Set(made.map((bot) => bot.name)).size >= MIN_WIRED ? 'wires' : 'done')
@@ -244,8 +253,14 @@ export function Onboarding({ onFinish }: OnboardingProps) {
               setup={setup}
               github={github}
               selected={selected}
+              pickedFolders={pickedFolders}
               onSelect={setSelected}
               onSetup={setSetup}
+              onPickFolder={(project) => {
+                const key = setup.projects.find((p) => slashPath(p.project) === slashPath(project.project))?.project ?? project.project
+                setPickedFolders((current) => [{ ...project, project: key }, ...current.filter((p) => p.project !== key)])
+                setSelected((current) => current.includes(key) ? current : [...current, key].slice(0, MAX_PICK))
+              }}
               onError={setError}
               onBack={() => go('github')}
               onNext={() => go('bot')}

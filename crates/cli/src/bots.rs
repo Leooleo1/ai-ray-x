@@ -491,17 +491,40 @@ pub fn create_project(state_dir: &Path, home: &Path, name: &str, agent: &str) ->
 /// Turns a bot on for one project (a folder under the home, never the home itself).
 /// Turning on an existing bot again only replaces its persona.
 pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, persona: Option<Persona>) -> Result<Bot> {
-    if let Some(p) = &persona {
-        p.validate()?;
-    }
-    if !crate::connections::bot_agents().any(|a| a == agent) {
-        bail!("raiox cannot run {agent} as a bot");
-    }
     let home = home.canonicalize()?;
     let dir = home.join(project).canonicalize().with_context(|| format!("no folder {project} in the home folder"))?;
     let hidden = dir.strip_prefix(&home).ok().and_then(|rest| rest.components().next()).is_some_and(|first| first.as_os_str().to_string_lossy().starts_with('.'));
     if !dir.is_dir() || !dir.starts_with(&home) || dir == home || hidden {
         bail!("bots live in project folders under the home folder");
+    }
+    activate_dir(state_dir, dir, project, agent, persona, true)
+}
+
+/// Validates an explicitly chosen folder, including projects outside the home.
+pub(crate) fn picked_project_dir(state_dir: &Path, home: &Path, path: &Path) -> Result<PathBuf> {
+    if !path.is_absolute() {
+        bail!("select an absolute project folder");
+    }
+    let dir = path.canonicalize().context("the selected project folder no longer exists")?;
+    let home = home.canonicalize()?;
+    if !dir.is_dir() || dir.parent().is_none() || home.starts_with(&dir) || inside_state_dir(&dir, state_dir) {
+        bail!("select a project folder");
+    }
+    Ok(dir)
+}
+
+/// Opens a bot in the chosen folder, keeping its persona unless one is supplied.
+pub(crate) fn activate_folder(state_dir: &Path, home: &Path, project: &str, agent: &str, persona: Option<Persona>) -> Result<Bot> {
+    let dir = picked_project_dir(state_dir, home, Path::new(project))?;
+    activate_dir(state_dir, dir, project, agent, persona, false)
+}
+
+fn activate_dir(state_dir: &Path, dir: PathBuf, project: &str, agent: &str, persona: Option<Persona>, replace_persona: bool) -> Result<Bot> {
+    if let Some(p) = &persona {
+        p.validate()?;
+    }
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
     }
     let bot = Bot {
         id: bot_id(agent, &dir),
@@ -522,7 +545,9 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
     let added = bot.clone();
     update(state_dir, |bots| {
         Ok(if bots.iter().any(|b| b.id == added.id) {
-            bots.into_iter().map(|b| if b.id == added.id { Bot { persona: added.persona.clone(), ..b } } else { b }).collect()
+            bots.into_iter()
+                .map(|b| if b.id == added.id && (replace_persona || added.persona.is_some()) { Bot { persona: added.persona.clone(), ..b } } else { b })
+                .collect()
         } else {
             bots.into_iter().chain([added]).collect()
         })
@@ -1282,6 +1307,46 @@ mod tests {
         assert_eq!(bot.name, "app");
         activate(&state, &home, "Projects/app", "claude", None).unwrap();
         assert_eq!(list(&state).len(), 1);
+    }
+
+    #[test]
+    fn a_picked_local_folder_can_be_opened_without_git_or_a_home_relative_path() {
+        let root = temp_dir("picked-folder");
+        let home = root.join("home");
+        let state = home.join(".state");
+        let project = root.join("Pasta de projetos").join("Aplicação");
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(&project).unwrap();
+        let source_file = project.join("source.txt");
+        fs::write(&source_file, "original").unwrap();
+
+        let project_path = project.to_str().unwrap();
+        assert!(activate(&state, &home, project_path, "claude", None).is_err());
+        let persona = Persona {
+            preset: "custom".into(),
+            name: "Parceira".into(),
+            instructions: String::new(),
+            color: "#5599ff".into(),
+            shape: "claude".into(),
+            finish: "solid".into(),
+            role: String::new(),
+        };
+        let bot = activate_folder(&state, &home, project_path, "claude", Some(persona.clone())).unwrap();
+        assert_eq!(bot.dir, project.canonicalize().unwrap());
+        assert_eq!(bot.name, "Aplicação");
+        set_session(&state, &bot.id, Some("first-session".into())).unwrap();
+        assert_eq!(activate_folder(&state, &home, project_path, "claude", None).unwrap().id, bot.id);
+        assert_eq!(list(&state).len(), 1);
+        let reopened = find(&state, &bot.id).unwrap();
+        assert_eq!(reopened.session.as_deref(), Some("first-session"));
+        assert_eq!(reopened.persona, Some(persona));
+        assert_eq!(fs::read_dir(&project).unwrap().count(), 1);
+        assert_eq!(fs::read_to_string(&source_file).unwrap(), "original");
+
+        for invalid in [&home, &state, &source_file, &project.join("missing"), &PathBuf::from("relative")] {
+            assert!(picked_project_dir(&state, &home, invalid).is_err());
+        }
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

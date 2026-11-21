@@ -513,7 +513,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'continue' | 'retry' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
+export type BotAction = 'activate' | 'activate_folder' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'continue' | 'retry' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -728,6 +728,15 @@ export function cloneRepo(repo: string): Promise<SetupState> {
 
 export function createSetupProject(name: string): Promise<{ project: LocalProject; setup: SetupState }> {
   return request<{ project: LocalProject; setup: SetupState }>('/api/setup/create_project', { name })
+}
+
+export interface PickedProject extends LocalProject {
+  dir: string
+}
+
+export async function pickProjectFolder(): Promise<PickedProject | null> {
+  const { project } = await request<{ project: PickedProject | null }>('/api/setup/pick_folder', {})
+  return project
 }
 
 export function finishSetup(): Promise<{ done: boolean }> {
