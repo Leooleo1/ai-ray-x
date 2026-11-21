@@ -200,6 +200,8 @@ export interface Batch {
 }
 
 export interface BotThread {
+  /** The conversation still belongs to a card in the Desk. */
+  task?: boolean
   id: string
   title: string
   has_session: boolean
@@ -1176,7 +1178,7 @@ export interface Task {
 
 export interface TaskBoardState {
   tasks: Task[]
-  /** Each task's conversation ("Tasks") id, in the same order. */
+  /** Each task's linked conversation id, in the same order as the tasks. */
   threads: (string | null)[]
   /** The bots pick their next task up by themselves. */
   auto: boolean

@@ -518,8 +518,9 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             if jobs.is_thread_busy(field("id"), thread) {
                 anyhow::bail!("this conversation is still answering");
             }
+            crate::tasks::close_thread(state_dir, field("id"), thread)?;
             crate::live::end(&format!("{}:{thread}", field("id")));
-            crate::threads::delete(state_dir, field("id"), thread)
+            Ok(())
         }
         "house" => {
             let dir = bots::dir_of(state_dir, field("id"))?;
