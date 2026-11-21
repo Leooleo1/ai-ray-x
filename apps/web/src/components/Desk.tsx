@@ -36,7 +36,9 @@ const byProject = (a: Bot, b: Bot) => a.name.localeCompare(b.name) || a.agent.lo
 
 /** The board's task a busy conversation is doing now, when its turn is one. */
 function taskOf(bot: Bot, thread: string, board: TaskBoardState | null): Placed | undefined {
-  const index = board?.tasks.findIndex((task, i) => task.status === 'doing' && task.bot === bot.id && board.threads[i] === thread) ?? -1
+  const index = board?.tasks.findIndex((task, i) =>
+    (task.status === 'doing' || task.status === 'waiting') && task.bot === bot.id && board.threads[i] === thread,
+  ) ?? -1
   return board && index >= 0 ? { task: board.tasks[index], index } : undefined
 }
 
@@ -57,12 +59,21 @@ export function Desk({ bots, nav }: DeskProps) {
   const { board, error, act: actOnBoard } = useBoard()
   const act: typeof actOnBoard = async (action, body) => {
     const saved = await actOnBoard(action, body)
-    if (saved && (action === 'add' || action === 'done')) bots.refresh()
+    if (saved && (action === 'add' || action === 'done' || action === 'start' || action === 'delete')) bots.refresh()
     return saved
   }
   const [allDone, setAllDone] = useState(false)
   const all = projectBots(bots.state.bots)
   const botOf = (id: string) => all.find((b) => b.id === id)
+  const needsConversations = board?.tasks.some((task, index) => {
+    const thread = board.threads[index]
+    const owner = botOf(task.bot)
+    return thread && owner && !owner.threads.some((conversation) => conversation.id === thread)
+  })
+  const refresh = bots.refresh
+  useEffect(() => {
+    if (needsConversations) refresh()
+  }, [board, needsConversations, refresh])
   const placed = (status: TaskStatus): Placed[] => (board?.tasks ?? []).map((task, index) => ({ task, index })).filter(({ task }) => task.status === status)
 
   const working = all.filter((b) => b.busy).sort(byProject)
@@ -71,19 +82,19 @@ export function Desk({ bots, nav }: DeskProps) {
   const doing = placed('doing').filter(({ task }) => !shownLive.has(task.id))
   const requests = bots.state.requests ?? []
   const approvals = all.flatMap(waitingOf).sort((a, b) => b.ms - a.ms)
-  const waiting = placed('waiting')
+  const waiting = placed('waiting').filter(({ task }) => !shownLive.has(task.id))
   const done = placed('done').sort((a, b) => b.task.updated_ms - a.task.updated_ms)
   const doneShown = allDone ? done : done.slice(0, SHOWN_DONE)
 
-  const open = ({ task, index }: Placed) => {
-    const thread = board?.threads[index]
-    if (thread && task.answer_ms) nav.openMessage(task.bot, thread, task.answer_ms)
-    else nav.openBot(task.bot)
-  }
-  const card = (item: Placed) => {
-    const { task } = item
+  const card = ({ task, index }: Placed) => {
+    const owner = botOf(task.bot)
     const from = task.from !== 'person' && task.from !== task.bot ? botOf(task.from) : undefined
-    return <TaskCard key={task.id} task={task} owner={botOf(task.bot)} from={from} act={act} onOpen={() => open(item)} />
+    const thread = owner?.threads.find((conversation) => conversation.id === board?.threads[index])
+    const draft = thread?.messages.some((message) => message.ms === task.answer_ms && message.kind === 'draft') ?? false
+    return (
+      <TaskCard key={task.id} task={task} owner={owner} from={from} act={act} draft={draft}
+        onOpen={thread ? () => nav.openMessage(task.bot, thread.id, task.answer_ms ?? 0) : undefined} />
+    )
   }
 
   return (

@@ -42,6 +42,7 @@ export function WorkCard({ bot, job, bots, nav, now, task }: WorkCardProps) {
   const [text, setText] = useState('')
   const trail = job.trail
   const thread = job.thread && job.thread !== 'review' ? job.thread : MAIN
+  const conversation = workingIn(bot, job.thread)
   const shown = trail && (open ? trail : { ...trail, items: trail.items.slice(-CARD_STEPS), dropped: 0 })
   const closeFix = () => {
     setFixing(false)
@@ -54,7 +55,7 @@ export function WorkCard({ bot, job, bots, nav, now, task }: WorkCardProps) {
   return (
     <article className="mesa-cartao doing mesa-ao-vivo">
       <span className="mesa-tipo">
-        <span>{`${AGENT_LABEL[bot.agent]} · ${workingIn(bot, job.thread)}`}</span>
+        <span>{[AGENT_LABEL[bot.agent], conversation === task ? '' : conversation].filter(Boolean).join(' · ')}</span>
         {job.started_ms > 0 && <time className="mesa-cifra">{clock(now - job.started_ms)}</time>}
       </span>
       {task && <p className="mesa-titulo">{task}</p>}
@@ -74,7 +75,7 @@ export function WorkCard({ bot, job, bots, nav, now, task }: WorkCardProps) {
         </form>
       )}
       <footer className="mesa-acoes">
-        <button type="button" className="mesa-cheio" onClick={() => nav.openMessage(bot.id, thread, 0)}>
+        <button type="button" className="mesa-cheio" disabled={thread !== MAIN && !bot.threads.some((item) => item.id === thread)} onClick={() => nav.openMessage(bot.id, thread, 0)}>
           {t.deskOpen}
         </button>
         <button type="button" className="acao-texto" onClick={() => (fixing ? closeFix() : setFixing(true))}>
