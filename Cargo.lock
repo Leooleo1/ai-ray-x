@@ -3192,7 +3192,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "raiox"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -3218,7 +3218,7 @@ dependencies = [
 
 [[package]]
 name = "raiox-core"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3232,7 +3232,7 @@ dependencies = [
 
 [[package]]
 name = "raiox-desktop"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "open",

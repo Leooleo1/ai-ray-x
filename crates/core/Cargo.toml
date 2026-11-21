@@ -1,6 +1,6 @@
 [package]
 name = "raiox-core"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 rust-version = "1.88"
 description = "Reads Claude Code and Codex logs into a local index for raiox"
