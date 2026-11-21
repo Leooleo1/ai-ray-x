@@ -143,13 +143,13 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
-        // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
+        // The other AIs a bot can switch to: every one installed here (turned on in Settings or not), each
+        // CLI asked for its models, never on the main loop.
         (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
             Ok(input) => match crate::bots::find(&panel.state_dir, input.get("id").and_then(Value::as_str).unwrap_or("")) {
                 Ok(bot) => {
-                    let settings = crate::settings::Settings::load(&panel.state_dir);
                     let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
-                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|id| settings.is_enabled(id), codex)))))
+                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|_| true, codex)))))
                 }
                 Err(error) => Answer::Now(respond(Err(error))),
             },
