@@ -16,6 +16,15 @@ const OPT_IN: &str = ".claude/skills/token-diet";
 const TOP: usize = 3;
 const MAX_MESSAGES: usize = 200;
 static MESSAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static CHAT_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub(crate) fn chat_revision() -> u64 {
+    CHAT_REVISION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+pub(crate) fn chat_changed() {
+    CHAT_REVISION.fetch_add(1, std::sync::atomic::Ordering::Release);
+}
 /// The person's own words are kept short; agents answer from data, not from the text.
 const MAX_TEXT: usize = 280;
 
@@ -84,6 +93,7 @@ pub fn append_messages(file: &Path, new: Vec<Message>) -> Result<()> {
     let temp = file.with_extension("tmp");
     fs::write(&temp, serde_json::to_string_pretty(kept)? + "\n")?;
     fs::rename(temp, file)?;
+    chat_changed();
     Ok(())
 }
 

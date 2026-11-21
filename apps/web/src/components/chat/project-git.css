@@ -1,0 +1,110 @@
+.git-projeto {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--carvao);
+  color: var(--giz);
+}
+
+.git-projeto header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fio);
+}
+
+.git-projeto header strong,
+.git-projeto header code {
+  margin-right: auto;
+  overflow-wrap: anywhere;
+}
+
+.git-projeto .nota {
+  padding: 8px 12px;
+}
+
+.git-area {
+  display: grid;
+  grid-template-columns: minmax(150px, 28%) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.git-area aside,
+.git-review {
+  overflow: auto;
+  min-height: 0;
+}
+
+.git-area aside {
+  border-right: 1px solid var(--fio);
+}
+
+.git-area h3 {
+  margin: 0;
+  padding: 10px 12px 4px;
+  font-size: 0.82rem;
+}
+
+.git-area ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.git-area li button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.git-area li button:hover,
+.git-area li button[aria-pressed='true'],
+.git-line:hover {
+  background: var(--fio);
+}
+
+.git-area li code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-review .git-diff {
+  margin: 0;
+  max-height: none;
+  padding: 10px 12px;
+}
+
+.git-line {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  min-width: 5ch;
+  margin-right: 1ch;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+  .git-area {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(72px, 30%) minmax(0, 1fr);
+  }
+
+  .git-area aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--fio);
+  }
+}

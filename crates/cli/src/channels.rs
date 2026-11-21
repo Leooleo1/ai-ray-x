@@ -76,6 +76,7 @@ fn save(state_dir: &Path, channels: &[Channel]) -> Result<()> {
     let temp = state_dir.join("channels.tmp");
     fs::write(&temp, serde_json::to_string_pretty(channels)?)?;
     fs::rename(temp, file(state_dir))?;
+    room::chat_changed();
     Ok(())
 }
 
@@ -394,6 +395,16 @@ pub fn pass(state_dir: &Path, jobs: &Jobs, id: &str, from: &str, answer_ms: i64,
     room::append_messages(&chat, vec![room::Message { ms: room::now_ms(), author: "you".into(), kind: "pass".into(), data: json!({ "from": from, "to": to, "text": request, "answer_ms": answer_ms, "index": index }) }])?;
     let shown = format!("@{from_handle} → @{handle}: {request}");
     ask_member(state_dir, jobs, &mut channel, &to, &format!("@{from_handle} asks you, and the person passed it on: {request}"), &shown, &[]).map(|_| ())
+}
+
+pub(crate) fn polling_state(state_dir: &Path) -> Vec<Value> {
+    let channels = list(state_dir);
+    let active = rounds();
+    channels.iter().map(|channel| json!({
+        "id": channel.id,
+        "working": active.contains(&(state_dir.to_path_buf(), channel.id.clone())),
+        "members": channel.members.iter().map(|id| json!({ "bot": id })).collect::<Vec<_>>(),
+    })).collect()
 }
 
 /// Everything the panel shows about channels.

@@ -236,7 +236,14 @@ export interface Week {
 
 export type Place = 'model' | 'settings' | 'memories' | 'connections' | 'wires' | 'app' | 'access'
 
+export interface BotArtifact {
+  name: string
+  id?: string
+  mime?: string
+}
+
 export interface BotReply {
+  artifacts?: BotArtifact[]
   text: string
   proposal: string | null
   question?: string
@@ -313,6 +320,7 @@ export interface BotMessage {
     ms?: number
     /** A side question and its answer: outside the conversation's session. */
     aside?: boolean
+    copy?: boolean
     /** After an access change: whether it now has full access. */
     full?: boolean
     /** What applying, undoing or discarding a draft touched. */
@@ -489,6 +497,7 @@ export interface FirstUseProgress {
 }
 
 export interface BotsState {
+  chat_revision?: number
   bots: Bot[]
   candidates: BotCandidate[]
   /** The CLIs the person turned on that can run bots. */
@@ -757,6 +766,77 @@ async function request<T>(path: string, body?: Record<string, unknown>): Promise
 
 export function fetchSetup(fresh = false): Promise<SetupState> {
   return request<SetupState>(fresh ? '/api/setup?fresh=1' : '/api/setup')
+}
+
+export function fetchArtifact(bot: string, file: string): Promise<{ mime: string; bytes: string }> {
+  return request('/api/bot/artifact', { id: bot, file })
+}
+
+export interface ProjectEntry {
+  name: string
+  path: string
+  directory: boolean
+}
+
+export interface ProjectMatch {
+  path: string
+  line?: number
+  excerpt?: string
+}
+
+export type GitArea = 'staged' | 'unstaged' | 'untracked'
+export interface GitChange {
+  path: string
+  old_path: string | null
+  area: GitArea
+  code: string
+}
+export type ProjectGitStatus = { repository: false } | { repository: true; branch: string; changes: GitChange[] }
+export interface ProjectGitDiff { patch: string; limited: boolean; editable: boolean }
+
+export function projectGitStatus(id: string): Promise<ProjectGitStatus> {
+  return request('/api/project-git', { id, op: 'status' })
+}
+
+export function projectSkills(id: string): Promise<{ skills: string[] }> {
+  return request('/api/project-skills', { id })
+}
+
+export function projectGitDiff(id: string, { path, area }: GitChange): Promise<ProjectGitDiff> {
+  return request('/api/project-git', { id, op: 'diff', path, area })
+}
+
+export function projectFiles(id: string, path = ''): Promise<{ entries: ProjectEntry[] }> {
+  return request('/api/project-files', { id, action: 'list', path })
+}
+
+export function readProjectFile(id: string, path: string): Promise<{ contents: string; version: string }> {
+  return request('/api/project-files', { id, action: 'read', path })
+}
+
+export function searchProjectFiles(id: string, query: string): Promise<{ matches: ProjectMatch[]; limited: boolean }> {
+  return request('/api/project-files', { id, action: 'search', query })
+}
+
+export function saveProjectFile(id: string, path: string, contents: string, version: string): Promise<{ version?: string; conflict?: boolean }> {
+  return request('/api/project-files', { id, action: 'save', path, contents, version })
+}
+
+export type TerminalKind = 'shell' | 'test'
+
+export interface TerminalOutput {
+  session: number
+  cursor: number
+  reset: boolean
+  more: boolean
+  code: number | null
+  stopped: boolean
+  command: string | null
+  bytes: string
+}
+
+export function terminalAction<T = TerminalOutput | null>(id: string, kind: TerminalKind, action: string, options: Record<string, unknown> = {}): Promise<T> {
+  return request('/api/project-terminal', { ...options, id, kind, action })
 }
 
 export function fetchGitHub(): Promise<GitHubState> {
@@ -1252,6 +1332,16 @@ export function saveSettings(change: Record<string, unknown>): Promise<SettingsS
 
 export function fetchBots(): Promise<BotsState> {
   return request<BotsState>('/api/bots')
+}
+
+export interface BotsStatus {
+  chat_revision: number
+  bots: Pick<Bot, 'id' | 'busy' | 'busy_thread' | 'busy_threads' | 'step' | 'trail' | 'started_ms'>[]
+  channels: Pick<Channel, 'id' | 'working'>[]
+}
+
+export function fetchBotsStatus(): Promise<BotsStatus> {
+  return request('/api/bots/status')
 }
 
 /** Every bot action answers with the bots' state, so the panel redraws at once. */

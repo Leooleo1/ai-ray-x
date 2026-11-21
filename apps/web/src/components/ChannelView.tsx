@@ -7,6 +7,7 @@ import { Avatar } from './Avatar'
 import { CarriedBlock } from './chat/Carry'
 import { Composer } from './chat/Composer'
 import { Markdown } from './Markdown'
+import { Artifacts } from './chat/Artifacts'
 import type { ChatNav } from './chat/nav'
 import { TrailView } from './chat/TrailView'
 import { useFollowBottom } from './chat/useFollowBottom'
@@ -162,6 +163,7 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
         <div className="bolha">
           <Markdown text={[reply.text, question ? null : reply.question].filter(Boolean).join('\n\n')} color={face.color} />
         </div>
+        {reply.artifacts && <Artifacts bot={bot.id} files={reply.artifacts} />}
         {question && reply.question && (
           <div className="proposta">
             <span className="proposta-rotulo">{t.waitingKinds.question}</span>

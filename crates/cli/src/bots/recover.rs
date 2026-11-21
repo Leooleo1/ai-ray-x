@@ -178,7 +178,8 @@ fn recover_thread(state_dir: &Path, bot: &Bot, base_scratch: &Path, scratch: &Pa
     // Non-session turns (draft edits, side questions, cross-CLI audits) cannot resume the conversation session.
     let aside = trigger.data.get("aside").and_then(Value::as_bool).unwrap_or(false);
     let audit = trigger.data.get("audit").and_then(Value::as_bool).unwrap_or(false);
-    let keep_session = !aside && !audit && trigger.kind != "approve" && (!matches_active || active.is_none_or(|a| a.keep_session));
+    let copy = trigger.data["copy"].as_bool() == Some(true);
+    let keep_session = !copy && !aside && !audit && trigger.kind != "approve" && (!matches_active || active.is_none_or(|a| a.keep_session));
     if !keep_session {
         session = None;
     }
@@ -204,6 +205,9 @@ fn recover_thread(state_dir: &Path, bot: &Bot, base_scratch: &Path, scratch: &Pa
     }
     if retry_aside {
         data["aside"] = json!(true);
+    }
+    if copy {
+        data["copy"] = json!(true);
     }
     let _ = room::append_messages(&file, vec![note("interrupted", data)]);
 }
@@ -304,6 +308,27 @@ mod tests {
         assert_eq!(mark.data["session"], "s-live-1");
         assert_eq!(mark.data["trail"]["items"].as_array().unwrap().len(), 1, "only steps after the last completed result are kept");
         assert_eq!(mark.data["trail"]["partial"], "Working on it");
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn an_interrupted_copy_can_only_be_retried_as_a_copy() {
+        let home = temp_home("copy-mode");
+        let state = home.join(".state");
+        let bot = activate(&state, &home, "Projects/app", "codex", None).unwrap();
+        let chat = threads::chat_file(&state, &bot.id, MAIN);
+        room::append_messages(&chat, vec![said("ask", json!({ "text": "Edit", "copy": true }))]).unwrap();
+        let scratch = state.join("bots").join(format!("{}.run", bot.id));
+        fs::create_dir_all(&scratch).unwrap();
+        fs::write(scratch.join("out.txt"), "{\"type\":\"thread.started\",\"thread_id\":\"copy-session\"}\n").unwrap();
+
+        all(&state);
+        let messages = room::read_messages(&chat);
+        let recovered = messages.last().unwrap();
+        assert_eq!(recovered.kind, "interrupted");
+        assert_eq!(recovered.data["copy"], true);
+        assert_eq!(recovered.data["retry_text"], "Edit");
+        assert!(recovered.data["session"].is_null());
         let _ = fs::remove_dir_all(&home);
     }
 

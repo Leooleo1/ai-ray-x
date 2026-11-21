@@ -361,6 +361,7 @@ fn save(state_dir: &Path, bots: &[Bot]) -> Result<()> {
     let temp = file.with_extension("tmp");
     fs::write(&temp, serde_json::to_string_pretty(bots)? + "\n")?;
     fs::rename(temp, file)?;
+    room::chat_changed();
     Ok(())
 }
 
@@ -779,6 +780,9 @@ pub fn retry_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Resu
         .context("no question to retry")?;
     if last.data.get("aside").and_then(Value::as_bool) == Some(true) {
         ask_aside(state_dir, jobs, id, thread, text)
+    } else if last.data["copy"].as_bool() == Some(true) {
+        let home = dirs::home_dir().context("home folder not found")?;
+        ask_with_workspace(state_dir, jobs, id, thread, text, &[], Some(&home))
     } else {
         ask(state_dir, jobs, id, thread, text, &[])
     }
@@ -867,6 +871,15 @@ pub fn dir_of(state_dir: &Path, id: &str) -> Result<PathBuf> {
     find(state_dir, id).map(|bot| bot.dir)
 }
 
+/// The directory for tools that belong to registered projects.
+pub(crate) fn project_dir_of(state_dir: &Path, id: &str) -> Result<PathBuf> {
+    let bot = find(state_dir, id)?;
+    if bot.free {
+        bail!("this conversation has no project");
+    }
+    Ok(bot.dir)
+}
+
 /// The change a full-access answer made, with the bot it is in.
 fn turn_changes(state_dir: &Path, id: &str, thread: &str, ms: i64) -> Result<(Bot, Vec<Message>, Value)> {
     let bot = find(state_dir, id)?;
@@ -909,6 +922,10 @@ pub fn ask_with(state_dir: &Path, jobs: &Jobs, id: &str, prompt: &str, shown: Va
 }
 
 pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, images: &[String]) -> Result<()> {
+    ask_with_workspace(state_dir, jobs, id, thread, text, images, None)
+}
+
+pub fn ask_with_workspace(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, images: &[String], copy_home: Option<&Path>) -> Result<()> {
     let text = text.trim();
     let validated = crate::uploads::validate_all(images)?;
     if (text.is_empty() && validated.is_empty()) || text.chars().count() > MAX_TEXT {
@@ -953,8 +970,13 @@ pub fn ask(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &str, im
     let for_cli = format!("{recap}{branched}{access}{brought}{for_cli}");
     let names: Vec<String> = saved.iter().map(|s| s.name.clone()).collect();
     let paths: Vec<PathBuf> = saved.iter().map(|s| s.path.clone()).collect();
-    let shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
-    if let Err(error) = start(state_dir, jobs, id, thread, Turn { mode: Mode::Talk, text: for_cli, asked: Some(said("ask", shown)), home: None, command: None, images: paths, keep_session: true, is_audit: false, auditor_agent: None }) {
+    let mut shown = if names.is_empty() { json!({ "text": text }) } else { json!({ "text": text, "images": names }) };
+    if copy_home.is_some() {
+        shown["copy"] = json!(true);
+        shown["review_required"] = json!(true);
+    }
+    let mode = if copy_home.is_some() { Mode::Edit } else { Mode::Talk };
+    if let Err(error) = start(state_dir, jobs, id, thread, Turn { mode, text: for_cli, asked: Some(said("ask", shown)), home: copy_home.map(Path::to_path_buf), command: None, images: paths, keep_session: copy_home.is_none(), is_audit: false, auditor_agent: None }) {
         crate::uploads::remove(&saved);
         return Err(error);
     }
@@ -1317,12 +1339,31 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
     }))
 }
 
+/// Read live turns and channel activity without loading transcripts or project usage.
+pub(crate) fn polling_state(state_dir: &Path, jobs: &Jobs) -> Value {
+    let bots: Vec<Value> = list(state_dir).iter().map(|bot| {
+        let busy_threads = jobs.busy_threads(&bot.id);
+        let primary = busy_threads.first();
+        json!({ "id": bot.id, "busy": !busy_threads.is_empty(), "busy_threads": busy_threads,
+            "busy_thread": primary.map(|job| job.thread.as_str()), "step": primary.and_then(|job| job.step.as_ref()),
+            "trail": primary.and_then(|job| job.trail.as_ref()), "started_ms": primary.map(|job| job.started_ms) })
+    }).collect();
+    let channels = crate::channels::polling_state(state_dir);
+    json!({ "bots": bots, "channels": channels, "chat_revision": room::chat_revision() })
+}
+
 /// Everything the panel shows about bots.
 pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Result<Value> {
+    // Sample activity before reading transcripts so a turn that ends during this
+    // read does not leave the panel idle with a snapshot missing its last answer.
+    let revision = room::chat_revision();
+    let registered = list(state_dir);
+    let live: Vec<_> = registered.iter().map(|bot| jobs.busy_threads(&bot.id)).collect();
     let task_threads = crate::tasks::linked_threads(state_dir);
-    let bots: Vec<Value> = list(state_dir)
+    let bots: Vec<Value> = registered
         .into_iter()
-        .map(|bot| {
+        .zip(live)
+        .map(|(bot, busy_threads)| {
             let messages = room::read_messages(&chat_file(state_dir, &bot.id));
             let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
@@ -1334,7 +1375,6 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                     "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)),
                 }))
                 .collect();
-            let busy_threads = jobs.busy_threads(&bot.id);
             let primary = busy_threads.first();
             json!({
                 "id": bot.id,
@@ -1377,6 +1417,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
         .collect();
     let requests = crate::requests::list(state_dir);
     Ok(json!({
+        "chat_revision": revision,
         "bots": bots,
         "candidates": candidates(store, home, state_dir)?,
         "agents": agents,
@@ -1401,6 +1442,41 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn live_poll_keeps_transcripts_out_of_the_payload() {
+        let dir = temp_dir("status-payload");
+        let bots = (0..4).map(|index| {
+            serde_json::from_value::<Bot>(json!({
+                "id": format!("b{index}"), "agent": "codex", "name": format!("Fixture {index}"),
+                "dir": dir, "created_ms": 0,
+            })).unwrap()
+        }).collect::<Vec<_>>();
+        save(&dir, &bots).unwrap();
+        for bot in &bots {
+            let threads = [MAIN.to_string(), threads::create(&dir, &bot.id, "Fixture thread").unwrap().id];
+            for thread in threads {
+                let messages = (0..50).map(|ms| room::Message {
+                    ms, author: "bot".into(), kind: "answer".into(),
+                    data: json!({ "reply": { "text": "fixture only ".repeat(40) } }),
+                }).collect();
+                room::append_messages(&threads::chat_file(&dir, &bot.id, &thread), messages).unwrap();
+            }
+        }
+        let jobs = Jobs::default();
+        jobs.start_mode("b0", MAIN, Mode::Talk).unwrap();
+        let store = Store::open_in_memory().unwrap();
+        let complete = state(&store, &dir, &dir, &jobs).unwrap();
+        let live = polling_state(&dir, &jobs);
+        assert_eq!(complete["bots"][0]["messages"].as_array().unwrap().len(), 50);
+        assert!(live["bots"].as_array().unwrap().iter().any(|bot| bot["busy"] == true));
+        assert!(!live.to_string().contains("fixture only"));
+        assert!(live["bots"].as_array().unwrap().iter().all(|bot| bot.get("messages").is_none() && bot.get("threads").is_none()));
+        let (full_bytes, live_bytes) = (complete.to_string().len(), live.to_string().len());
+        assert!(live_bytes * 10 < full_bytes, "{live_bytes} vs {full_bytes}");
+        println!("Polling fixture: {full_bytes} -> {live_bytes} JSON bytes");
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

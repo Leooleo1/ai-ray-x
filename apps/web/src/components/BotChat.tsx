@@ -1,7 +1,7 @@
 import { OpenTabs } from './chat/OpenTabs'
 import { ContextMeter } from './chat/ContextMeter'
-import { useEffect, useRef, useState } from 'react'
-import { type Bot, type Inbox, type Place, type Report, botInbox, busyIn, isEditing, wikiFromAnswer } from '../api'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { IS_REMOTE, type Bot, type Inbox, type Place, type Report, botInbox, busyIn, isEditing, projectSkills, wikiFromAnswer } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -12,6 +12,8 @@ import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
 import { CarryMenu } from './chat/Carry'
 import { PreviewPanel } from './chat/PreviewPanel'
+import { ProjectFiles } from './chat/ProjectFiles'
+import type { ProjectReference } from './chat/projectReference'
 import { cancelledWaiting, latestAnswer, pendingProposal } from './chat/waiting'
 import { TrailView } from './chat/TrailView'
 import { ReviewLine } from './chat/ReviewLine'
@@ -28,6 +30,9 @@ import { HouseLine, houseCommands, isHouse } from './chat/HouseLine'
 import type { ChatNav } from './chat/nav'
 import { askToNotify } from '../unread'
 import './chat/chat.css'
+
+const ProjectTerminal = lazy(() => import('./chat/ProjectTerminal'))
+const ProjectGit = lazy(() => import('./chat/ProjectGit'))
 
 /** The project's ai-memory inbox is asked again this often while the chat is open. */
 const INBOX_MS = 30_000
@@ -61,13 +66,43 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
   const isFree = Boolean(bot.free)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [filesOpen, setFilesOpen] = useState(false)
+  const [terminalOpen, setTerminalOpen] = useState(false)
+  const [gitOpen, setGitOpen] = useState(false)
+  const [terminalVisited, setTerminalVisited] = useState(false)
+  const [copyFor, setCopyFor] = useState<string | null>(null)
+  const [skillsOpenFor, setSkillsOpenFor] = useState<string | null>(null)
+  const [requestedFile, setRequestedFile] = useState<ProjectReference | null>(null)
+  const filesButton = useRef<HTMLButtonElement>(null)
+  const closeFiles = () => {
+    setFilesOpen(false)
+    requestAnimationFrame(() => filesButton.current?.focus())
+  }
+  const openFiles = (file: ProjectReference | null = null) => {
+    setGitOpen(false)
+    setSettingsOpen(false)
+    setPreviewOpen(false)
+    setTerminalOpen(false)
+    setRequestedFile(file)
+    setFilesOpen(true)
+  }
+  const openTerminal = () => {
+    setGitOpen(false)
+    setSettingsOpen(false)
+    setPreviewOpen(false)
+    setFilesOpen(false)
+    setTerminalVisited(true)
+    setTerminalOpen(true)
+  }
   const toggleSettings = () => {
+    setGitOpen(false)
     setSettingsOpen((was) => {
       if (!was) setPreviewOpen(false)
       return !was
     })
   }
   const togglePreview = () => {
+    setGitOpen(false)
     setPreviewOpen((was) => {
       if (!was) setSettingsOpen(false)
       return !was
@@ -90,11 +125,31 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
   const composer = useRef<HTMLTextAreaElement>(null)
+  const appendToDraft = useRef<((text: string) => 'too-long' | 'sending' | null) | null>(null)
+  const addContext = (label: string, text: string, source: 'terminal' | 'editor') => {
+    const append = appendToDraft.current
+    if (!append) return t.contextDraftSending
+    let length = 3
+    for (const match of text.matchAll(/~+/g)) length = Math.max(length, match[0].length + 1)
+    const fence = '~'.repeat(length)
+    const error = append(label + '\n\n' + fence + 'text\n' + text + '\n' + fence)
+    if (error) return error === 'too-long' ? t.contextDraftTooLong : t.contextDraftSending
+    if (source === 'terminal') setTerminalOpen(false)
+    else if (composer.current && getComputedStyle(composer.current).visibility === 'hidden') setFilesOpen(false)
+    requestAnimationFrame(() => {
+      const input = composer.current
+      input?.focus()
+      input?.setSelectionRange(input.value.length, input.value.length)
+    })
+    return null
+  }
   const [correctionThread, setCorrectionThread] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
   const side = bot.threads.find((x) => x.id === thread)
   // A conversation closed elsewhere falls back to the main one.
   const current = side ? thread : MAIN
+  const chatKey = `${bot.id}:${current}`
+  const copyTurn = copyFor === chatKey
   const messages = side ? side.messages : bot.messages
   // Each conversation runs its own turn; only draft edits stay one per bot.
   const live = busyIn(bot, current)
@@ -186,10 +241,13 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
     askToNotify()
     // "/btw question": a side question, answered outside the conversation's session.
     const aside = /^\/btw\s+(.+)$/s.exec(text.trim())
-    if (aside) return (await bots.act('ask', { id: bot.id, thread: current, text: aside[1], aside: true })) !== null
+    if (aside && !copyTurn) return (await bots.act('ask', { id: bot.id, thread: current, text: aside[1], aside: true })) !== null
     const payload: Record<string, unknown> = { id: bot.id, thread: current, text }
     if (images && images.length > 0) payload.images = images
-    return (await bots.act('ask', payload)) !== null
+    if (copyTurn) payload.copy = true
+    const sent = (await bots.act('ask', payload)) !== null
+    if (sent && copyTurn) setCopyFor((pending) => pending === chatKey ? null : pending)
+    return sent
   }
   const sendStarter = async (prompt: string) => {
     setStarting(true)
@@ -208,7 +266,7 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
 
   return (
     <main className="chat">
-      <section className={`cartao chat-centro bot-chat ${isFree ? 'sem-lista' : ''}`}>
+      <section className={`cartao chat-centro bot-chat ${isFree ? 'sem-lista' : ''} ${filesOpen ? 'bot-chat--editor' : ''}`}>
         {!isFree && (
           <ProjectList
             bots={bots}
@@ -229,6 +287,7 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
             onClose={(id, thread) => void (id === bot.id ? closeThread(thread) : bots.act('thread_delete', { id, thread }))}
           />
         )}
+        <div className={`conversa-workspace ${filesOpen ? 'conversa-workspace--editor' : ''}`}>
         <div className="conversa">
         <header className="chat-topo bot-topo">
           {isFree ? (
@@ -264,6 +323,28 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
               <ContextMeter bot={bot.id} thread={current} busy={busyHere} onFresh={() => void newThread()} />
               <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
               <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
+              {!IS_REMOTE && (
+                <button ref={filesButton} type="button" className="icone-btn" title={t.filesTitle} aria-label={t.filesTitle} aria-expanded={filesOpen}
+                  onClick={() => filesOpen ? closeFiles() : openFiles()}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+                </button>
+              )}
+              {!IS_REMOTE && (
+                <button type="button" className="icone-btn" title={t.terminalTitle} aria-label={t.terminalTitle} aria-expanded={terminalOpen} onClick={openTerminal}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" /><path d="m7 9 3 3-3 3m6 0h4" /></svg>
+                </button>
+              )}
+              {!IS_REMOTE && (
+                <button type="button" className="icone-btn" title={t.gitTitle} aria-label={t.gitTitle} aria-expanded={gitOpen} onClick={() => {
+                  setSettingsOpen(false)
+                  setPreviewOpen(false)
+                  setFilesOpen(false)
+                  setTerminalOpen(false)
+                  setGitOpen(!gitOpen)
+                }}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="6" r="2" /><path d="M6 7v10m0-2c0-5 12 0 12-7" /></svg>
+                </button>
+              )}
               <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <rect x="3.5" y="5" width="17" height="12" rx="2" />
@@ -329,6 +410,7 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
               onSend={(project) => void bots.act('send', { id: bot.id, answer_ms: message.ms, project })}
               onOpenExchange={nav.openExchange}
               onOpenPlace={openPlace}
+              projectFiles={IS_REMOTE || isFree ? undefined : { root: bot.dir, open: openFiles }}
               draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
               onDraft={isFree ? undefined : (action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
               thread={current}
@@ -403,9 +485,27 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
             </button>
           </div>
         )}
+        {!isFree && <div className="chat-ferramentas-tarefa">
+          <button type="button" className="vidro-btn" aria-pressed={copyTurn} title={t.copyTurnHint} disabled={bot.busy}
+            onClick={() => setCopyFor(copyTurn ? null : chatKey)}>{t.copyTurn}</button>
+          {!IS_REMOTE && <button type="button" className="vidro-btn" aria-expanded={skillsOpenFor === chatKey}
+            onClick={() => setSkillsOpenFor(skillsOpenFor === chatKey ? null : chatKey)}>{t.projectSkills}</button>}
+          {!IS_REMOTE && skillsOpenFor === chatKey && (
+            <SkillPicker key={chatKey} bot={bot.id} onPick={(name) => {
+              const append = appendToDraft.current
+              if (!append) return t.contextDraftSending
+              const error = append('/skill ' + name)
+              if (error) return error === 'too-long' ? t.contextDraftTooLong : t.contextDraftSending
+              setSkillsOpenFor(null)
+              requestAnimationFrame(() => composer.current?.focus())
+              return null
+            }} />
+          )}
+        </div>}
         <Composer
-          draftKey={`${bot.id}:${current}`}
+          draftKey={chatKey}
           inputRef={composer}
+          appendRef={appendToDraft}
           placeholder={isFree ? t.freeChatPlaceholder : offerCorrection && correctionThread === current ? t.botCorrectionPlaceholder : `${t.composeBot} ${speaker} · ${t.slashHint}`}
           commands={isFree ? [asideCommand] : [...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
           maxLength={bots.state.max_text}
@@ -414,7 +514,7 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
           onSend={send}
           onStop={() => void bots.act('stop', { id: bot.id, thread: current })}
           mode={!isFree && bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
-          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, thread: current, text })) !== null : undefined}
+          onCorrect={busyHere && !copyTurn ? async (text) => (await bots.act('correct', { id: bot.id, thread: current, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && (
@@ -430,9 +530,49 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
           />
         )}
         {previewOpen && <PreviewPanel key={bot.id} bot={bot} bots={bots} runSignal={runSignal} onClose={() => setPreviewOpen(false)} />}
+        {!IS_REMOTE && gitOpen && (
+          <Suspense fallback={null}>
+            <ProjectGit key={bot.id} bot={bot.id} close={() => setGitOpen(false)} openFile={openFiles} />
+          </Suspense>
+        )}
+        {!IS_REMOTE && terminalVisited && (
+          <Suspense fallback={null}>
+            <ProjectTerminal bot={bot.id} root={bot.dir} visible={terminalOpen} close={() => setTerminalOpen(false)} openFile={openFiles}
+              addToDraft={(text) => addContext(t.terminalExcerpt, text, 'terminal')} />
+          </Suspense>
+        )}
+        </div>
+        {!IS_REMOTE && <ProjectFiles key={bot.id} bot={bot.id} visible={filesOpen} request={requestedFile} close={closeFiles}
+          addToDraft={(reference, text) => addContext(t.fileExcerpt.replace('{ref}', reference), text, 'editor')} />}
         </div>
       </section>
     </main>
+  )
+}
+
+function SkillPicker({ bot, onPick }: { bot: string; onPick: (name: string) => string | null }) {
+  const [skills, setSkills] = useState<string[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    projectSkills(bot).then(
+      (result) => { if (active) setSkills(result.skills) },
+      () => { if (active) setError(t.projectSkillsError) },
+    )
+    return () => { active = false }
+  }, [bot])
+  return (
+    <>
+      {!skills && !error && <small role="status">{t.filesLoading}</small>}
+      {skills?.length === 0 && <small>{t.projectSkillsEmpty}</small>}
+      {skills && skills.length > 0 && (
+        <select aria-label={t.projectSkills} value="" onChange={(event) => setError(onPick(event.target.value))}>
+          <option value="" disabled>{t.projectSkills}</option>
+          {skills.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+      )}
+      {error && <small role="alert">{error}</small>}
+    </>
   )
 }
 
