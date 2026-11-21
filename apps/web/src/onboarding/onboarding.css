@@ -154,6 +154,10 @@
   margin-left: auto;
 }
 
+.bv-inicio .bv-acoes {
+  flex-wrap: wrap;
+}
+
 .bv-btn {
   flex: none;
   height: 36px;

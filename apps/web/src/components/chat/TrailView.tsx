@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Trail, TrailItem } from '../../api'
 import { t } from '../../i18n'
 
-/** A long path starts folded on its last steps; the rest opens on a tap. */
+/** A long path starts folded on its last steps. */
 const FOLDED_SHOWS = 6
 
 /** What a step got back: lines read, files found or changed, or an output's last lines. */
@@ -17,21 +17,22 @@ function result(item: TrailItem): string {
 /** The path of a turn: each step with its result, and what the AI said between steps. */
 export function TrailView({ trail, live }: { trail: Trail; live: boolean }) {
   const [open, setOpen] = useState(false)
-  const folds = !open && trail.items.length > FOLDED_SHOWS + 2
-  const hidden = folds ? trail.items.length - FOLDED_SHOWS : 0
+  const toggle = useRef<HTMLButtonElement>(null)
+  const foldable = trail.items.length > FOLDED_SHOWS + 2
+  const hidden = !open && foldable ? trail.items.length - FOLDED_SHOWS : 0
   const shown = trail.items.slice(hidden)
-  const before = trail.dropped + hidden
   return (
     <ol className="trilha">
-      {before > 0 && (
+      {foldable && (
         <li className="trilha-antes">
-          {folds ? (
-            <button type="button" className="ver-mais" onClick={() => setOpen(true)}>
-              {t.trailEarlier.replace('{n}', String(before))}
-            </button>
-          ) : (
-            <small>{t.trailDropped.replace('{n}', String(trail.dropped))}</small>
-          )}
+          <button ref={toggle} type="button" className="ver-mais" aria-expanded={open} onClick={() => setOpen((expanded) => !expanded)}>
+            {open ? t.trailRecent : t.trailEarlier.replace('{n}', String(hidden))}
+          </button>
+        </li>
+      )}
+      {hidden === 0 && trail.dropped > 0 && (
+        <li className="trilha-antes">
+          <small>{t.trailDropped.replace('{n}', String(trail.dropped))}</small>
         </li>
       )}
       {shown.map((item, index) =>
@@ -47,6 +48,16 @@ export function TrailView({ trail, live }: { trail: Trail; live: boolean }) {
             {result(item) && <small>{result(item)}</small>}
           </li>
         ),
+      )}
+      {live && foldable && open && (
+        <li>
+          <button type="button" className="ver-mais trilha-recolher" onClick={() => {
+            setOpen(false)
+            toggle.current?.focus()
+          }}>
+            {t.trailRecent}
+          </button>
+        </li>
       )}
     </ol>
   )

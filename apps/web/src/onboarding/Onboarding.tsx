@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type PickedProject, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup, saveSettings } from '../api'
+import { type Bot, type BotAction, type BotAgent, type BotsState, type GitHubState, type PickedProject, type SetupState, botAction, fetchGitHub, fetchSetup, finishSetup, pickProjectFolder, saveSettings } from '../api'
 import type { Bots } from '../bots'
 import { AGENT_LABEL, faceOf, stageLight } from '../avatars'
 import { Avatar, type AvatarState } from '../components/Avatar'
@@ -34,7 +34,7 @@ const errorText = (failure: unknown) => (failure instanceof Error ? failure.mess
 const slashPath = (path: string) => path.replace(/\\/g, '/')
 
 interface OnboardingProps {
-  onFinish: (firstBot: string | null) => void
+  onFinish: (firstBot: string | null, bots?: BotsState) => void
 }
 
 /** First run: connect the AIs and GitHub, pick projects, make the bot. */
@@ -49,6 +49,9 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const [botsState, setBotsState] = useState<BotsState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [quickFolder, setQuickFolder] = useState<PickedProject | null>(null)
+  const [pickingFolder, setPickingFolder] = useState(false)
+  const [openingFolder, setOpeningFolder] = useState(false)
 
   const loadSetup = useCallback(async (quiet = false, fresh = false) => {
     if (!quiet) setLoading(true)
@@ -120,6 +123,45 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     setDesign((current) => (current.agent === 'opencode' ? current : { ...current, agent: 'opencode' }))
   }, [])
 
+  const openFolder = async (folder: PickedProject) => {
+    const available = setup?.ais.filter(canRunBots) ?? []
+    const free = freeModel ? available.find((connection) => connection.id === 'opencode') : undefined
+    const ai = free ?? available.find((connection) => connection.enabled) ?? available[0]
+    if (!ai) {
+      setQuickFolder(folder)
+      go('ais')
+      return
+    }
+    setOpeningFolder(true)
+    setError(null)
+    try {
+      if (!ai.enabled) await saveSettings({ enabled: { [ai.id]: true } })
+      let next = await botAction('activate_folder', { project: folder.dir, agent: ai.id })
+      const bot = next.bots.find((item) => item.dir === folder.dir && item.agent === ai.id)
+      if (!bot) throw new Error(o.quickOpenFailed)
+      if (freeModel && ai.id === 'opencode') next = await botAction('configure', { id: bot.id, model: OPENCODE_FREE_MODEL })
+      await finishSetup()
+      onFinish(bot.id, next)
+    } catch (failure: unknown) {
+      setError(errorText(failure))
+    } finally {
+      setOpeningFolder(false)
+    }
+  }
+
+  const chooseFolder = async () => {
+    setPickingFolder(true)
+    setError(null)
+    try {
+      const folder = await pickProjectFolder()
+      if (folder) await openFolder(folder)
+    } catch (failure: unknown) {
+      setError(errorText(failure))
+    } finally {
+      setPickingFolder(false)
+    }
+  }
+
   const createBots = async () => {
     setLoading(true)
     setError(null)
@@ -154,7 +196,7 @@ export function Onboarding({ onFinish }: OnboardingProps) {
   const finish = async (firstBot: string | null) => {
     try {
       await finishSetup()
-      onFinish(firstBot)
+      onFinish(firstBot, botsState ?? undefined)
     } catch (failure: unknown) {
       setError(errorText(failure))
     }
@@ -177,11 +219,11 @@ export function Onboarding({ onFinish }: OnboardingProps) {
     },
     refresh: () => undefined,
   }
-  const mood: AvatarState = loading ? 'thinking' : step === 'done' ? 'happy' : 'idle'
+  const mood: AvatarState = loading || openingFolder ? 'thinking' : step === 'done' ? 'happy' : 'idle'
   const titles: Record<Step, [string, string]> = {
     welcome: [o.welcomeTitle, o.welcomeText],
     profile: [o.profileTitle, o.profileText],
-    ais: [o.aisTitle, o.aisText],
+    ais: quickFolder ? [o.aisTitle, o.quickConnect.replace('{project}', quickFolder.name)] : [o.aisTitle, o.aisText],
     github: [o.githubTitle, o.githubText],
     projects: [o.projectsTitle, o.projectsText],
     bot: [o.botTitle, o.botText],
@@ -198,14 +240,16 @@ export function Onboarding({ onFinish }: OnboardingProps) {
           <Mark />
           raiox
         </span>
-        <ol className="bv-trilho" aria-label="setup">
-          {o.steps.map((label, i) => (
-            <li key={label} className={i + 1 < index ? 'feito' : i + 1 === index ? 'atual' : ''}>
-              <i />
-              <span>{`${String(i + 1).padStart(2, '0')} ${label}`}</span>
-            </li>
-          ))}
-        </ol>
+        {step !== 'welcome' && !quickFolder && (
+          <ol className="bv-trilho" aria-label="setup">
+            {o.steps.map((label, i) => (
+              <li key={label} className={i + 1 < index ? 'feito' : i + 1 === index ? 'atual' : ''}>
+                <i />
+                <span>{`${String(i + 1).padStart(2, '0')} ${label}`}</span>
+              </li>
+            ))}
+          </ol>
+        )}
       </header>
 
       <div className="bv-corpo">
@@ -224,8 +268,16 @@ export function Onboarding({ onFinish }: OnboardingProps) {
           {step !== 'welcome' && <span className="bv-legenda">{`${personaOf(design, o.defaultName).name} · ${AGENT_LABEL[design.agent]}`}</span>}
         </aside>
 
-        <section className="cartao bv-cartao">
-          {step === 'welcome' && <StepWelcome onNext={() => go('profile')} />}
+        <section className={`cartao bv-cartao${step === 'welcome' ? ' bv-inicio' : ''}`}>
+          {step === 'welcome' && (
+            <StepWelcome
+              checking={loading}
+              picking={pickingFolder}
+              opening={openingFolder}
+              onChoose={() => void chooseFolder()}
+              onAdvanced={() => go('profile')}
+            />
+          )}
           {step === 'profile' && <StepProfile onBack={() => go('welcome')} onNext={() => go('ais')} />}
           {step === 'ais' && (
             <StepAis
@@ -234,8 +286,15 @@ export function Onboarding({ onFinish }: OnboardingProps) {
               onCheck={() => void loadSetup(false, true)}
               onRefresh={refreshQuietly}
               onFree={startFree}
-              onBack={() => go('profile')}
-              onNext={() => go(anyAi ? 'github' : 'done')}
+              openingProject={openingFolder}
+              openProject={Boolean(quickFolder)}
+              onBack={() => {
+                if (quickFolder) {
+                  setQuickFolder(null)
+                  go('welcome')
+                } else go('profile')
+              }}
+              onNext={() => quickFolder ? void openFolder(quickFolder) : go(anyAi ? 'github' : 'done')}
             />
           )}
           {step === 'github' && setup && (
