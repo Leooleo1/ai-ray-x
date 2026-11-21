@@ -231,9 +231,6 @@ fn on_message(state_dir: &Path, jobs: &Jobs, config: &mut Config, chat: i64, nam
         });
     }
     let Some(bot) = current(state_dir, config) else { return Some(roster(state_dir, config)) };
-    if jobs.is_busy(&bot.id) {
-        return Some(format!("{} {}", bot.name, words(config.portuguese, "is working; send it again when it is done.", "está trabalhando; mande de novo quando ele terminar.")));
-    }
     let thread = match threads::list(state_dir, &bot.id).into_iter().find(|t| t.title == THREAD_TITLE) {
         Some(thread) => thread.id,
         None => match threads::create(state_dir, &bot.id, THREAD_TITLE) {
@@ -241,6 +238,9 @@ fn on_message(state_dir: &Path, jobs: &Jobs, config: &mut Config, chat: i64, nam
             Err(error) => return Some(error.to_string()),
         },
     };
+    if jobs.is_thread_busy(&bot.id, &thread) {
+        return Some(format!("{} {}", bot.name, words(config.portuguese, "is working; send it again when it is done.", "está trabalhando; mande de novo quando ele terminar.")));
+    }
     let since = room::now_ms();
     match bots::ask(state_dir, jobs, &bot.id, &thread, text, &[]) {
         Ok(()) => {
@@ -270,7 +270,7 @@ fn answer_text(message: &room::Message, pt: bool) -> String {
 fn finished(state_dir: &Path, jobs: &Jobs, waiting: Vec<Waiting>, pt: bool) -> (Vec<String>, Vec<Waiting>) {
     let now = room::now_ms();
     waiting.into_iter().fold((Vec::new(), Vec::new()), |(mut done, mut still), w| {
-        if jobs.is_busy(&w.bot) {
+        if jobs.is_thread_busy(&w.bot, &w.thread) {
             still.push(w);
             return (done, still);
         }

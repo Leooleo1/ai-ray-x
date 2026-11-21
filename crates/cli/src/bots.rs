@@ -168,14 +168,25 @@ impl Persona {
     }
 }
 
-/// Bots answering right now, by id: whether the person asked them to stop, and in which conversation.
+/// Snapshot of one running turn on a bot, exposed to the panel per conversation.
+#[derive(Clone, Serialize)]
+pub struct BusyThread {
+    pub thread: String,
+    pub step: Option<crate::bot_steps::Step>,
+    pub trail: Option<crate::bot_trail::Trail>,
+    pub started_ms: i64,
+    pub editing: bool,
+}
+
+/// Active turns by `(bot_id, thread_id)`: each conversation runs on its own, while draft edits
+/// (`Mode::Edit`) remain one at a time per bot because `drafts::prepare` shares one copy per bot.
 #[derive(Clone, Default)]
-pub struct Jobs(Arc<Mutex<HashMap<String, Job>>>);
+pub struct Jobs(Arc<Mutex<HashMap<(String, String), Job>>>);
 
 #[derive(Default)]
 struct Job {
     stop: bool,
-    thread: String,
+    is_edit: bool,
     step: Option<crate::bot_steps::Step>,
     /// The path of the running turn, as the CLI reports it.
     trail: Option<crate::bot_trail::Trail>,
@@ -185,58 +196,80 @@ struct Job {
 }
 
 impl Jobs {
-    /// One turn at a time per bot, whichever conversation it is in.
-    fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| {
-            let std::collections::hash_map::Entry::Vacant(entry) = map.entry(id.to_string()) else {
-                return false;
-            };
-            entry.insert(Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() });
-            true
-        })
+    /// Reserves `(id, thread)` for a turn of `mode`.
+    /// Parallel `Mode::Talk` turns on different conversations of the same bot are allowed;
+    /// a second `Mode::Edit` on the same bot is refused while one is already running.
+    pub(crate) fn start_mode(&self, id: &str, thread: &str, mode: Mode) -> Result<()> {
+        let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
+        let key = (id.to_string(), thread.to_string());
+        if map.contains_key(&key) {
+            bail!("this conversation is still answering");
+        }
+        if mode == Mode::Edit && map.iter().any(|((bot, _), job)| bot == id && job.is_edit) {
+            bail!("another edit in a draft copy is already running for this project; wait for it to finish");
+        }
+        map.insert(key, Job { is_edit: mode == Mode::Edit, started_ms: room::now_ms(), ..Job::default() });
+        Ok(())
     }
 
-    fn thread_of(&self, id: &str) -> Option<String> {
-        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.thread.clone()))
+    /// Snapshot of every conversation currently running on `id`, oldest first.
+    pub fn busy_threads(&self, id: &str) -> Vec<BusyThread> {
+        let Ok(map) = self.0.lock() else { return Vec::new() };
+        let mut list: Vec<BusyThread> = map
+            .iter()
+            .filter(|((bot, _), _)| bot == id)
+            .map(|((_, thread), job)| BusyThread {
+                thread: thread.clone(),
+                step: job.step.clone(),
+                trail: job.trail.clone(),
+                started_ms: job.started_ms,
+                editing: job.is_edit,
+            })
+            .collect();
+        list.sort_by(|a, b| a.started_ms.cmp(&b.started_ms).then_with(|| a.thread.cmp(&b.thread)));
+        list
     }
 
-    fn step_of(&self, id: &str) -> Option<crate::bot_steps::Step> {
-        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.step.clone()))
-    }
-
-    fn set_step(&self, id: &str, step: crate::bot_steps::Step) {
+    fn set_step(&self, id: &str, thread: &str, step: crate::bot_steps::Step) {
         if let Ok(mut map) = self.0.lock()
-            && let Some(job) = map.get_mut(id)
+            && let Some(job) = map.get_mut(&(id.to_string(), thread.to_string()))
         {
             job.step = Some(step);
         }
     }
 
-    fn set_trail(&self, id: &str, trail: &crate::bot_trail::Trail) {
+    fn set_trail(&self, id: &str, thread: &str, trail: &crate::bot_trail::Trail) {
         if let Ok(mut map) = self.0.lock()
-            && let Some(job) = map.get_mut(id)
+            && let Some(job) = map.get_mut(&(id.to_string(), thread.to_string()))
         {
             job.step = trail.current();
             job.trail = Some(trail.clone());
         }
     }
 
-    fn started_of(&self, id: &str) -> Option<i64> {
-        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.started_ms))
+    /// Picks the target `(id, thread)` key when a caller passes an optional thread name.
+    fn pick_key(map: &HashMap<(String, String), Job>, id: &str, thread: Option<&str>) -> Option<(String, String)> {
+        if let Some(thread) = thread.filter(|t| !t.is_empty()) {
+            let key = (id.to_string(), thread.to_string());
+            return map.contains_key(&key).then_some(key);
+        }
+        let mut keys: Vec<_> = map.iter().filter(|((bot, _), _)| bot == id).collect();
+        if keys.len() == 1 {
+            return Some(keys[0].0.clone());
+        }
+        keys.sort_by_key(|((_, th), job)| (th != MAIN, job.started_ms));
+        keys.first().map(|(k, _)| (*k).clone())
     }
 
-    fn trail_of(&self, id: &str) -> Option<crate::bot_trail::Trail> {
-        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.trail.clone()))
-    }
-
-    /// Stops the running turn so it goes on with the person's correction.
-    pub fn correct(&self, id: &str, text: &str) -> Result<()> {
+    /// Stops the running turn in `thread` so it goes on with the person's correction.
+    pub fn correct(&self, id: &str, thread: Option<&str>, text: &str) -> Result<()> {
         let text = text.trim();
         if text.is_empty() || text.chars().count() > MAX_TEXT {
             bail!("a correction has 1 to {MAX_TEXT} characters");
         }
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
-        let job = map.get_mut(id).context("the bot is not answering")?;
+        let key = Self::pick_key(&map, id, thread).context("the bot is not answering")?;
+        let job = map.get_mut(&key).context("the bot is not answering")?;
         job.stop = true;
         job.correction = Some(text.to_string());
         Ok(())
@@ -244,9 +277,9 @@ impl Jobs {
 
     /// The correction a stopped turn goes on with, and the CLI session it had reached;
     /// the turn is running again from here.
-    fn take_correction(&self, id: &str) -> Option<(String, Option<String>)> {
+    fn take_correction(&self, id: &str, thread: &str) -> Option<(String, Option<String>)> {
         let mut map = self.0.lock().ok()?;
-        let job = map.get_mut(id)?;
+        let job = map.get_mut(&(id.to_string(), thread.to_string()))?;
         let correction = job.correction.take()?;
         let session = job.trail.take().and_then(|trail| trail.session);
         job.stop = false;
@@ -254,35 +287,46 @@ impl Jobs {
         Some((correction, session))
     }
 
-    fn finish(&self, id: &str) {
+    fn finish(&self, id: &str, thread: &str) {
         if let Ok(mut map) = self.0.lock() {
-            map.remove(id);
+            map.remove(&(id.to_string(), thread.to_string()));
         }
     }
 
-    /// How many bots are working now (the desktop app's menu bar shows it).
+    /// How many turns are running right now across all bots and conversations.
     pub fn busy_count(&self) -> usize {
         self.0.lock().map_or(0, |map| map.len())
     }
 
+    /// True when any conversation of `id` is currently running a turn.
     pub fn is_busy(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.contains_key(id))
+        self.0.lock().is_ok_and(|map| map.keys().any(|(bot, _)| bot == id))
     }
 
-    fn should_stop(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.get(id).is_some_and(|job| job.stop))
+    /// True when the specific `(id, thread)` conversation is currently running a turn.
+    pub fn is_thread_busy(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.contains_key(&(id.to_string(), thread.to_string())))
     }
 
-    /// Marks a running turn to stop; its thread kills the CLI on its next check.
-    pub fn stop(&self, id: &str) -> Result<()> {
+    /// True when another conversation of `id` besides `thread` is currently running.
+    fn has_other_busy(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.keys().any(|(bot, th)| bot == id && th != thread))
+    }
+
+    fn should_stop(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.get(&(id.to_string(), thread.to_string())).is_some_and(|job| job.stop))
+    }
+
+    /// Marks the running turn in `thread` to stop; its worker kills the CLI on its next check.
+    pub fn stop(&self, id: &str, thread: Option<&str>) -> Result<()> {
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
-        match map.get_mut(id) {
-            Some(job) => {
-                job.stop = true;
-                Ok(())
-            }
-            None => bail!("the bot is not answering"),
+        let Some(key) = Self::pick_key(&map, id, thread) else {
+            bail!("the bot is not answering");
+        };
+        if let Some(job) = map.get_mut(&key) {
+            job.stop = true;
         }
+        Ok(())
     }
 }
 
@@ -621,8 +665,8 @@ pub fn retry_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Resu
 
 /// Starts the conversation over: the next message opens a fresh session.
 pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering; wait for it to finish");
     }
     set_thread_session(state_dir, id, thread, None)?;
     crate::live::end(&format!("{id}:{thread}"));
@@ -866,8 +910,8 @@ pub fn cancel_waiting(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, ans
     if card.cancelled(&messages, answer_ms) {
         return Ok(());
     }
-    if jobs.thread_of(id).as_deref() == Some(thread) {
-        bail!("the bot is still answering");
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering");
     }
     let current = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
     if !current.is_some_and(|answer| answer.ms == answer_ms && answer.author == "bot" && answer.kind == "answer" && card.exists(answer)) {
@@ -917,8 +961,8 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
-    if jobs.is_busy(id) {
-        bail!("the bot is still answering");
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering");
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     let last = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
@@ -962,12 +1006,10 @@ pub(crate) fn run_audit_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &s
     let bot = find(state_dir, id)?;
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
-    if !jobs.start(id, thread) {
-        bail!("the bot is still answering");
-    }
+    jobs.start_mode(id, thread, Mode::Talk)?;
     let asked = said("ask", shown);
     if let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked]) {
-        jobs.finish(id);
+        jobs.finish(id, thread);
         return Err(error);
     }
     let same_agent = audit_agent == bot.agent;
@@ -998,7 +1040,7 @@ pub(crate) fn run_audit_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &s
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
     std::thread::spawn(move || {
         turn::run(&state_dir, &jobs, &effective, &thread, turn, None);
-        jobs.finish(&effective.id);
+        jobs.finish(&effective.id, &thread);
         // Deliberately skip auto_edit::after_turn: audit fixes always require explicit human approval.
         crate::push::after_turn(&state_dir, &effective, &thread);
         crate::team::refresh(&state_dir, vec![effective.dir.clone()]);
@@ -1116,19 +1158,17 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
     crate::grants::check_week(state_dir, &bot)?;
     // A turn that does not keep its session (a side question) does not continue the conversation's either.
     let session = if turn.keep_session { thread_session(state_dir, &bot, thread)? } else { None };
-    if !jobs.start(id, thread) {
-        bail!("the bot is still answering");
-    }
+    jobs.start_mode(id, thread, turn.mode)?;
     if let Some(asked) = &turn.asked
         && let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked.clone()])
     {
-        jobs.finish(id);
+        jobs.finish(id, thread);
         return Err(error);
     }
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
     Ok(std::thread::spawn(move || {
         let answer = turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
-        jobs.finish(&bot.id);
+        jobs.finish(&bot.id, &thread);
         crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
         crate::push::after_turn(&state_dir, &bot, &thread);
         crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
@@ -1147,6 +1187,8 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 .into_iter()
                 .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
                 .collect();
+            let busy_threads = jobs.busy_threads(&bot.id);
+            let primary = busy_threads.first();
             json!({
                 "id": bot.id,
                 "agent": bot.agent,
@@ -1163,11 +1205,12 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "talk_model": bot.talk_model,
                 "reviewer": bot.reviewer,
                 "budget": { "limit": crate::budget::limit(state_dir, &bot.name), "used": crate::budget::used_today(state_dir, &bot.name), "choices": crate::budget::CHOICES },
-                "busy": jobs.is_busy(&bot.id),
-                "busy_thread": jobs.thread_of(&bot.id),
-                "step": jobs.step_of(&bot.id),
-                "trail": jobs.trail_of(&bot.id),
-                "started_ms": jobs.started_of(&bot.id),
+                "busy": !busy_threads.is_empty(),
+                "busy_thread": primary.map(|b| b.thread.as_str()),
+                "busy_threads": busy_threads,
+                "step": primary.and_then(|b| b.step.as_ref()),
+                "trail": primary.and_then(|b| b.trail.as_ref()),
+                "started_ms": primary.map(|b| b.started_ms),
                 "last_ms": last_ms,
                 "last_line": last_line,
                 "messages": messages,
@@ -1316,14 +1359,75 @@ mod tests {
         assert!(ask(&state, &jobs, &bot.id, MAIN, "look", &[fake]).is_err());
         assert!(!crate::uploads::dir(&state, &bot.id).exists());
 
-        // If the bot is busy, validated images saved before start are cleaned up.
-        assert!(jobs.start(&bot.id, MAIN));
+        // If the conversation is busy, validated images saved before start are cleaned up.
+        assert!(jobs.start_mode(&bot.id, MAIN, Mode::Talk).is_ok());
         let valid_png = base64::engine::general_purpose::STANDARD.encode([0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0]);
         assert!(ask(&state, &jobs, &bot.id, MAIN, "", &[valid_png]).unwrap_err().to_string().contains("still answering"));
         let remaining: Vec<_> = fs::read_dir(crate::uploads::dir(&state, &bot.id)).into_iter().flatten().flatten().collect();
         assert!(remaining.is_empty(), "failed ask must not leave orphan upload files");
-        jobs.finish(&bot.id);
+        jobs.finish(&bot.id, MAIN);
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn parallel_talk_threads_run_stop_and_aggregate_independently() {
+        let jobs = Jobs::default();
+        assert!(!jobs.is_busy("b1"));
+        assert_eq!(jobs.busy_count(), 0);
+
+        // Two conversations of the same bot start at the same time in Mode::Talk.
+        jobs.start_mode("b1", MAIN, Mode::Talk).unwrap();
+        jobs.start_mode("b1", "side1", Mode::Talk).unwrap();
+        assert!(jobs.start_mode("b1", MAIN, Mode::Talk).is_err(), "same conversation cannot start twice");
+        assert!(jobs.is_busy("b1"));
+        assert!(jobs.is_thread_busy("b1", MAIN));
+        assert!(jobs.is_thread_busy("b1", "side1"));
+        assert!(!jobs.is_thread_busy("b1", "side2"));
+        assert_eq!(jobs.busy_count(), 2);
+
+        // Steps and trails stay isolated per conversation.
+        jobs.set_step("b1", MAIN, crate::bot_steps::Step { kind: "read", target: "a.rs".into() });
+        jobs.set_step("b1", "side1", crate::bot_steps::Step { kind: "search", target: "b.rs".into() });
+        let threads = jobs.busy_threads("b1");
+        assert_eq!(threads.len(), 2);
+        let main_step = threads.iter().find(|t| t.thread == MAIN).and_then(|t| t.step.as_ref()).unwrap();
+        let side_step = threads.iter().find(|t| t.thread == "side1").and_then(|t| t.step.as_ref()).unwrap();
+        assert_eq!(main_step.target, "a.rs");
+        assert_eq!(side_step.target, "b.rs");
+
+        // Stopping one conversation does not stop the other.
+        jobs.stop("b1", Some(MAIN)).unwrap();
+        assert!(jobs.should_stop("b1", MAIN));
+        assert!(!jobs.should_stop("b1", "side1"));
+
+        // Finishing one keeps bot busy until the other finishes too.
+        jobs.finish("b1", MAIN);
+        assert!(jobs.is_busy("b1"));
+        assert!(!jobs.is_thread_busy("b1", MAIN));
+        assert!(jobs.is_thread_busy("b1", "side1"));
+        assert_eq!(jobs.busy_count(), 1);
+
+        jobs.finish("b1", "side1");
+        assert!(!jobs.is_busy("b1"));
+        assert_eq!(jobs.busy_count(), 0);
+    }
+
+    #[test]
+    fn edit_mode_stays_one_per_bot_while_talk_can_run_alongside() {
+        let jobs = Jobs::default();
+        jobs.start_mode("b1", MAIN, Mode::Edit).unwrap();
+        // A second Edit on another conversation of the same bot is refused with a clear message.
+        let err = jobs.start_mode("b1", "side1", Mode::Edit).unwrap_err();
+        assert!(err.to_string().contains("draft copy"), "{err:#}");
+        // Another bot's Edit is unaffected, and Talk on another thread of the same bot is allowed.
+        jobs.start_mode("b2", MAIN, Mode::Edit).unwrap();
+        jobs.start_mode("b1", "side1", Mode::Talk).unwrap();
+        assert_eq!(jobs.busy_threads("b1").len(), 2);
+        assert!(jobs.busy_threads("b1").iter().any(|t| t.thread == MAIN && t.editing));
+        assert!(jobs.busy_threads("b1").iter().any(|t| t.thread == "side1" && !t.editing));
+        // Once the first Edit finishes, another conversation of b1 can run an Edit.
+        jobs.finish("b1", MAIN);
+        jobs.start_mode("b1", "side2", Mode::Edit).unwrap();
     }
 
     #[test]

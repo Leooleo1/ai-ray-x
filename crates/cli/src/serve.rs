@@ -480,6 +480,9 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_delete" => crate::routines::delete(state_dir, field("routine")),
         "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
         "thread_delete" => {
+            if jobs.is_thread_busy(field("id"), thread) {
+                anyhow::bail!("this conversation is still answering");
+            }
             crate::live::end(&format!("{}:{thread}", field("id")));
             crate::threads::delete(state_dir, field("id"), thread)
         }
@@ -488,8 +491,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             let data = crate::room::answer(&panel.store, &panel.roots, state_dir, &dir, field("agent"))?;
             bots::house(state_dir, field("id"), thread, field("agent"), data)
         }
-        "stop" => jobs.stop(field("id")),
-        "correct" => jobs.correct(field("id"), field("text")),
+        "stop" => jobs.stop(field("id"), input.get("thread").and_then(Value::as_str)),
+        "correct" => jobs.correct(field("id"), input.get("thread").and_then(Value::as_str), field("text")),
         "continue" => bots::continue_turn(state_dir, jobs, field("id"), thread),
         "retry" => bots::retry_turn(state_dir, jobs, field("id"), thread),
         "configure" => {

@@ -1,4 +1,4 @@
-import type { Batch, Bot, BotMessage } from '../../api'
+import { type Batch, type Bot, type BotMessage, busyIn } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import type { Bots } from '../../bots'
 import { compact, t } from '../../i18n'
@@ -55,7 +55,8 @@ interface ColumnProps {
 
 function Column({ bot, thread, nav }: ColumnProps) {
   const conversation = bot.threads.find((x) => x.id === thread)
-  const working = bot.busy && bot.busy_thread === thread
+  const job = busyIn(bot, thread)
+  const working = Boolean(job)
   const last = conversation ? outcome(conversation.messages) : undefined
   const reply = last?.data.reply
   const face = faceForBot(bot)
@@ -70,8 +71,8 @@ function Column({ bot, thread, nav }: ColumnProps) {
         {!conversation && <p className="nota">{t.threadClosed}</p>}
         {working && (
           <p className="grupo-passo">
-            {bot.step ? t.stepWords[bot.step.kind] : t.answering}
-            {bot.step?.target && <code className="passo-alvo">{bot.step.target}</code>}
+            {job?.step ? t.stepWords[job.step.kind] : t.answering}
+            {job?.step?.target && <code className="passo-alvo">{job.step.target}</code>}
           </p>
         )}
         {!working && reply && <Markdown text={[reply.text, reply.question].filter(Boolean).join('\n\n')} />}

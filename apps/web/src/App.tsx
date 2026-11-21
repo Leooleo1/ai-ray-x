@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IS_REMOTE, UNPAIRED, fetchReport, pairDevice, pairingCode, sessionToken, type Report } from './api'
+import { IS_REMOTE, UNPAIRED, busyIn, fetchReport, pairDevice, pairingCode, sessionToken, type Report } from './api'
 import { PairScreen } from './components/PairScreen'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
@@ -264,7 +264,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const openBatch = chat.startsWith('grupo:') ? bots.state.batches.find((b) => `grupo:${b.id}` === chat) : undefined
   const channels = bots.state.channels ?? []
   const openChannel = chat.startsWith('canal:') ? channels.find((c) => `canal:${c.id}` === chat) : undefined
-  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: c.working || bots.state.bots.some((b) => b.busy && b.busy_thread === c.threads[b.id]) }))
+  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: c.working || bots.state.bots.some((b) => Boolean(busyIn(b, c.threads[b.id] ?? ''))) }))
   const nav: ChatNav = {
     openBot: (id) => {
       setFocus(null)

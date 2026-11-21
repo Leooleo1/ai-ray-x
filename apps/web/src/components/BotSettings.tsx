@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { MODES, grantsFor, modeOf } from '../modes'
-import { type Bot, type BotUsage, IS_REMOTE, type Persona, botUsage } from '../api'
+import { type Bot, type BotUsage, IS_REMOTE, type Persona, botUsage, busyIn } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, locale, t } from '../i18n'
@@ -476,13 +476,13 @@ function AuditorBlock({ bot, bots, onOpenThread }: { bot: Bot; bots: Bots; onOpe
   const set = (change: Record<string, unknown>) => void bots.act('auditor', { id: bot.id, ...change })
   const otherAgents = bots.state.agents.map((a) => a.id).filter((id) => id !== bot.agent)
   const hasThread = Boolean(auditor.thread && bot.threads.some((th) => th.id === auditor.thread))
-  const auditingNow = Boolean(bot.busy && auditor.thread && bot.busy_thread === auditor.thread)
+  const auditingNow = Boolean(auditor.thread && busyIn(bot, auditor.thread))
   const skipped = auditor.skipped_ms != null && (auditor.last_ms == null || auditor.skipped_ms > auditor.last_ms)
   const lastLabel = auditor.last_ms
     ? `${t.lastRun} ${new Date(auditor.last_ms).toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
     : t.neverRan
   const runAudit = async () => {
-    if (starting || bot.busy) return
+    if (starting || auditingNow) return
     setStarting(true)
     try {
       const next = await bots.act('audit_run', { id: bot.id, lang: locale })
@@ -557,7 +557,7 @@ function AuditorBlock({ bot, bots, onOpenThread }: { bot: Bot; bots: Bots; onOpe
                 {t.auditorOpenThread}
               </button>
             )}
-            <button type="button" className="auditor-rodar" disabled={bot.busy || starting} onClick={() => void runAudit()}>
+            <button type="button" className="auditor-rodar" disabled={auditingNow || starting} onClick={() => void runAudit()}>
               {t.auditorRunNow}
             </button>
           </div>

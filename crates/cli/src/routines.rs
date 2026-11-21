@@ -138,7 +138,7 @@ fn tick(state_dir: &Path, jobs: &Jobs) {
     crate::live::reap();
     let now = Local::now();
     for routine in list(state_dir).into_iter().filter(|r| is_due(r, now)) {
-        if jobs.is_busy(&routine.bot) {
+        if routine.thread.as_deref().is_some_and(|t| jobs.is_thread_busy(&routine.bot, t)) {
             continue;
         }
         // Nothing changed in the project since the last run: skip today, quietly.

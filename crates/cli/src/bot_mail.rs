@@ -127,8 +127,8 @@ pub fn handle(state_dir: &Path, jobs: &Jobs, id: &str, message_id: &str) -> Resu
     if !is_message_id(message_id) {
         bail!("invalid message id");
     }
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
+    if jobs.is_thread_busy(id, crate::threads::MAIN) {
+        bail!("the main conversation is still answering; wait for it to finish");
     }
     let bot = bot(state_dir, id)?;
     let popped = ai_memory(&bot.dir, &["message", "pop", "--id", message_id, "--json"], None)?;

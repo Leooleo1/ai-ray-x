@@ -14,7 +14,7 @@ interface AskManyProps {
 
 /** One question to the bots the person picks; each answers in a new conversation, shown side by side. */
 export function AskMany({ bots, nav }: AskManyProps) {
-  const free = bots.state.bots.filter((b) => !b.busy)
+  const free = bots.state.bots
   const [picked, setPicked] = useState<Set<string>>(() => new Set(free.map((b) => b.id)))
   const toggle = (id: string) => setPicked((now) => (now.has(id) ? new Set([...now].filter((x) => x !== id)) : new Set([...now, id])))
   const send = async (text: string) => {
@@ -35,7 +35,7 @@ export function AskMany({ bots, nav }: AskManyProps) {
           </header>
           <div className="chat-mensagens grupo-escolha">
             <div className="grupo-cabeca">
-              <p className="nota">{free.length === 0 && bots.state.bots.length > 0 ? t.askManyAllBusy : t.askManyHint}</p>
+              <p className="nota">{t.askManyHint}</p>
               {free.length > 1 && (
                 <button type="button" className="lado-link" onClick={toggleAll}>
                   {allFreePicked ? t.askManyNone : t.askManyAll}
@@ -49,14 +49,13 @@ export function AskMany({ bots, nav }: AskManyProps) {
                   type="button"
                   role="checkbox"
                   aria-checked={picked.has(bot.id)}
-                  disabled={bot.busy}
                   className={picked.has(bot.id) ? 'ativo' : ''}
                   onClick={() => toggle(bot.id)}
                 >
                   <Avatar agent={faceForBot(bot)} size={24} state="still" />
                   <span>
                     <b>{bot.name}</b>
-                    <small>{bot.busy ? t.skippedBusy : AGENT_LABEL[bot.agent]}</small>
+                    <small>{AGENT_LABEL[bot.agent]}</small>
                   </span>
                   <i className="grupo-marca" aria-hidden="true" />
                 </button>

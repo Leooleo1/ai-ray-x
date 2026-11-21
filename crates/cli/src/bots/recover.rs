@@ -140,21 +140,23 @@ fn parse_run_output(path: &Path, agent: &str, dir: &Path, check_complete: bool) 
     (session, kept)
 }
 
-fn recover_output(bot: &Bot, scratch: &Path, thread: &str, trigger_ms: i64, active: Option<&ActiveTurn>) -> (Option<String>, Option<Trail>) {
+fn recover_output(bot: &Bot, base_scratch: &Path, scratch: &Path, thread: &str, trigger_ms: i64, active: Option<&ActiveTurn>) -> (Option<String>, Option<Trail>) {
     let matches_active = active.is_some_and(|a| a.thread == thread);
     let fresh_enough = |path: &Path| matches_active || file_mtime_ms(path).is_some_and(|mtime| mtime + MTIME_GRACE_MS >= trigger_ms);
 
     if bot.agent == "claude" {
-        let live_path = crate::live::out_file(scratch, &format!("{}:{thread}", bot.id));
-        if live_path.is_file() && fresh_enough(&live_path) {
-            let (session, trail) = parse_live_output(&live_path, &bot.dir);
-            if session.is_some() || trail.is_some() {
-                return (session, trail);
+        let conv = format!("{}:{thread}", bot.id);
+        for dir in [scratch, base_scratch] {
+            let live_path = crate::live::out_file(dir, &conv);
+            if live_path.is_file() && fresh_enough(&live_path) {
+                let (session, trail) = parse_live_output(&live_path, &bot.dir);
+                if session.is_some() || trail.is_some() {
+                    return (session, trail);
+                }
             }
         }
     }
 
-    // Only one turn runs per bot at a time, so `out.txt` belongs to the active thread if one was recorded.
     if active.is_some() && !matches_active {
         return (None, None);
     }
@@ -166,12 +168,12 @@ fn recover_output(bot: &Bot, scratch: &Path, thread: &str, trigger_ms: i64, acti
 }
 
 /// Checks one conversation and appends an `interrupted` marker if its last turn was cut off.
-fn recover_thread(state_dir: &Path, bot: &Bot, scratch: &Path, thread: &str, active: Option<&ActiveTurn>) {
+fn recover_thread(state_dir: &Path, bot: &Bot, base_scratch: &Path, scratch: &Path, thread: &str, active: Option<&ActiveTurn>) {
     let file = threads::chat_file(state_dir, &bot.id, thread);
     let messages = room::read_messages(&file);
     let Some(trigger) = interrupted_trigger(&messages) else { return };
     let matches_active = active.is_some_and(|a| a.thread == thread);
-    let (mut session, trail) = recover_output(bot, scratch, thread, trigger.ms, active);
+    let (mut session, trail) = recover_output(bot, base_scratch, scratch, thread, trigger.ms, active);
 
     // Non-session turns (draft edits, side questions, cross-CLI audits) cannot resume the conversation session.
     let aside = trigger.data.get("aside").and_then(Value::as_bool).unwrap_or(false);
@@ -209,13 +211,15 @@ fn recover_thread(state_dir: &Path, bot: &Bot, scratch: &Path, thread: &str, act
 /// Scans every bot and conversation at panel startup and marks turns cut off when raiox closed.
 pub fn all(state_dir: &Path) {
     for bot in list(state_dir) {
-        let scratch = state_dir.join("bots").join(format!("{}.run", bot.id));
-        let active = read_active(&scratch);
+        let base_scratch = super::turn::scratch_dir(state_dir, &bot.id, MAIN);
         let thread_ids = std::iter::once(MAIN.to_string()).chain(threads::list(state_dir, &bot.id).into_iter().map(|t| t.id));
         for thread in thread_ids {
-            recover_thread(state_dir, &bot, &scratch, &thread, active.as_ref());
+            let scratch = super::turn::scratch_dir(state_dir, &bot.id, &thread);
+            let active = read_active(&scratch).or_else(|| read_active(&base_scratch).filter(|a| a.thread == thread));
+            recover_thread(state_dir, &bot, &base_scratch, &scratch, &thread, active.as_ref());
+            let _ = fs::remove_file(scratch.join(ACTIVE_FILE));
         }
-        let _ = fs::remove_file(scratch.join(ACTIVE_FILE));
+        let _ = fs::remove_file(base_scratch.join(ACTIVE_FILE));
     }
 }
 

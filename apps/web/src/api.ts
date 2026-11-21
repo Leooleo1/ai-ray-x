@@ -367,6 +367,26 @@ export interface Persona {
 
 export type Finish = 'solid' | 'flat' | 'pixel'
 
+export interface BusyThread {
+  thread: string
+  step: BotStep | null
+  trail?: Trail | null
+  started_ms: number
+  editing?: boolean
+}
+
+/** The live turn running in `thread` on `bot`, if any. */
+export function busyIn(bot: Bot, thread: string): BusyThread | undefined {
+  if (bot.busy_threads) return bot.busy_threads.find((item) => item.thread === thread)
+  if (!bot.busy || (bot.busy_thread ?? 'main') !== thread) return undefined
+  return { thread, step: bot.step, trail: bot.trail, started_ms: bot.started_ms ?? 0 }
+}
+
+/** Whether `bot` is currently running a draft edit (`Mode::Edit`) in any conversation. */
+export function isEditing(bot: Bot): boolean {
+  return Boolean(bot.busy_threads?.some((item) => item.editing))
+}
+
 export interface Bot {
   id: string
   agent: BotAgent
@@ -414,8 +434,10 @@ export interface Bot {
   dir: string
   has_session: boolean
   busy: boolean
-  /** The conversation the running turn belongs to. */
+  /** The first active conversation on this bot, kept for backward compatibility. */
   busy_thread: string | null
+  /** Every conversation currently running a turn on this bot, with its own step and trail. */
+  busy_threads?: BusyThread[]
   /** What the running turn is doing now (read, search, run…). */
   step: BotStep | null
   /** The running turn's path so far. */

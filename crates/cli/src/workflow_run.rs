@@ -87,16 +87,16 @@ fn step_outcome(state_dir: &Path, jobs: &Jobs, flow: &mut Flow, now: i64) -> Opt
             Err(error) => Outcome::Fail(format!("{error:#}")),
         },
         Step::Ask { bot, text } => {
-            if jobs.is_busy(&bot) {
+            let thread = match thread_for(state_dir, flow, &bot) {
+                Ok(thread) => thread,
+                Err(error) => return Some(Outcome::Fail(error)),
+            };
+            if jobs.is_thread_busy(&bot, &thread) {
                 return Some(match asked {
                     Some(at) if now - at > ASK_TIMEOUT_MS => Outcome::Fail("the AI took too long to answer".into()),
                     _ => Outcome::Wait,
                 });
             }
-            let thread = match thread_for(state_dir, flow, &bot) {
-                Ok(thread) => thread,
-                Err(error) => return Some(Outcome::Fail(error)),
-            };
             match asked {
                 None => match bots::ask(state_dir, jobs, &bot, &thread, &fill(&text, &previous, &cause), &[]) {
                     Ok(()) => Outcome::Asked(now),

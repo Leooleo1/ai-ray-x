@@ -52,25 +52,25 @@ pub fn request(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer_ms:
     let proposal = answer.data.pointer("/reply/proposal").and_then(Value::as_str).context("that answer proposes no change")?.to_string();
     let explanation = answer.data.pointer("/reply/text").and_then(Value::as_str).unwrap_or("").to_string();
     crate::budget::check(state_dir, &reviewer.name)?;
-    if !jobs.start(&reviewer.id, REVIEWING) {
-        bail!("{} is answering now; ask for the review again in a moment", named(&reviewer.agent));
+    if jobs.start_mode(&reviewer.id, REVIEWING, Mode::Talk).is_err() {
+        bail!("{} is already reviewing; ask for the review again in a moment", named(&reviewer.agent));
     }
     let asked = said("review_asked", json!({ "answer_ms": answer_ms, "reviewer": reviewer.id }));
     if let Err(error) = room::append_messages(&file, vec![asked]) {
-        jobs.finish(&reviewer.id);
+        jobs.finish(&reviewer.id, REVIEWING);
         return Err(error);
     }
     let (state_dir, jobs) = (state_dir.to_path_buf(), jobs.clone());
     std::thread::spawn(move || {
         let text = prompt(&proposer, &proposal, &explanation);
-        let setup = Setup::new(&state_dir, &reviewer, &text, Mode::Talk);
+        let setup = Setup::new(&state_dir, &reviewer, REVIEWING, &text, Mode::Talk);
         // A fresh session in the reviewer's own folder: the review stays out of its conversations.
-        let message = match ask_cli(&jobs, &reviewer, &setup, &reviewer.dir, None, Mode::Talk, &text, None, &[]) {
+        let message = match ask_cli(&jobs, &reviewer, REVIEWING, &setup, &reviewer.dir, None, Mode::Talk, &text, None, &[]) {
             Ok(reply) => note("review", json!({ "answer_ms": answer_ms, "reviewer": reviewer.id, "agent": reviewer.agent, "reply": reply })),
             Err(error) => note("failed", json!({ "error": format!("{} could not review: {error:#}", named(&reviewer.agent)), "review": answer_ms })),
         };
         let _ = room::append_messages(&file, vec![message]);
-        jobs.finish(&reviewer.id);
+        jobs.finish(&reviewer.id, REVIEWING);
     });
     Ok(())
 }

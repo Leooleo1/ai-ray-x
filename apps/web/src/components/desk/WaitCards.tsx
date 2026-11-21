@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ChatRequest } from '../../api'
+import { type ChatRequest, busyIn, isEditing } from '../../api'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
 import type { ChatNav } from '../chat/nav'
@@ -40,11 +40,11 @@ export function ApprovalCard({ item, bots, nav }: ApprovalCardProps) {
       {item.kind !== 'draft' && (
         <div className="mesa-acoes">
           {proposal && (
-            <button type="button" className="mesa-cheio" disabled={bot.busy || saving} onClick={() => void decide(true)}>
+            <button type="button" className="mesa-cheio" disabled={Boolean(busyIn(bot, thread)) || isEditing(bot) || saving} onClick={() => void decide(true)}>
               {t.approveEdit}
             </button>
           )}
-          <button type="button" className="acao-texto" disabled={(bot.busy && bot.busy_thread === thread) || saving} onClick={() => void decide(false)}>
+          <button type="button" className="acao-texto" disabled={Boolean(busyIn(bot, thread)) || saving} onClick={() => void decide(false)}>
             {t.cancel}
           </button>
           {proposal && <small className="mesa-apoio">{t.draftScope}</small>}

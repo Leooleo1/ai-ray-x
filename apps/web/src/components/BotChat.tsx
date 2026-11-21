@@ -1,7 +1,7 @@
 import { OpenTabs } from './chat/OpenTabs'
 import { ContextMeter } from './chat/ContextMeter'
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
+import { type Bot, type Inbox, type Place, type Report, botInbox, busyIn, isEditing, wikiFromAnswer } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -84,13 +84,14 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   // A conversation closed elsewhere falls back to the main one.
   const current = side ? thread : MAIN
   const messages = side ? side.messages : bot.messages
-  // One turn at a time per bot: busy here, or busy in another conversation.
-  const busyHere = bot.busy && (bot.busy_thread ?? MAIN) === current
-  const busyElsewhere = bot.busy && !busyHere
+  // Each conversation runs its own turn; only draft edits stay one per bot.
+  const live = busyIn(bot, current)
+  const busyHere = Boolean(live)
+  const editingHere = busyHere || isEditing(bot)
   // ai-memory mail always lands in the main conversation.
   const mail = current === MAIN ? (inbox.value?.messages ?? []) : []
   // The live path and the text being written grow while the bot works: the view follows them.
-  const growing = busyHere ? 1 + (bot.trail?.items.length ?? 0) + Math.floor((bot.trail?.partial.length ?? 0) / 60) : 0
+  const growing = busyHere ? 1 + (live?.trail?.items.length ?? 0) + Math.floor((live?.trail?.partial.length ?? 0) / 60) : 0
   const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + growing, `${bot.id}:${current}`)
   // Run on an AI's See the app card: the panel opens and starts the commands at once.
   const [runSignal, setRunSignal] = useState(0)
@@ -213,7 +214,7 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           <OpenTabs
             bots={bots.state.bots}
             open={{ bot: bot.id, thread: current }}
-            busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && b.busy && (b.busy_thread ?? 'main') === tab.thread)}
+            busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && Boolean(busyIn(b, tab.thread)))}
             onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
             onNew={() => void newThread()}
           />
@@ -286,31 +287,33 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
               onDraft={(action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
               thread={current}
+              busy={busyHere}
+              editBusy={editingHere}
               onBranch={() => void branchFrom(message.ms)}
               turnUndone={undoneTurns.has(message.ms)}
               onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
-              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !bot.busy}
+              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !busyHere}
               onContinue={() => void bots.act('continue', { id: bot.id, thread: current })}
               onRetry={() => void bots.act('retry', { id: bot.id, thread: current })}
             />
             ),
           )}
-          {busyHere && bot.trail && (bot.trail.items.length > 0 || bot.trail.partial) && (
+          {busyHere && live?.trail && (live.trail.items.length > 0 || live.trail.partial) && (
             <div className="linha de-agente ao-vivo" aria-live="polite">
               <div className="corpo">
-                {bot.trail.items.length > 0 && <TrailView trail={bot.trail} live />}
-                {bot.trail.partial && (
+                {live.trail.items.length > 0 && <TrailView trail={live.trail} live />}
+                {live.trail.partial && (
                   <p className="formando">
-                    {bot.trail.partial}
+                    {live.trail.partial}
                     <i aria-hidden="true" />
                   </p>
                 )}
               </div>
             </div>
           )}
-          {mail.length > 0 && !bot.busy && (
+          {mail.length > 0 && !busyHere && (
             <div className="caixa" id={INBOX_ID}>
               {mail.map((item) => (
                 <div key={item.id} className="correio">
@@ -333,9 +336,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             {t.newBelow}
           </button>
         )}
-        {busyElsewhere && <p className="linha-sistema">{t.busyElsewhere}</p>}
-        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} step={bot.step} since={lastAsk?.ms ?? Date.now()} />}
-        {!bot.busy && waiting > 0 && (
+        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} step={live?.step ?? null} since={live?.started_ms ?? lastAsk?.ms ?? Date.now()} />}
+        {!busyHere && waiting > 0 && (
           <div className="esperando">
             <i className="ponto alerta" />
             <span>{[pending >= 0 ? t.waitingApproval : '', mail.length > 0 ? t.waitingMail.replace('{n}', String(mail.length)) : ''].filter(Boolean).join(' · ')}</span>
@@ -349,12 +351,12 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
           placeholder={`${t.composeBot} ${speaker} · ${t.slashHint}`}
           commands={[...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
           maxLength={bots.state.max_text}
-          busy={bot.busy}
+          busy={busyHere}
           allowImages
           onSend={send}
-          onStop={() => void bots.act('stop', { id: bot.id })}
+          onStop={() => void bots.act('stop', { id: bot.id, thread: current })}
           mode={bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
-          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
+          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, thread: current, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && (
@@ -379,8 +381,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
 /** The project's ai-memory inbox: asked when the chat opens, when a turn ends, and every so often. */
 function useInbox(bot: Bot) {
   const [value, setValue] = useState<Inbox | null>(null)
+  const mainBusy = Boolean(busyIn(bot, MAIN))
   useEffect(() => {
-    if (bot.busy) return undefined
+    if (mainBusy) return undefined
     let alive = true
     const load = () => botInbox(bot.id).then((next) => alive && setValue(next)).catch(() => alive && setValue(null))
     void load()
@@ -389,6 +392,6 @@ function useInbox(bot: Bot) {
       alive = false
       window.clearInterval(timer)
     }
-  }, [bot.id, bot.busy])
+  }, [bot.id, mainBusy])
   return { value, clear: () => setValue(null) }
 }
