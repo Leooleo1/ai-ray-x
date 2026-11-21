@@ -128,7 +128,7 @@ fn mentioned(text: &str, handles: &[(String, String)]) -> Vec<String> {
 }
 
 fn members(state_dir: &Path, channel: &Channel) -> Vec<Bot> {
-    let all = bots::list(state_dir);
+    let all = bots::project_list(state_dir);
     channel.members.iter().filter_map(|id| all.iter().find(|b| &b.id == id).cloned()).collect()
 }
 
@@ -147,7 +147,7 @@ pub fn create(state_dir: &Path, name: &str, member_ids: &[String]) -> Result<Cha
     if ids.is_empty() || ids.len() > MAX_MEMBERS {
         bail!("a channel has 1 to {MAX_MEMBERS} members");
     }
-    let all = bots::list(state_dir);
+    let all = bots::project_list(state_dir);
     if let Some(missing) = ids.iter().find(|id| !all.iter().any(|b| &b.id == *id)) {
         bail!("no bot {missing}");
     }
@@ -398,7 +398,7 @@ pub fn pass(state_dir: &Path, jobs: &Jobs, id: &str, from: &str, answer_ms: i64,
 
 /// Everything the panel shows about channels.
 pub fn state(state_dir: &Path) -> Value {
-    let all = bots::list(state_dir);
+    let all = bots::project_list(state_dir);
     let active = rounds();
     let channels: Vec<Value> = list(state_dir)
         .into_iter()

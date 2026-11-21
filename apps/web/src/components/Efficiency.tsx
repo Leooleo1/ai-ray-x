@@ -8,6 +8,7 @@ import {
   type WikiEntry,
   fetchSession,
   fetchWiki,
+  projectBots,
   taskAction,
 } from '../api'
 import type { Bots } from '../bots'
@@ -60,7 +61,7 @@ function targetsOf(report: Report, liveBots: Bot[]): Target[] {
 
 export function EfficiencyView({ report, bots, nav, onGo, onChanged }: EfficiencyViewProps) {
   const [source, setSource] = useState<Source>(report.sources[0]?.overview.source ?? 'claude')
-  const liveBots = bots.state.bots
+  const liveBots = projectBots(bots.state.bots)
   const targets = targetsOf(report, liveBots)
   const [targetDir, setTargetDir] = useState(targets[0].dir)
   const target = targets.find((x) => x.dir === targetDir) ?? targets[0]

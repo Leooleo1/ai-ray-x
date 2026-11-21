@@ -229,7 +229,7 @@ pub fn infra_fingerprint(state_dir: &Path, bot: &Bot) -> u64 {
     for file in discover_infra_files(&bot.dir) {
         (file.rel, file.bytes, file.mtime_ms).hash(&mut hasher);
     }
-    let peers: Vec<Bot> = bots::list(state_dir).into_iter().filter(|b| b.dir == bot.dir).collect();
+    let peers: Vec<Bot> = bots::project_list(state_dir).into_iter().filter(|b| b.dir == bot.dir).collect();
     let peer_ids: BTreeSet<String> = peers.iter().map(|b| b.id.clone()).collect();
     for peer in &peers {
         (&peer.id, &peer.agent, &peer.allowed, peer.grants.auto_run, peer.grants.auto_edit, peer.grants.web, peer.grants.mcp).hash(&mut hasher);
@@ -325,7 +325,7 @@ fn package_scripts(dir: &Path) -> Vec<(String, String)> {
 
 /// Builds a concise, zero-secret snapshot of the project's agent plumbing and recent failures.
 pub fn snapshot(state_dir: &Path, bot: &Bot) -> String {
-    let peers: Vec<Bot> = bots::list(state_dir).into_iter().filter(|b| b.dir == bot.dir).collect();
+    let peers: Vec<Bot> = bots::project_list(state_dir).into_iter().filter(|b| b.dir == bot.dir).collect();
     let peer_ids: BTreeSet<String> = peers.iter().map(|b| b.id.clone()).collect();
     let files = discover_infra_files(&bot.dir);
     let mut sections: Vec<String> = Vec::new();
@@ -601,7 +601,7 @@ pub fn tick(state_dir: &Path, jobs: &Jobs) {
         return;
     }
     let now = room::now_ms();
-    for bot in bots::list(state_dir) {
+    for bot in bots::project_list(state_dir) {
         if !is_due(&bot.auditor, now) || jobs.is_busy(&bot.id) {
             continue;
         }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Bot, BusyThread, Task, TaskBoardState, TaskStatus } from '../api'
+import { type Bot, type BusyThread, type Task, type TaskBoardState, type TaskStatus, projectBots } from '../api'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import type { ChatNav } from './chat/nav'
@@ -61,7 +61,7 @@ export function Desk({ bots, nav }: DeskProps) {
     return saved
   }
   const [allDone, setAllDone] = useState(false)
-  const all = bots.state.bots
+  const all = projectBots(bots.state.bots)
   const botOf = (id: string) => all.find((b) => b.id === id)
   const placed = (status: TaskStatus): Placed[] => (board?.tasks ?? []).map((task, index) => ({ task, index })).filter(({ task }) => task.status === status)
 

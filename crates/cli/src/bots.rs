@@ -34,6 +34,10 @@ pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 pub const MAX_TEXT: usize = 4000;
 /// Maximum length of a new project folder name created under `~/Projects/`.
 pub const MAX_PROJECT_NAME: usize = 60;
+/// Extra conversations a free (project-less) bot keeps per AI.
+const MAX_FREE_THREADS: usize = 200;
+/// Subfolder under `state_dir` holding empty working folders for free conversations.
+const FREE_DIR: &str = "conversa-livre";
 const CANDIDATES: usize = 200;
 
 /// Serializes writes to the registry: answers finish on their own threads.
@@ -75,6 +79,9 @@ pub struct Bot {
     /// Built-in Dev/Infra auditor: audits scripts, workflows, routines and skills of this project.
     #[serde(default, skip_serializing_if = "crate::auditor::Config::is_default")]
     pub auditor: crate::auditor::Config,
+    /// True for internal project-less bots backing free conversations (always read-only).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub free: bool,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -343,6 +350,11 @@ pub fn list(state_dir: &Path) -> Vec<Bot> {
     fs::read_to_string(registry_file(state_dir)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
 }
 
+/// Only project bots, excluding internal free-conversation bots.
+pub fn project_list(state_dir: &Path) -> Vec<Bot> {
+    list(state_dir).into_iter().filter(|b| !b.free).collect()
+}
+
 fn save(state_dir: &Path, bots: &[Bot]) -> Result<()> {
     fs::create_dir_all(state_dir)?;
     let file = registry_file(state_dir);
@@ -562,6 +574,7 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         reviewer: None,
         grants: crate::grants::Grants::default(),
         auditor: crate::auditor::Config::default(),
+        free: false,
     };
     let added = bot.clone();
     update(state_dir, |bots| {
@@ -572,6 +585,87 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         })
     })?;
     Ok(bot)
+}
+
+/// Returns the single internal free-conversation bot for `agent`, creating it once under
+/// `<state_dir>/conversa-livre/<agent>` in strictly read-only mode.
+pub fn ensure_free(state_dir: &Path, agent: &str) -> Result<Bot> {
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
+    }
+    let dir = state_dir.join(FREE_DIR).join(agent);
+    fs::create_dir_all(&dir)?;
+    let dir = dir.canonicalize().unwrap_or(dir);
+    let mut kept: Option<Bot> = None;
+    update(state_dir, |bots| {
+        if let Some(existing) = bots.iter().find(|b| b.free && b.agent == agent) {
+            kept = Some(existing.clone());
+            return Ok(bots);
+        }
+        let bot = Bot {
+            id: bot_id(agent, &dir),
+            agent: agent.to_string(),
+            name: crate::connections::known(agent).map_or(agent, |k| k.name).to_string(),
+            dir: dir.clone(),
+            session: None,
+            persona: None,
+            model: None,
+            effort: None,
+            created_ms: room::now_ms(),
+            allowed: Vec::new(),
+            talk_model: None,
+            reviewer: None,
+            grants: crate::grants::Grants {
+                web: crate::grants::web_possible(agent),
+                full_access: false,
+                bypass: false,
+                auto_run: false,
+                auto_edit: false,
+                ..crate::grants::Grants::default()
+            },
+            auditor: crate::auditor::Config::default(),
+            free: true,
+        };
+        kept = Some(bot.clone());
+        Ok(bots.into_iter().chain([bot]).collect())
+    })?;
+    kept.context("could not create free bot")
+}
+
+/// Starts a new free conversation on `agent` with an optional per-conversation `model`.
+pub fn start_free_chat(state_dir: &Path, jobs: &Jobs, agent: &str, model: Option<&str>, text: &str, images: &[String]) -> Result<(Bot, threads::Thread)> {
+    let trimmed = text.trim();
+    let validated = crate::uploads::validate_all(images)?;
+    if (trimmed.is_empty() && validated.is_empty()) || trimmed.chars().count() > MAX_TEXT {
+        bail!("a message has 1 to {MAX_TEXT} characters");
+    }
+    let model = check_model(model)?;
+    let bot = ensure_free(state_dir, agent)?;
+    let thread = threads::create_with_limit(state_dir, &bot.id, DEFAULT_THREAD_TITLE, MAX_FREE_THREADS)?;
+    if let Some(m) = model {
+        threads::set_model(state_dir, &bot.id, &thread.id, Some(m))?;
+    }
+    if let Err(error) = ask(state_dir, jobs, &bot.id, &thread.id, text, images) {
+        let _ = threads::delete(state_dir, &bot.id, &thread.id);
+        return Err(error);
+    }
+    let updated = threads::list(state_dir, &bot.id).into_iter().find(|t| t.id == thread.id).unwrap_or(thread);
+    Ok((bot, updated))
+}
+
+/// Updates the model (and optionally effort on the bot) for a specific conversation thread.
+pub fn set_thread_model(state_dir: &Path, id: &str, thread: &str, model: Option<&str>, effort: Option<&str>) -> Result<()> {
+    let bot = find(state_dir, id)?;
+    let model = check_model(model)?;
+    if thread == MAIN {
+        return configure(state_dir, id, model.as_deref(), effort.or(bot.effort.as_deref()), None);
+    }
+    threads::set_model(state_dir, id, thread, model)?;
+    if let Some(effort) = effort {
+        let effort = check_effort(&bot.agent, Some(effort))?;
+        update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { effort: effort.clone(), ..b } } else { b }).collect()))?;
+    }
+    Ok(())
 }
 
 pub fn deactivate(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
@@ -859,6 +953,9 @@ pub fn ask_aside(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &s
 /// A task done in a copy of the project of the bot's own: what it changes comes back as a draft
 /// to apply, so it never touches the project, nor what another AI does in it meanwhile.
 pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, prompt: &str, shown: &str) -> Result<()> {
+    if find(state_dir, id)?.free {
+        bail!("free conversations are read-only");
+    }
     let asked = Some(said("ask", json!({ "text": shown, "copy": true })));
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
@@ -927,6 +1024,9 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
+    if find(state_dir, id).is_ok_and(|b| b.free) {
+        bail!("free conversations are read-only");
+    }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
     let last = messages.iter().rev().find(|m| m.kind != "approve" && !ASIDE.contains(&m.kind.as_str()));
@@ -960,6 +1060,9 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer
     let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if !threads::valid(thread) {
         bail!("invalid conversation");
+    }
+    if find(state_dir, id)?.free {
+        bail!("free conversations cannot run commands");
     }
     if jobs.is_thread_busy(id, thread) {
         bail!("this conversation is still answering");
@@ -1070,6 +1173,9 @@ pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
 pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
     // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
+    if bot.free {
+        bail!("free conversations are always read-only");
+    }
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
     let full_changed = grants.full_access != bot.grants.full_access;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))?;
@@ -1103,6 +1209,9 @@ pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
 /// Lets an exact command run without asking in this bot's project, or stops letting it.
 pub fn allow(state_dir: &Path, id: &str, command: &str, on: bool) -> Result<()> {
     let bot = find(state_dir, id)?;
+    if bot.free {
+        bail!("free conversations cannot run commands");
+    }
     if on {
         crate::commands::check(command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
         if !bot.allowed.iter().any(|c| c == command) && bot.allowed.len() >= MAX_ALLOWED {
@@ -1154,6 +1263,9 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
         bail!("invalid conversation");
     }
     let bot = find(state_dir, id)?;
+    if bot.free && (turn.mode == Mode::Edit || turn.command.is_some()) {
+        bail!("free conversations are read-only");
+    }
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
     // A turn that does not keep its session (a side question) does not continue the conversation's either.
@@ -1169,9 +1281,11 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
     Ok(std::thread::spawn(move || {
         let answer = turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
         jobs.finish(&bot.id, &thread);
-        crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
+        if !bot.free {
+            crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
+            crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
+        }
         crate::push::after_turn(&state_dir, &bot, &thread);
-        crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
         answer
     }))
 }
@@ -1185,7 +1299,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
             let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
                 .into_iter()
-                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
+                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "model": t.model, "created_ms": t.created_ms, "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
                 .collect();
             let busy_threads = jobs.busy_threads(&bot.id);
             let primary = busy_threads.first();
@@ -1194,6 +1308,7 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "agent": bot.agent,
                 "name": bot.name,
                 "dir": bot.dir,
+                "free": bot.free,
                 "has_session": bot.session.is_some(),
                 "persona": bot.persona,
                 "model": bot.model,
@@ -1535,6 +1650,60 @@ mod tests {
         // An unsupported agent is refused without creating the folder.
         assert!(create_project(&state, &home, "bad-agent", "copilot").is_err());
         assert!(!home.join("Projects/bad-agent").exists());
+
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn free_bot_is_created_once_per_agent_excluded_from_projects_and_strictly_read_only() {
+        let home = temp_dir("free-bot");
+        fs::create_dir_all(home.join("Projects/real-app/.git")).unwrap();
+        let state = home.join("state");
+        let jobs = Jobs::default();
+
+        // A real project bot alongside a free bot.
+        let real = activate(&state, &home, "Projects/real-app", "claude", None).unwrap();
+        assert!(!real.free);
+
+        // Creating the free bot for an AI creates an empty folder under <state>/conversa-livre/<agent>
+        // and reuses the exact same bot on repeat calls.
+        let first = ensure_free(&state, "claude").unwrap();
+        let second = ensure_free(&state, "claude").unwrap();
+        assert_eq!(first.id, second.id);
+        assert!(first.free);
+        assert!(first.dir.is_dir());
+        assert!(first.dir.starts_with(state.canonicalize().unwrap().join(FREE_DIR)));
+        assert!(!first.grants.full_access && !first.grants.auto_run && !first.grants.auto_edit && !first.grants.bypass);
+        let codex_free = ensure_free(&state, "codex").unwrap();
+        assert_ne!(first.id, codex_free.id);
+        assert_eq!(list(&state).len(), 3, "registry has 1 project bot + 2 free bots");
+
+        // Free bots never appear in project_list, candidates, links, or reviewers.
+        let projects = project_list(&state);
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].id, real.id);
+        let store = Store::open_in_memory().unwrap();
+        let cands = candidates(&store, &home, &state).unwrap();
+        assert!(!cands.iter().any(|c| c.project.contains(FREE_DIR)));
+        assert!(review::reviewers(&state, &first).is_empty());
+
+        // Free bots stay strictly read-only: grants, commands, approvals and copy-edits are all refused.
+        assert!(set_grants(&state, &first.id, &json!({ "full_access": true })).is_err());
+        assert!(allow(&state, &first.id, "ls", true).is_err());
+        assert!(approve(&state, &home, &jobs, &first.id, MAIN, None).is_err());
+        assert!(ask_in_copy(&state, &home, &jobs, &first.id, MAIN, "edit", "edit").is_err());
+        assert!(run_command(&state, &jobs, &first.id, MAIN, None, 0, false).is_err());
+
+        // Per-conversation model override works cleanly for free conversation threads.
+        let thread = threads::create_with_limit(&state, &first.id, DEFAULT_THREAD_TITLE, MAX_FREE_THREADS).unwrap();
+        set_thread_model(&state, &first.id, &thread.id, Some("haiku"), None).unwrap();
+        assert_eq!(threads::model(&state, &first.id, &thread.id).as_deref(), Some("haiku"));
+
+        // Free guide never mentions a project folder or edit proposals.
+        let guide = bot_run::free_guide("");
+        assert!(guide.contains("no project attached"));
+        assert!(!guide.contains("RAIOX-PROPOSAL"));
+        assert!(!guide.contains("RAIOX-RUN"));
 
         let _ = fs::remove_dir_all(&home);
     }

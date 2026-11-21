@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Bot } from '../../api'
+import { type Bot, projectBots } from '../../api'
 import { AGENT_LABEL, faceForBot, stageLight, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
@@ -22,7 +22,7 @@ export function BotsPanel({ bots, onOpenBot, onAddBot }: BotsPanelProps) {
   return (
     <>
     <div className="cfg-grade">
-      {bots.state.bots.map((bot) => {
+      {projectBots(bots.state.bots).map((bot) => {
         const face = faceForBot(bot)
         const confirming = deactivating === bot.id
         return (

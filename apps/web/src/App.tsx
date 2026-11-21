@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { IS_REMOTE, UNPAIRED, busyIn, fetchReport, pairDevice, pairingCode, sessionToken, type Report } from './api'
+import { IS_REMOTE, UNPAIRED, busyIn, fetchReport, pairDevice, pairingCode, projectBots, sessionToken, type Report } from './api'
 import { PairScreen } from './components/PairScreen'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
 import { useUnread } from './unread'
 import { ExchangeView } from './components/chat/Exchange'
 import { BotChat } from './components/BotChat'
+import { FreeChatNew } from './components/FreeChatNew'
 import { Desk } from './components/Desk'
 import { WikiView } from './components/WikiView'
 import { Deliveries } from './components/Deliveries'
@@ -60,6 +61,8 @@ const HEADINGS: Record<Tab, { title: string }> = {
 }
 
 const BOTS_PATH = '/bots'
+const NEW_CHAT_PATH = '/nova-conversa'
+const FREE_CHAT_PATH = '/conversa'
 const EXCHANGE_PATH = '/trocas'
 const GROUP_PATH = '/grupos'
 const CHANNEL_PATH = '/canais'
@@ -68,6 +71,8 @@ const SETUP_PATHS = ['/boas-vindas', '/welcome']
 function chatFromPath(): ChatView {
   const path = window.location.pathname
   if (path === BOTS_PATH) return 'bots'
+  if (path === NEW_CHAT_PATH) return 'nova'
+  if (path.startsWith(`${FREE_CHAT_PATH}/`)) return `conversa:${path.slice(FREE_CHAT_PATH.length + 1)}`
   if (path === GROUP_PATH) return 'grupo'
   if (path.startsWith(`${CHANNEL_PATH}/`)) return `canal:${path.slice(CHANNEL_PATH.length + 1)}`
   if (path.startsWith(`${GROUP_PATH}/`)) return `grupo:${path.slice(GROUP_PATH.length + 1)}`
@@ -78,6 +83,8 @@ function chatFromPath(): ChatView {
 
 function chatPath(view: ChatView): string {
   if (view === 'bots') return BOTS_PATH
+  if (view === 'nova') return NEW_CHAT_PATH
+  if (view.startsWith('conversa:')) return `${FREE_CHAT_PATH}/${view.slice(9)}`
   if (view === 'grupo') return GROUP_PATH
   if (view.startsWith('canal:')) return `${CHANNEL_PATH}/${view.slice(6)}`
   if (view.startsWith('grupo:')) return `${GROUP_PATH}/${view.slice(6)}`
@@ -87,7 +94,16 @@ function chatPath(view: ChatView): string {
 
 function tabFromPath(homeTab: Tab): Tab {
   const path = window.location.pathname
-  if (path.startsWith(BOTS_PATH) || path.startsWith(EXCHANGE_PATH) || path.startsWith(GROUP_PATH) || path.startsWith(CHANNEL_PATH)) return 'agents'
+  if (
+    path.startsWith(BOTS_PATH) ||
+    path === NEW_CHAT_PATH ||
+    path.startsWith(`${FREE_CHAT_PATH}/`) ||
+    path.startsWith(EXCHANGE_PATH) ||
+    path.startsWith(GROUP_PATH) ||
+    path.startsWith(CHANNEL_PATH)
+  ) {
+    return 'agents'
+  }
   return (Object.keys(PATHS) as Tab[]).find((tab) => PATHS[tab].includes(path)) ?? homeTab
 }
 
@@ -256,15 +272,24 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
   const days = plateDays(report)
   const activeDays = days.filter((d) => d.tokens > 0).length
   const projects = projectRows(report, LIST_ROWS).map((row) => ({ ...row, share: row.value / total }))
+  const realBots = projectBots(bots.state.bots)
   const openBot = chat.startsWith('bot:') ? bots.state.bots.find((b) => `bot:${b.id}` === chat) : undefined
+  const openFree = (() => {
+    if (!chat.startsWith('conversa:')) return undefined
+    const [botId, threadId] = chat.slice(9).split('/')
+    if (!botId || !threadId) return undefined
+    const bot = bots.state.bots.find((b) => b.id === botId && b.free)
+    const thread = bot?.threads.find((th) => th.id === threadId)
+    return bot && thread ? { bot, thread } : undefined
+  })()
   const openExchange = chat.startsWith('troca:')
-    ? exchanges(bots.state.bots).find((x) => [x.a, x.b].sort().join('|') === chat.slice(6).split('|').sort().join('|'))
+    ? exchanges(realBots).find((x) => [x.a, x.b].sort().join('|') === chat.slice(6).split('|').sort().join('|'))
     : undefined
   const showExchange = (a: string, b: string) => openChat(`troca:${a}|${b}`)
   const openBatch = chat.startsWith('grupo:') ? bots.state.batches.find((b) => `grupo:${b.id}` === chat) : undefined
   const channels = bots.state.channels ?? []
   const openChannel = chat.startsWith('canal:') ? channels.find((c) => `canal:${c.id}` === chat) : undefined
-  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: c.working || bots.state.bots.some((b) => Boolean(busyIn(b, c.threads[b.id] ?? ''))) }))
+  const channelList = channels.map((c) => ({ id: c.id, name: c.name, working: c.working || realBots.some((b) => Boolean(busyIn(b, c.threads[b.id] ?? ''))) }))
   const nav: ChatNav = {
     openBot: (id) => {
       setFocus(null)
@@ -280,7 +305,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     add: () => openChat('bots'),
     openChannel: (id) => openChat(`canal:${id}`),
   }
-  const unread = useUnread(bots.state.bots, tab === 'agents' && openBot ? openBot.id : null)
+  const unread = useUnread(realBots, tab === 'agents' && openBot ? openBot.id : null)
   const hasViewedUsage = progress?.completed.includes('usage')
   const trackUsage = progress?.legacy === false && !progress.dismissed && !hasViewedUsage
   const { act } = bots
@@ -288,12 +313,12 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     if (trackUsage && CONSUMPTION.includes(tab)) void act('view_usage', {})
   }, [act, tab, trackUsage])
   const startChat = () => {
-    const first = bots.state.bots[0]
+    const first = realBots[0]
     if (first) nav.openBot(first.id)
     else nav.add()
   }
   const findApproval = () => {
-    const proposal = bots.state.bots.flatMap(waitingOf).find((item) => item.kind === 'proposal')
+    const proposal = realBots.flatMap(waitingOf).find((item) => item.kind === 'proposal')
     if (proposal) nav.openMessage(proposal.bot.id, proposal.thread, proposal.ms)
     else startChat()
   }
@@ -301,9 +326,14 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
     setSettingsTab(next)
     go('settings')
   }
-  const heading = HEADINGS[tab]
+  const heading =
+    tab === 'agents' && chat === 'nova'
+      ? { title: t.newFreeChat }
+      : tab === 'agents' && openFree
+        ? { title: openFree.thread.title }
+        : HEADINGS[tab]
   return (
-    <div className={`app ${sidebarCollapsed ? 'recolhida' : ''} ${tab === 'agents' && (openBot || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
+    <div className={`app ${sidebarCollapsed ? 'recolhida' : ''} ${tab === 'agents' && (openBot || openFree || chat === 'nova' || openExchange || openBatch || openChannel || chat === 'grupo') ? 'conversa-aberta' : ''}`}>
       <Sidebar
         tab={tab}
         chat={chat}
@@ -355,6 +385,27 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         </div>
         {/* The page itself, on a canvas inside the frame the sidebar and this title bar make. */}
         <div className="palco">
+        {tab === 'agents' && chat === 'nova' && (
+          <FreeChatNew bots={bots} onOpened={(botId, threadId) => openChat(`conversa:${botId}/${threadId}`)} />
+        )}
+        {tab === 'agents' && openFree && (
+          <BotChat
+            key={`${openFree.bot.id}:${openFree.thread.id}`}
+            bot={openFree.bot}
+            initialThread={openFree.thread.id}
+            onNewFree={() => openChat('nova')}
+            bots={bots}
+            unread={unread}
+            focus={null}
+            onSettings={(tab) => {
+              setSettingsTab(tab)
+              go('settings')
+            }}
+            nav={nav}
+            report={report}
+            onChanged={onChanged}
+          />
+        )}
         {tab === 'agents' && openBot && <BotChat key={openBot.id} bot={openBot} bots={bots} unread={unread} focus={focus?.bot === openBot.id ? focus : null} onSettings={(tab) => {
           setSettingsTab(tab)
           go('settings')
@@ -366,12 +417,12 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
         {tab === 'agents' && openBatch && <BatchView batch={openBatch} bots={bots} nav={nav} />}
         {tab === 'agents' && openChannel && <ChannelView key={openChannel.id} channel={openChannel} bots={bots} nav={nav} onDeleted={() => openChat('bots')} />}
         {tab === 'agents' && chat === 'canal:novo' && <ChannelNew bots={bots} onCreated={(id) => openChat(`canal:${id}`)} />}
-        {tab === 'agents' && !openBot && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
+        {tab === 'agents' && !openBot && !openFree && chat !== 'nova' && !openExchange && !openChannel && !chat.startsWith('grupo') && !chat.startsWith('canal:') && <BotPicker bots={bots} onOpen={(id) => openChat(`bot:${id}`)} onAskMany={() => openChat('grupo')} onChannel={(id) => openChat(`canal:${id}`)} />}
         {tab === 'usage' && <UsageView />}
         {tab === 'flows' && <Flows bots={bots} pick={flowPick} />}
         {tab === 'desk' && <Desk bots={bots} nav={nav} />}
-        {tab === 'deliveries' && <Deliveries bots={bots.state.bots} nav={nav} />}
-        {tab === 'wiki' && <WikiView bots={bots.state.bots} onSaved={bots.refresh} />}
+        {tab === 'deliveries' && <Deliveries bots={realBots} nav={nav} />}
+        {tab === 'wiki' && <WikiView bots={realBots} onSaved={bots.refresh} />}
         {tab === 'efficiency' && <EfficiencyView report={report} bots={bots} nav={nav} onGo={go} onChanged={onChanged} />}
         {tab === 'settings' && (
           <SettingsPage bots={bots} onOpenBot={(id) => openChat(`bot:${id}`)} onAddBot={() => openChat('bots')} onRedoSetup={onSetup} initialTab={settingsTab} />
@@ -385,7 +436,7 @@ function Dashboard({ report, at, onChanged, onSetup }: DashboardProps) {
               streak={longestStreak(days)}
               bySource={sources.map((s) => ({ label: SOURCE_LABELS[s.overview.source] ?? s.overview.source, tokens: totalTokens(s) }))}
             />
-            <Clock hours={hours(report)} hourProjects={hourProjects(report)} bots={bots.state.bots} onOpenBot={(id) => openChat(`bot:${id}`)} />
+            <Clock hours={hours(report)} hourProjects={hourProjects(report)} bots={realBots} onOpenBot={(id) => openChat(`bot:${id}`)} />
             <ContextRuler sources={sources} main={main} onCut={() => go('efficiency')} />
             <RowsCard className="carregado" title={t.carried} hint={t.carriedHint} rows={carriedRows(report, LIST_ROWS)} />
             <RowsCard className="projetos" title={t.projects} hint={t.projectsHint} rows={projects} />

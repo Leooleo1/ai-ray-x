@@ -72,7 +72,7 @@ fn pairs(messages: &[Message], who: &str) -> Vec<(i64, String)> {
 
 /// The page as raiox writes it for one project.
 fn body(state_dir: &Path, dir: &Path) -> Option<String> {
-    let team: Vec<Bot> = bots::list(state_dir).into_iter().filter(|b| b.dir == dir).collect();
+    let team: Vec<Bot> = bots::project_list(state_dir).into_iter().filter(|b| b.dir == dir).collect();
     let name = team.first()?.name.clone();
     let members = team
         .iter()
@@ -112,7 +112,7 @@ pub fn refresh(state_dir: &Path, dirs: Vec<std::path::PathBuf>) {
 /// The folders of a project and of every project wired to it.
 pub fn around(state_dir: &Path, name: &str) -> Vec<std::path::PathBuf> {
     let names: Vec<String> = std::iter::once(name.to_string()).chain(crate::links::linked(state_dir, name)).collect();
-    let mut dirs: Vec<std::path::PathBuf> = bots::list(state_dir).into_iter().filter(|b| names.contains(&b.name)).map(|b| b.dir).collect();
+    let mut dirs: Vec<std::path::PathBuf> = bots::project_list(state_dir).into_iter().filter(|b| names.contains(&b.name)).map(|b| b.dir).collect();
     dirs.sort();
     dirs.dedup();
     dirs

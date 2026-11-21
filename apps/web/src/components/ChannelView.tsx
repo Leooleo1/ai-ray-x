@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { type Bot, type Channel, type ChannelItem, busyIn } from '../api'
+import { type Bot, type Channel, type ChannelItem, busyIn, projectBots } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, t } from '../i18n'
@@ -236,11 +236,11 @@ export function ChannelNew({ bots, onCreated }: { bots: Bots; onCreated: (id: st
           <input value={name} maxLength={40} placeholder={t.channelNameHint} onChange={(event) => setName(event.target.value)} />
         </label>
         <span className="ajustes-grupo">{t.channelMembers}</span>
-        {bots.state.bots.length === 0 ? (
+        {projectBots(bots.state.bots).length === 0 ? (
           <p className="nota">{t.channelNoBots}</p>
         ) : (
           <ul className="canal-escolha">
-            {bots.state.bots.map((bot) => {
+            {projectBots(bots.state.bots).map((bot) => {
               const order = chosen.indexOf(bot.id)
               return (
                 <li key={bot.id}>

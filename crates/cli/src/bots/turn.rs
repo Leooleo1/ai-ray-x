@@ -10,7 +10,7 @@ use anyhow::Context;
 
 use serde_json::json;
 
-use super::{drafted, find, list, note, said, set_thread_session, Bot, Jobs, Persona};
+use super::{drafted, find, note, project_list, said, set_thread_session, Bot, Jobs, Persona};
 use crate::bot_run::{self, Mode, Reply};
 use crate::progress::{self, Milestone};
 use crate::room::{self, Message};
@@ -70,13 +70,32 @@ pub(super) fn scratch_dir(state_dir: &Path, bot_id: &str, thread: &str) -> PathB
 
 impl Setup {
     pub(super) fn new(state_dir: &Path, bot: &Bot, thread: &str, question: &str, mode: Mode) -> Self {
-        // Only the projects wired to this one: the bot names no others and can message no others.
-        let others = crate::links::linked(state_dir, &bot.name);
-        let mut unwired: Vec<String> = list(state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
-        unwired.sort();
-        unwired.dedup();
         let defaults = crate::settings::Settings::load(state_dir).defaults_for(&bot.agent);
         let persona = bot.persona.as_ref().map(Persona::prompt).unwrap_or_default();
+        let thread_model = crate::threads::model(state_dir, &bot.id, thread);
+        // Per-conversation model beats talk_model, which beats bot model and CLI defaults.
+        let model = thread_model
+            .or_else(|| if mode == Mode::Talk { bot.talk_model.clone() } else { None })
+            .or_else(|| bot.model.clone())
+            .or(defaults.model);
+        if bot.free {
+            return Setup {
+                state_dir: state_dir.to_path_buf(),
+                stable: bot_run::free_guide(&persona),
+                team: String::new(),
+                related: String::new(),
+                others: Vec::new(),
+                model,
+                effort: bot.effort.clone().or(defaults.effort),
+                scratch: scratch_dir(state_dir, &bot.id, thread),
+                shots: crate::preview::ai_dir(state_dir, &bot.id),
+            };
+        }
+        // Only the projects wired to this one: the bot names no others and can message no others.
+        let others = crate::links::linked(state_dir, &bot.name);
+        let mut unwired: Vec<String> = project_list(state_dir).into_iter().map(|b| b.name).filter(|name| *name != bot.name && !others.contains(name)).collect();
+        unwired.sort();
+        unwired.dedup();
         // The team notes from ai-memory: what the other bots here and in wired projects did lately.
         Setup {
             state_dir: state_dir.to_path_buf(),
@@ -85,8 +104,7 @@ impl Setup {
             // The project's own pages that relate to the question, kept decisions included.
             related: format!("{}{}", crate::memory::related(&bot.dir, question), crate::wiki::for_turn(state_dir, &bot.id, question)),
             others,
-            // Talk can run on a lighter model; changes always on the bot's own.
-            model: if mode == Mode::Talk { bot.talk_model.clone() } else { None }.or_else(|| bot.model.clone()).or(defaults.model),
+            model,
             effort: bot.effort.clone().or(defaults.effort),
             scratch: scratch_dir(state_dir, &bot.id, thread),
             shots: crate::preview::ai_dir(state_dir, &bot.id),
@@ -155,6 +173,7 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
         crate::preview::clear_ai_dir(state_dir, &bot.id);
     }
     let mut text = match turn.mode {
+        Mode::Talk if bot.free => turn.text,
         Mode::Talk => format!("{}{}", crate::preview::for_cli(state_dir, &bot.id, &bot.dir), turn.text),
         Mode::Edit => turn.text,
     };
@@ -205,12 +224,26 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
                 return say(if stopped { note("stopped", json!({})) } else { note("failed", json!({ "error": format!("{error:#}") })) });
             }
         };
-        // Messages for projects without a bot are dropped: nobody there would read them.
-        let reply = Reply {
-            to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(),
-            model: setup.model.clone(),
-            effort: setup.effort.clone(),
-            ..reply
+        // Messages for projects without a bot are dropped; free conversations never emit project proposals, commands or tasks.
+        let reply = if bot.free {
+            Reply {
+                proposal: None,
+                to: Vec::new(),
+                open: Vec::new(),
+                run: Vec::new(),
+                shots: Vec::new(),
+                tasks: Vec::new(),
+                model: setup.model.clone(),
+                effort: setup.effort.clone(),
+                ..reply
+            }
+        } else {
+            Reply {
+                to: reply.to.into_iter().filter(|n| setup.others.contains(&n.project)).collect(),
+                model: setup.model.clone(),
+                effort: setup.effort.clone(),
+                ..reply
+            }
         };
         if turn.keep_session && bot_run::keeps_session(turn.mode) && reply.session.is_some() && reply.session != session {
             let _ = set_thread_session(state_dir, &bot.id, thread, reply.session.clone());
@@ -232,8 +265,10 @@ fn run_turn(state_dir: &Path, jobs: &Jobs, bot: &Bot, thread: &str, turn: Turn, 
             Vec::new()
         };
         let proposed = reply.proposal.is_some();
-        // Tasks it left for the board go there, for this bot.
-        crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
+        // Tasks it left for the board go there, for this bot (never for free conversations).
+        if !bot.free {
+            crate::tasks::from_answer(state_dir, &bot.id, &reply.tasks);
+        }
         let mut answer_data = json!({ "mode": "talk", "reply": reply });
         if let Some(changes) = before.as_ref().and_then(|before| crate::turn_diff::compare(dir, before, &crate::turn_diff::snapshot(dir)?)) {
             answer_data["changes"] = changes;
@@ -349,8 +384,8 @@ pub(super) fn ask_cli(jobs: &Jobs, bot: &Bot, thread: &str, setup: &Setup, dir: 
         images,
         web: bot.grants.web,
         mcp: bot.grants.mcp,
-        full: bot.grants.full_access,
-        bypass: bot.grants.full_access && bot.grants.bypass,
+        full: !bot.free && bot.grants.full_access,
+        bypass: !bot.free && bot.grants.full_access && bot.grants.bypass,
     };
     let stop = || jobs.should_stop(&bot.id, thread);
     let on_trail = |trail: &crate::bot_trail::Trail| jobs.set_trail(&bot.id, thread, trail);
@@ -398,14 +433,14 @@ fn allowed_command(state_dir: &Path, bot: &Bot, reply: &Reply) -> Option<String>
     reply.run.iter().find(|r| r.refused.is_none() && (now.allowed.contains(&r.command) || safe(&r.command))).map(|r| r.command.clone())
 }
 
-/// Whether the bot has full access now (it may be turned on while it answers).
+/// Whether the bot has full access now (free bots are always read-only).
 fn runs_with_full_access(state_dir: &Path, bot: &Bot) -> bool {
-    find(state_dir, &bot.id).is_ok_and(|now| now.grants.full_access)
+    !bot.free && find(state_dir, &bot.id).is_ok_and(|now| !now.free && now.grants.full_access)
 }
 
-/// Whether the bot runs without asking now (the grant may change while it answers); full access includes it.
+/// Whether the bot runs without asking now (free bots never run commands).
 fn runs_alone(state_dir: &Path, bot: &Bot) -> bool {
-    find(state_dir, &bot.id).is_ok_and(|now| now.grants.auto_run || now.grants.full_access)
+    !bot.free && find(state_dir, &bot.id).is_ok_and(|now| !now.free && (now.grants.auto_run || now.grants.full_access))
 }
 
 /// Starts the project's app for a bot that runs without asking, and gives the CLI's next prompt:

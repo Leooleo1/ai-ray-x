@@ -143,6 +143,11 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        // All installed CLIs with their models, for starting a free conversation (never on the main loop).
+        (Method::Get, "/api/free/agents") if !remote => {
+            let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
+            Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others("", &|_| true, codex)))))
+        }
         // The other AIs a bot can switch to: every one installed here (turned on in Settings or not), each
         // CLI asked for its models, never on the main loop.
         (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
@@ -324,7 +329,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
-            let limit = if action == "ask" { MAX_ASK_BODY } else { MAX_BODY };
+            let limit = if matches!(action.as_str(), "ask" | "free_ask") { MAX_ASK_BODY } else { MAX_BODY };
             match body_limit(request, limit) {
                 // A paired device reaches only the bots (and channels) that are not kept on this computer.
                 Ok(input) if remote => respond(crate::grants::device_may(&panel.state_dir, &input).and_then(|()| bot_action(panel, &action, &input)).map(|state| seen_by(panel, remote, state))),
@@ -387,6 +392,31 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, dir.into_iter().collect());
             Ok(())
         }
+        "free_ask" => {
+            let images = match input.get("images") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(items)) => items
+                    .iter()
+                    .map(|item| item.as_str().map(str::to_string).ok_or_else(|| anyhow!("images must be base64 strings")))
+                    .collect::<Result<Vec<_>>>()?,
+                Some(_) => return Err(anyhow!("images must be an array")),
+            };
+            let model = input.get("model").and_then(Value::as_str);
+            let (bot, created) = bots::start_free_chat(state_dir, jobs, field("agent"), model, field("text"), &images)?;
+            progress::record(state_dir, &[Milestone::Chat]);
+            let mut state = bots::state(&panel.store, &panel.roots.home, state_dir, jobs)?;
+            if let Some(obj) = state.as_object_mut() {
+                obj.insert("opened".into(), json!({ "bot": bot.id, "thread": created.id }));
+            }
+            return Ok(state);
+        }
+        "thread_model" => bots::set_thread_model(
+            state_dir,
+            field("id"),
+            thread,
+            input.get("model").and_then(Value::as_str),
+            input.get("effort").and_then(Value::as_str),
+        ),
         "ask" => {
             let images = match input.get("images") {
                 None | Some(Value::Null) => Vec::new(),
@@ -727,7 +757,7 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
         // Before/after for changes in the panel's project and in every bot's project.
         let dirs: std::collections::BTreeSet<std::path::PathBuf> =
-            std::iter::once(panel.project_dir.clone()).chain(bots::list(&panel.state_dir).into_iter().map(|bot| bot.dir)).collect();
+            std::iter::once(panel.project_dir.clone()).chain(bots::project_list(&panel.state_dir).into_iter().map(|bot| bot.dir)).collect();
         let mut measured = Vec::new();
         for dir in &dirs {
             measured.extend(crate::room::outcomes(&panel.store, &panel.roots, &panel.state_dir, dir)?.into_iter().map(|(_, outcome)| outcome));

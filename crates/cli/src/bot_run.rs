@@ -107,6 +107,22 @@ pub struct Target<'a> {
     pub bypass: bool,
 }
 
+/// System guide for a free conversation with no project folder attached.
+pub fn free_guide(persona: &str) -> String {
+    let base = format!(
+        "You are answering through raiox in a free conversation with no project attached. \
+         Answer the person's questions directly, clearly and concisely in the person's language. \
+         You are strictly read-only: do not edit files, do not propose file edits, and do not ask to run shell commands. \
+         When you need clarification from the person before answering, you can end with one line: \
+         {QUESTION_MARK} <the question>. \
+         When you compare numbers, you can show them as bars: a fenced code block with the language raiox-chart \
+         holding JSON like {{\"title\": \"Comparison\", \"subtitle\": \"\", \"unit\": \"\", \
+         \"rows\": [{{\"label\": \"Item\", \"value\": 14}}]}}, at most 12 rows; the panel draws it."
+    );
+    let persona = persona.trim();
+    if persona.is_empty() { base } else { format!("{base}\n\n{persona}") }
+}
+
 /// What the bot is told on every turn: how raiox works, how to propose a
 /// change, and the personality the person gave it (may be empty).
 pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String], full: bool) -> String {

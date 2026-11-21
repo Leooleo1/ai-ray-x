@@ -10,7 +10,7 @@ use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 
 use super::turn::{ask_cli, Setup};
-use super::{find, list, note, said, Bot, Jobs};
+use super::{find, note, project_list, said, Bot, Jobs};
 use crate::bot_run::Mode;
 use crate::{room, threads};
 
@@ -24,7 +24,10 @@ fn named(agent: &str) -> &str {
 
 /// The other bots of a project that can review this one's proposals.
 pub fn reviewers(state_dir: &Path, bot: &Bot) -> Vec<Bot> {
-    list(state_dir).into_iter().filter(|b| b.dir == bot.dir && b.id != bot.id).collect()
+    if bot.free {
+        return Vec::new();
+    }
+    project_list(state_dir).into_iter().filter(|b| b.dir == bot.dir && b.id != bot.id).collect()
 }
 
 fn prompt(proposer: &Bot, proposal: &str, answer: &str) -> String {

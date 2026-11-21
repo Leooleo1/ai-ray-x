@@ -169,7 +169,7 @@ pub fn forget(state_dir: &Path) -> Result<Value> {
 
 /// The AIs Telegram reaches: the ones that may talk to a phone.
 fn reachable(state_dir: &Path) -> Vec<Bot> {
-    bots::list(state_dir).into_iter().filter(|b| b.grants.devices).collect()
+    bots::project_list(state_dir).into_iter().filter(|b| b.grants.devices).collect()
 }
 
 fn current(state_dir: &Path, config: &Config) -> Option<Bot> {

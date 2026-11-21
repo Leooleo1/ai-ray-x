@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { projectBots } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import type { Bots } from '../../bots'
 import { t } from '../../i18n'
@@ -14,7 +15,7 @@ interface AskManyProps {
 
 /** One question to the bots the person picks; each answers in a new conversation, shown side by side. */
 export function AskMany({ bots, nav }: AskManyProps) {
-  const free = bots.state.bots
+  const free = projectBots(bots.state.bots)
   const [picked, setPicked] = useState<Set<string>>(() => new Set(free.map((b) => b.id)))
   const toggle = (id: string) => setPicked((now) => (now.has(id) ? new Set([...now].filter((x) => x !== id)) : new Set([...now, id])))
   const send = async (text: string) => {
@@ -43,7 +44,7 @@ export function AskMany({ bots, nav }: AskManyProps) {
               )}
             </div>
             <div className="grupo-bots" role="group" aria-label={t.askManyPick}>
-              {bots.state.bots.map((bot) => (
+              {free.map((bot) => (
                 <button
                   key={bot.id}
                   type="button"

@@ -168,7 +168,7 @@ pub fn discard(state_dir: &Path, id: &str) -> Result<()> {
 
 /// What a chat sees of the team, to name bots and channels in its requests.
 pub fn team(state_dir: &Path) -> Value {
-    let bots: Vec<Value> = bots::list(state_dir)
+    let bots: Vec<Value> = bots::project_list(state_dir)
         .into_iter()
         .map(|b| json!({ "id": b.id, "project": b.name, "agent": b.agent, "role": b.persona.as_ref().map(|p| p.role.clone()) }))
         .collect();

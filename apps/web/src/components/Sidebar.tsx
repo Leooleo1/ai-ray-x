@@ -1,7 +1,8 @@
 import { type CSSProperties, type FocusEvent, type MouseEvent, useEffect, useState } from 'react'
-import type { Bot, FirstUseMission, FirstUseProgress } from '../api'
-import { faceForBot } from '../avatars'
+import { type Bot, type FirstUseMission, type FirstUseProgress, busyIn, freeBots, projectBots } from '../api'
+import { AGENT_SHORT, faceForBot } from '../avatars'
 import { t } from '../i18n'
+import { AgentLogo } from './AgentLogo'
 import { Avatar } from './Avatar'
 import { Icon, type IconName } from './Icons'
 import { PlanRings } from './PlanRings'
@@ -10,7 +11,10 @@ import { MissionCard } from './sidebar/MissionCard'
 import './sidebar-nav.css'
 
 export type Tab = 'xray' | 'usage' | 'efficiency' | 'flows' | 'agents' | 'desk' | 'deliveries' | 'wiki' | 'settings'
-export type ChatView = 'bots' | 'grupo' | `bot:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
+export type ChatView = 'bots' | 'nova' | 'grupo' | `bot:${string}` | `conversa:${string}` | `troca:${string}` | `grupo:${string}` | `canal:${string}`
+
+/** Free conversations shown in the sidebar before "See all". */
+const FREE_LIMIT = 8
 
 /** The three pages about what the AIs consume, behind one item: the X-ray, Usage and Efficiency. */
 export const CONSUMPTION: Tab[] = ['xray', 'usage', 'efficiency']
@@ -80,6 +84,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
   })
   const [adding, setAdding] = useState(false)
   const [more, setMore] = useState(false)
+  const [allFree, setAllFree] = useState(false)
   // The + menu and the phone's More close on a click elsewhere or Escape.
   useEffect(() => {
     if (!adding && !more) return undefined
@@ -122,7 +127,11 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
     if (id === 'wiki') return completed.includes('wiki')
     return true
   })
-  const isOn = (id: Tab) => tab === id || (CONSUMPTION.includes(id) && CONSUMPTION.includes(tab))
+  const inFreeChat = tab === 'agents' && (chat === 'nova' || chat.startsWith('conversa:'))
+  const isOn = (id: Tab) => (id === 'agents' ? tab === 'agents' && !inFreeChat : tab === id || (CONSUMPTION.includes(id) && CONSUMPTION.includes(tab)))
+  const realBots = projectBots(bots)
+  const freeList = freeConversationsOf(freeBots(bots))
+  const shownFree = allFree ? freeList : freeList.slice(0, FREE_LIMIT)
   const go = (id: Tab) => {
     setMore(false)
     onTab(id)
@@ -154,6 +163,17 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
         <Icon name="search" />
         <span className="nome">{t.paletteSearch}</span>
         <kbd>{SHORTCUT}</kbd>
+      </button>
+      <button
+        type="button"
+        className={`lado-nova-conversa ${tab === 'agents' && chat === 'nova' ? 'ativo' : ''}`}
+        aria-label={collapsed ? t.newFreeChat : undefined}
+        aria-current={tab === 'agents' && chat === 'nova' ? 'page' : undefined}
+        onClick={() => onChat('nova')}
+        {...tipProps(t.newFreeChat)}
+      >
+        <Icon name="new-chat" />
+        <span className="nome">{t.newFreeChat}</span>
       </button>
       <div className="lado-scroll" onScroll={hideTip}>
         <nav className="lado-grupo lado-menu" aria-label="raiox">
@@ -224,14 +244,14 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
             )}
           </div>
           {/* One row per project; a project can have bots on several CLIs, the newest one opens. */}
-          {projectsOf(bots).map(({ name, latest, busy, agents }) => {
-            const hasUnread = bots.some((b) => b.name === name && unread.has(b.id))
+          {projectsOf(realBots).map(({ name, latest, busy, agents }) => {
+            const hasUnread = realBots.some((b) => b.name === name && unread.has(b.id))
             const hint = `${name} · ${busy ? t.typingShort : agents}`
             return (
               <button
                 key={name}
                 type="button"
-                className={`lado-item ${tab === 'agents' && bots.some((b) => b.name === name && chat === `bot:${b.id}`) ? 'ativo' : ''}`}
+                className={`lado-item ${tab === 'agents' && realBots.some((b) => b.name === name && chat === `bot:${b.id}`) ? 'ativo' : ''}`}
                 aria-label={collapsed ? hint : undefined}
                 onClick={() => onChat(`bot:${latest.id}`)}
                 {...tipProps(hint)}
@@ -249,6 +269,33 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
               </button>
             )
           })}
+          {freeList.length > 0 && <span className="lado-titulo lado-titulo-canais">{t.freeChatsSection}</span>}
+          {shownFree.map(({ bot, thread, busy }) => {
+            const view: ChatView = `conversa:${bot.id}/${thread.id}`
+            const hint = `${thread.title} · ${AGENT_SHORT[bot.agent]}`
+            return (
+              <button
+                key={`${bot.id}:${thread.id}`}
+                type="button"
+                className={`lado-item lado-conversa-livre ${tab === 'agents' && chat === view ? 'ativo' : ''}`}
+                aria-label={collapsed ? hint : undefined}
+                onClick={() => onChat(view)}
+                {...tipProps(hint)}
+              >
+                <span className="lado-rosto">
+                  <AgentLogo agent={bot.agent} size={15} />
+                  {collapsed && busy && <i className="lado-sinal digitando" aria-hidden="true" />}
+                </span>
+                <span className="nome">{thread.title}</span>
+                {busy && <span className="presenca digitando">{t.typingShort}</span>}
+              </button>
+            )
+          })}
+          {!collapsed && freeList.length > FREE_LIMIT && (
+            <button type="button" className="lado-ver-todas" onClick={() => setAllFree((open) => !open)}>
+              {allFree ? t.freeChatsShowLess : t.freeChatsSeeAll.replace('{n}', String(freeList.length))}
+            </button>
+          )}
           {channels.length > 0 && <span className="lado-titulo lado-titulo-canais">{t.channels}</span>}
           {channels.map((channel) => {
             const hint = `# ${channel.name}${channel.working ? ` · ${t.typingShort}` : ''}`
@@ -277,7 +324,7 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
           <MissionCard completed={progress.completed} actions={missions} onDismiss={onDismissMissions} />
         )}
         {showConsumption && <PlanRings collapsed={collapsed} />}
-        <ProfileMenu bots={bots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
+        <ProfileMenu bots={realBots} updatedAt={updatedAt} collapsed={collapsed} onSettings={onSettings} onSetup={onSetup} />
       </footer>
       {collapsed && tip && (
         <span className="lado-dica" role="tooltip" style={{ top: tip.top, left: tip.left }}>
@@ -289,6 +336,20 @@ export function Sidebar({ tab, chat, bots, unread, channels, updatedAt, collapse
 }
 
 const SHORT: Record<string, string> = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor', antigravity: 'Antigravity', opencode: 'opencode' }
+
+/** Free conversations across all installed AIs, newest activity first. */
+function freeConversationsOf(bots: Bot[]) {
+  return bots
+    .flatMap((bot) =>
+      bot.threads.map((thread) => ({
+        bot,
+        thread,
+        lastMs: thread.messages.at(-1)?.ms ?? thread.created_ms ?? 0,
+        busy: Boolean(busyIn(bot, thread.id)),
+      })),
+    )
+    .sort((a, b) => b.lastMs - a.lastMs)
+}
 
 /** The bots grouped by project, newest activity first. */
 function projectsOf(bots: Bot[]) {

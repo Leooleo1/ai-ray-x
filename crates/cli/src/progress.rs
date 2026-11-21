@@ -63,7 +63,7 @@ pub fn initialize(state_dir: &Path, store: &Store) -> Result<()> {
     }
     let indexed: bool = store.conn().query_row("SELECT EXISTS(SELECT 1 FROM calls)", [], |row| row.get(0))?;
     let legacy = indexed
-        || !crate::bots::list(state_dir).is_empty()
+        || !crate::bots::project_list(state_dir).is_empty()
         || fs::read_dir(state_dir.join("bots")).is_ok_and(|mut files| files.any(|file| file.is_ok()))
         || fs::read_dir(state_dir.join("rooms")).is_ok_and(|mut files| files.any(|file| file.is_ok()))
         || !crate::channels::list(state_dir).is_empty()

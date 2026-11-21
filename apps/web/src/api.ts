@@ -203,6 +203,8 @@ export interface BotThread {
   id: string
   title: string
   has_session: boolean
+  model?: string | null
+  created_ms?: number
   messages: BotMessage[]
 }
 
@@ -387,6 +389,16 @@ export function isEditing(bot: Bot): boolean {
   return Boolean(bot.busy_threads?.some((item) => item.editing))
 }
 
+/** Only real project bots (excludes internal free-conversation bots). */
+export function projectBots(list: Bot[]): Bot[] {
+  return list.filter((bot) => !bot.free)
+}
+
+/** Only internal free-conversation bots. */
+export function freeBots(list: Bot[]): Bot[] {
+  return list.filter((bot) => Boolean(bot.free))
+}
+
 export interface Bot {
   id: string
   agent: BotAgent
@@ -432,6 +444,8 @@ export interface Bot {
   }
   name: string
   dir: string
+  /** True for internal project-less bots backing free conversations. */
+  free?: boolean
   has_session: boolean
   busy: boolean
   /** The first active conversation on this bot, kept for backward compatibility. */
@@ -490,6 +504,8 @@ export interface BotsState {
   progress?: FirstUseProgress
   show_all_navigation?: boolean
   max_text: number
+  /** Returned by `free_ask` so the panel opens the newly created free conversation immediately. */
+  opened?: { bot: string; thread: string }
 }
 
 export type ChatRequestKind = 'add_bot' | 'add_routine' | 'add_task' | 'new_channel' | 'channel_post'
@@ -535,7 +551,7 @@ export interface Channel {
   created_ms: number
 }
 
-export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'continue' | 'retry' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
+export type BotAction = 'activate' | 'create_project' | 'deactivate' | 'ask' | 'free_ask' | 'thread_model' | 'approve' | 'cancel_waiting' | 'dismiss_missions' | 'view_usage' | 'reset' | 'configure' | 'send' | 'handle' | 'stop' | 'continue' | 'retry' | 'thread_new' | 'thread_delete' | 'pin' | 'routine_new' | 'routine_toggle' | 'routine_delete' | 'link_toggle' | 'ask_many' | 'batch_delete' | 'house' | 'draft' | 'run' | 'disallow' | 'remember' | 'talk_model' | 'limit' | 'review' | 'reviewer' | 'memory_forget' | 'routine_changed' | 'correct' | 'channel_new' | 'channel_delete' | 'channel_post' | 'channel_pass' | 'carry' | 'preview_start' | 'preview_stop' | 'grants' | 'auditor' | 'audit_run' | 'request_approve' | 'request_discard' | 'switch_agent' | 'rsi_create' | 'turn_undo' | 'branch'
 
 export interface InboxMessage {
   id: string
@@ -765,6 +781,10 @@ export interface OtherAgent {
 
 export function otherAgents(id: string): Promise<{ agents: OtherAgent[] }> {
   return request<{ agents: OtherAgent[] }>('/api/bot/other_agents', { id })
+}
+
+export function freeAgents(): Promise<{ agents: OtherAgent[] }> {
+  return request<{ agents: OtherAgent[] }>('/api/free/agents')
 }
 
 export function botUsage(id: string): Promise<BotUsage> {

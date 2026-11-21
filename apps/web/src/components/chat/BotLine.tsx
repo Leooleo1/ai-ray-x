@@ -284,7 +284,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                 <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
                   {pinned ? t.pinned : t.pin}
                 </button>
-                {message.kind === 'answer' && (
+                {message.kind === 'answer' && !bot.free && (
                   <button type="button" className={`copiar ${remembered ? 'fixada' : ''}`} disabled={remembered} onClick={onRemember}>
                     {remembered ? t.remembered : t.remember}
                   </button>

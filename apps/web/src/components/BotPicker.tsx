@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useState } from 'react'
-import { type Bot, busyIn, isEditing } from '../api'
+import { type Bot, busyIn, isEditing, projectBots } from '../api'
 import { AGENT_SHORT, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -73,7 +73,7 @@ const MAX_PULSE_FACES = 4
 export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const closeModal = useCallback(() => setModalOpen(false), [])
-  const cards = activeCards(bots.state.bots)
+  const cards = activeCards(projectBots(bots.state.bots))
   const empty = cards.length === 0
 
   return (

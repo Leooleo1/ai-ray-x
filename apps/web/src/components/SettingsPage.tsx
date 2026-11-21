@@ -1,7 +1,7 @@
 import { Skeleton } from './Skeleton'
 import { notify } from '../notify'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, saveSettings, type CliInstall, type CliTestResult, fetchInstalls, installCli, signInCli, testCli } from '../api'
+import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, projectBots, saveSettings, type CliInstall, type CliTestResult, fetchInstalls, installCli, signInCli, testCli } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -153,12 +153,13 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const ordered = [...connections].sort((a, b) => rank(a.installed, a.logged_in === false) - rank(b.installed, b.logged_in === false))
   const ready = ordered.filter((c) => c.installed && c.logged_in !== false)
   const aisOn = connections.filter((c) => c.enabled && c.installed && c.logged_in !== false).length
-  const projects = new Set(bots.state.bots.map((b) => b.name)).size
+  const realBots = projectBots(bots.state.bots)
+  const projects = new Set(realBots.map((b) => b.name)).size
   const links = bots.state.links.length
   const steps: SetupStep[] = [
     { id: 'ais', label: t.stepAis, done: settings ? connections.some((c) => c.bots && c.enabled && c.installed && c.logged_in !== false) : null },
     { id: 'github', label: t.githubTitle, done: github ? github.logged_in : null },
-    { id: 'bots', label: t.stepBots, done: bots.state.bots.length > 0 },
+    { id: 'bots', label: t.stepBots, done: realBots.length > 0 },
     ...(projects >= 2 ? [{ id: 'wires' as const, label: t.stepWires, done: links > 0 }] : []),
   ]
   const next = (step: StepId) => {
@@ -177,7 +178,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     // On the computer: the tunnel and pairing; on a paired device: this device (install, notifications).
     { id: 'celular', label: t.tabPhone, count: null },
   ]
-  const first = bots.state.bots[0]
+  const first = realBots[0]
   const face = first ? faceForBot(first) : faceOf(PRESETS[0].shape, PRESETS[0].color, PRESETS[0].name)
 
   return (

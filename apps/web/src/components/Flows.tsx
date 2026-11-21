@@ -1,7 +1,7 @@
 import { Skeleton } from './Skeleton'
 import { notify } from '../notify'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { type Flow, type FlowAction, fetchFlows, flowAct, saveFlow } from '../api'
+import { type Flow, type FlowAction, fetchFlows, flowAct, projectBots, saveFlow } from '../api'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { triggerLine, stepMissing, triggerMissing } from './flows/describe'
@@ -104,7 +104,7 @@ export function Flows({ bots, pick }: FlowsProps) {
                 <b>{f.name}</b>
                 <small>
                   <i className={`fluxo-ponto ${f.run?.status === 'waiting' ? 'espera' : isLive(f) ? 'roda' : f.enabled && f.trigger && f.trigger.kind !== 'manual' ? 'ligado' : ''}`} />
-                  {f.run?.status === 'waiting' ? t.flowWaitsYou : isLive(f) ? t.flowRunning : f.trigger ? triggerLine(f.trigger, bots.state.bots) : t.flowNoTrigger}
+                  {f.run?.status === 'waiting' ? t.flowWaitsYou : isLive(f) ? t.flowRunning : f.trigger ? triggerLine(f.trigger, projectBots(bots.state.bots)) : t.flowNoTrigger}
                 </small>
               </button>
             </li>
@@ -135,7 +135,7 @@ export function Flows({ bots, pick }: FlowsProps) {
                 </button>
               )}
             </header>
-            <FlowCanvas draft={draft} bots={bots.state.bots} channels={bots.state.channels} run={run} live={running} error={error} onChange={edit} onAction={act} />
+            <FlowCanvas draft={draft} bots={projectBots(bots.state.bots)} channels={bots.state.channels} run={run} live={running} error={error} onChange={edit} onAction={act} />
           </>
         ) : (
           <div className="fluxo-tabuleiro">

@@ -1,3 +1,4 @@
+import { projectBots } from '../api'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import './controls.css'
@@ -8,7 +9,7 @@ interface WiresEditorProps {
 
 /** Every pair of projects with bots, as a switch: on means the two know of each other and can message. */
 export function WiresEditor({ bots }: WiresEditorProps) {
-  const projects = [...new Set(bots.state.bots.map((b) => b.name))].sort()
+  const projects = [...new Set(projectBots(bots.state.bots).map((b) => b.name))].sort()
   const pairs = projects.flatMap((a, i) => projects.slice(i + 1).map((b) => [a, b] as const))
   const on = (a: string, b: string) => bots.state.links.some(([x, y]) => x === a && y === b)
   if (pairs.length === 0) return <p className="nota">{t.noWires}</p>

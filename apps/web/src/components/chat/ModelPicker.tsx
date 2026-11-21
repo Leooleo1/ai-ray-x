@@ -21,28 +21,31 @@ function namesFor(models: string[]): (model: string) => string {
 interface ModelPickerProps {
   bot: Bot
   bots: Bots
+  /** Active conversation id; used on free bots so model picks stay per conversation. */
+  thread?: string
   /** Changes when a card asks to open the menu. */
   openSignal?: number
 }
 
 /** The model and effort in the header; a click opens the list with search and the effort below. */
-export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
+export function ModelPicker({ bot, bots, thread, openSignal = 0 }: ModelPickerProps) {
   const [open, setOpen] = useState(false)
   useEffect(() => {
     if (openSignal > 0) setOpen(true)
   }, [openSignal])
   const [usage, setUsage] = useState<BotUsage | null>(null)
   const [query, setQuery] = useState('')
-  // The other AIs: asked once the menu opens (each CLI lists its models, which takes a moment).
-  const [others, setOthers] = useState<OtherAgent[] | null>(null)
+  const isFree = Boolean(bot.free && thread && thread !== 'main')
+  // The other AIs: asked once the menu opens (skipped on free chats where each thread belongs to its AI).
+  const [others, setOthers] = useState<OtherAgent[] | null>(isFree ? [] : null)
   const box = useRef<HTMLDivElement>(null)
-  useEffect(() => setOthers(null), [bot.id, bot.agent])
+  useEffect(() => setOthers(isFree ? [] : null), [bot.id, bot.agent, isFree])
   useEffect(() => {
-    if (!open || others !== null) return
+    if (!open || isFree || others !== null) return
     otherAgents(bot.id)
       .then((found) => setOthers(found.agents))
       .catch(() => setOthers([]))
-  }, [open, others, bot.id])
+  }, [open, isFree, others, bot.id])
   const close = () => {
     setOpen(false)
     setQuery('')
@@ -70,10 +73,21 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
 
   const fallbackModel = usage?.default.model ?? null
   const fallbackEffort = usage?.default.effort ?? null
-  const model = bot.model ?? fallbackModel
+  const savedModel = isFree ? (bot.threads.find((th) => th.id === thread)?.model ?? null) : bot.model
+  const model = savedModel ?? fallbackModel
   const effort = bot.effort ?? fallbackEffort
   const pick = (next: { model?: string | null; effort?: string | null }, keepOpen = false) => {
     if (!keepOpen) close()
+    if (isFree && thread) {
+      const payload: Record<string, unknown> = {
+        id: bot.id,
+        thread,
+        model: ('model' in next ? next.model : savedModel) ?? '',
+      }
+      if ('effort' in next) payload.effort = next.effort ?? ''
+      void bots.act('thread_model', payload)
+      return
+    }
     void bots.act('configure', {
       id: bot.id,
       model: ('model' in next ? next.model : bot.model) ?? '',
@@ -120,8 +134,8 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
             {usage === null && <li className="modelo-grupo">{t.loadingModels}</li>}
             {!needle && fallbackModel && !options.includes(fallbackModel) && (
               <li>
-                <button type="button" role="radio" aria-checked={bot.model === null} onClick={() => pick({ model: null })}>
-                  <i className={bot.model === null ? 'marcado' : ''} />
+                <button type="button" role="radio" aria-checked={savedModel === null} onClick={() => pick({ model: null })}>
+                  <i className={savedModel === null ? 'marcado' : ''} />
                   {nameOf(fallbackModel)}
                   <span className="modelo-selo">{t.defaultOption.toLowerCase()}</span>
                 </button>
@@ -129,7 +143,7 @@ export function ModelPicker({ bot, bots, openSignal = 0 }: ModelPickerProps) {
             )}
             {options.map((m) => {
               const isDefault = m === fallbackModel
-              const chosen = bot.model === m || (bot.model === null && isDefault)
+              const chosen = savedModel === m || (savedModel === null && isDefault)
               return (
                 <li key={m}>
                   <button type="button" role="radio" aria-checked={chosen} onClick={() => pick({ model: isDefault ? null : m })}>
