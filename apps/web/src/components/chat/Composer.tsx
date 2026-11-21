@@ -1,4 +1,4 @@
-import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
 import { t } from '../../i18n'
 import { type AccessMode, nextMode } from '../../modes'
 import { ModeChip } from './ModeChip'
@@ -53,6 +53,7 @@ interface ComposerProps {
   /** Whose draft this is (one per chat). */
   draftKey: string
   placeholder: string
+  inputRef?: RefObject<HTMLTextAreaElement | null>
   maxLength: number
   busy: boolean
   blocked?: boolean
@@ -70,14 +71,15 @@ interface ComposerProps {
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, maxLength, busy, blocked = false, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
+export function Composer({ draftKey, placeholder, inputRef, maxLength, busy, blocked = false, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
   const [attachError, setAttachError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
   const [sending, setSending] = useState(false)
   const [slashActive, setSlashActive] = useState(0)
-  const field = useRef<HTMLTextAreaElement>(null)
+  const localField = useRef<HTMLTextAreaElement>(null)
+  const field = inputRef ?? localField
   const picker = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
 

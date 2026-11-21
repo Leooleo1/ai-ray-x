@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { BotMessage, RunRequest } from '../../api'
 import { t } from '../../i18n'
+import { isTestCommand } from './trailEvidence'
 
 const TERMINAL_ICON = 'M4 6h16v12H4zM7 10l3 2-3 2M12 15h5'
 
@@ -57,7 +58,7 @@ export function RanBlock({ message }: { message: BotMessage }) {
     <div className={`rodou ${ran.code === 0 ? 'ok' : 'falhou'}`}>
       <span className="rodou-linha">
         <i className="ponto" aria-hidden="true" />
-        <span>{t.ranLine}</span>
+        <span>{isTestCommand(ran.command) ? t.ranTestLine : t.ranLine}</span>
         <code>{ran.command}</code>
         <small>{[end, seconds, message.data.allowed ? t.ranAllowed : ''].filter(Boolean).join(' · ')}</small>
       </span>
