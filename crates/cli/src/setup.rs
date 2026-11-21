@@ -125,7 +125,7 @@ pub fn projects(store: &Store, home: &Path) -> Result<Vec<Project>> {
     })?;
     let empty = |project: &str| Project {
         project: project.to_string(),
-        name: project.rsplit('/').next().unwrap_or(project).to_string(),
+        name: Path::new(project).file_name().and_then(|name| name.to_str()).unwrap_or(project).to_string(),
         github: None,
         claude: 0,
         codex: 0,
