@@ -648,8 +648,8 @@ export function fetchInstalls(): Promise<Record<string, CliInstall>> {
 }
 
 /** Starts the CLI's own sign-in in the default browser (or a terminal fallback). */
-export function signInCli(id: string): Promise<{ opened: boolean; mode?: 'browser' | 'terminal' }> {
-  return request<{ opened: boolean; mode?: 'browser' | 'terminal' }>('/api/setup/sign_in', { id })
+export function signInCli(id: string): Promise<{ opened: boolean; mode?: 'browser' | 'terminal'; device_code?: string | null }> {
+  return request('/api/setup/sign_in', { id })
 }
 
 export interface CliTestResult {
@@ -674,6 +674,7 @@ export interface GitHubRepo {
 
 export interface GitHubState {
   installed: boolean
+  can_install?: boolean
   logged_in: boolean
   login: string | null
   repos: GitHubRepo[]

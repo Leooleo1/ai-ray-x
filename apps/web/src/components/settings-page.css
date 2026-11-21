@@ -467,6 +467,35 @@
   align-items: stretch;
 }
 
+.cfg-github footer.cfg-comandos > :is(button, a) {
+  align-self: flex-start;
+}
+
+.cfg-github .cfg-estado span {
+  white-space: normal;
+}
+
+.cfg-github .cfg-faz.falhou {
+  color: var(--alerta);
+}
+
+@media (min-width: 761px) {
+  .cfg-ia.cfg-github {
+    grid-template-columns: 32px minmax(90px, 190px) minmax(100px, 1fr) minmax(0, 160px) minmax(0, 250px) max-content;
+  }
+}
+
+.cfg-github details summary {
+  width: fit-content;
+  color: var(--nevoa);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cfg-github details .bv-comando {
+  margin-top: 6px;
+}
+
 .cfg-rotulo {
   margin-right: auto;
   color: var(--nevoa);

@@ -10,6 +10,8 @@ export interface SetupStep {
   label: string
   /** null while it is still being checked. */
   done: boolean | null
+  actionLabel?: string
+  busy?: boolean
 }
 
 const NEXT: Record<StepId, string> = { ais: t.nextAis, github: t.nextGithub, bots: t.nextBots, wires: t.nextWires }
@@ -59,8 +61,8 @@ export function SetupHero({ steps, summary, face, onNext, onTour, onRedo }: Setu
         </ol>
         <div className="cfg-heroi-acoes">
           {next && (
-            <button type="button" className="cfg-btn cheio" onClick={() => onNext(next.id)}>
-              {NEXT[next.id]}
+            <button type="button" className="cfg-btn cheio" disabled={next.busy} onClick={() => onNext(next.id)}>
+              {next.actionLabel ?? NEXT[next.id]}
             </button>
           )}
           <button type="button" className={`cfg-btn ${next ? 'vidro' : 'cheio'}`} onClick={onTour}>

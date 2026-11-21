@@ -292,6 +292,7 @@ pub(crate) fn pick_folder(state_dir: &Path, home: &Path) -> Result<Option<Picked
 /// GitHub through the person's `gh`: who is logged in and their repositories.
 pub fn github() -> Value {
     let installed = quiet("gh", &["--version"]).is_some_and(|o| o.status.success());
+    let (install, can_install) = if installed { ("", false) } else { crate::install::github_installer().unwrap_or_default() };
     let login = installed
         .then(|| quiet("gh", &["api", "user", "--jq", ".login"]))
         .flatten()
@@ -320,7 +321,8 @@ pub fn github() -> Value {
         "logged_in": login.is_some(),
         "login": login,
         "repos": repos,
-        "install": "brew install gh",
+        "install": install,
+        "can_install": can_install,
         "connect": "gh auth login",
     })
 }

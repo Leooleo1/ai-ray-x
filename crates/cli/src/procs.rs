@@ -33,6 +33,16 @@ fn managed_binary(program: &str) -> Option<PathBuf> {
     candidate.is_file().then_some(candidate)
 }
 
+/// WinGet's MSI updates PATH for new processes. Find its default binary from an already open panel.
+#[cfg(windows)]
+fn installed_github_cli() -> Option<PathBuf> {
+    ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"]
+        .into_iter()
+        .filter_map(std::env::var_os)
+        .map(|dir| PathBuf::from(dir).join("GitHub CLI").join("gh.exe"))
+        .find(|file| file.is_file())
+}
+
 /// Checks whether a program exists in any directory listed on `PATH`.
 #[cfg(not(windows))]
 fn on_path(program: &str) -> bool {
@@ -63,6 +73,7 @@ pub fn command(program: &str) -> Command {
             .or_else(|error| alias.map_or(Err(error), which::which))
             .ok()
             .or_else(|| managed_binary(program))
+            .or_else(|| if program == "gh" { installed_github_cli() } else { None })
             .map(std::path::PathBuf::into_os_string)
             .unwrap_or_else(|| program.into());
         let mut command = Command::new(found);
