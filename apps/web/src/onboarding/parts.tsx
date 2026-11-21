@@ -19,7 +19,7 @@ export function Frame({ children, actions }: FrameProps) {
 }
 
 /** A command the person runs in their terminal, with a copy button. */
-export function Command({ label, command }: { label: string; command: string }) {
+export function Command({ label, command }: { label?: string; command: string }) {
   const [copied, setCopied] = useState(false)
   const copy = () => {
     void navigator.clipboard.writeText(command).then(() => {
@@ -29,7 +29,7 @@ export function Command({ label, command }: { label: string; command: string }) 
   }
   return (
     <span className="bv-comando">
-      <small>{label}</small>
+      {label && <small>{label}</small>}
       <code>{command}</code>
       <button type="button" onClick={copy}>
         {copied ? o.copied : o.copy}

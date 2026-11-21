@@ -24,6 +24,11 @@ use crate::{procs, room};
 const MAX_LOG: usize = 3000;
 /// Installer job id used for Python 3 (for the self-improving agent template).
 pub const PYTHON_ID: &str = "python";
+pub const GITHUB_ID: &str = "gh";
+const GITHUB_WINDOWS: &str = "winget install --exact --id GitHub.cli --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity";
+const GITHUB_MACOS: &str = "brew install gh";
+const GITHUB_DEVICE_PAGE: &str = "https://github.com/login/device";
+const GITHUB_LOGIN_WAIT: Duration = Duration::from_secs(15);
 const PYTHON_URL: &str = "https://www.python.org/downloads/";
 const PYTHON_WINDOWS: &str = "winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements";
 const PYTHON_MACOS_BREW: &str = "brew install python@3.12";
@@ -48,6 +53,7 @@ struct Job {
 static JOBS: OnceLock<Mutex<BTreeMap<String, Job>>> = OnceLock::new();
 /// Active background sign-in process ids by CLI id, so a second attempt replaces the previous one.
 static LOGIN_PIDS: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
+static GITHUB_LOGIN_START: Mutex<()> = Mutex::new(());
 
 fn jobs() -> std::sync::MutexGuard<'static, BTreeMap<String, Job>> {
     JOBS.get_or_init(Default::default).lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -94,6 +100,17 @@ pub fn python_installer() -> Option<&'static str> {
 /// Whether this machine can install Python 3 automatically from the panel.
 pub fn can_install_python() -> bool {
     python_installer().is_some()
+}
+
+/// The official installer and whether its package manager is available on this computer.
+pub fn github_installer() -> Option<(&'static str, bool)> {
+    if cfg!(windows) {
+        Some((GITHUB_WINDOWS, has_program("winget")))
+    } else if cfg!(target_os = "macos") {
+        Some((GITHUB_MACOS, has_program("brew")))
+    } else {
+        None
+    }
 }
 
 /// Official Codex native release asset for macOS and Windows; returns `(asset_name, is_tar_gz)`.
@@ -260,6 +277,10 @@ enum Plan {
 }
 
 fn resolve_install(id: &str) -> Result<Plan> {
+    if id == GITHUB_ID {
+        let (line, _) = github_installer().filter(|(_, available)| *available).context("install GitHub CLI from https://cli.github.com/")?;
+        return Ok(Plan::Shell { name: "GitHub CLI", line });
+    }
     if id == PYTHON_ID {
         let line = python_installer().with_context(|| format!("install Python 3 from {PYTHON_URL}"))?;
         return Ok(Plan::Shell { name: "Python 3", line });
@@ -410,6 +431,17 @@ pub fn extract_login_url(text: &str) -> Option<String> {
 /// Outcome of starting a CLI sign-in flow: either the default browser opened directly, or a Terminal fallback opened.
 pub struct SignInOutcome {
     pub mode: &'static str,
+    pub device_code: Option<String>,
+}
+
+fn github_device_code(output: &str) -> Option<String> {
+    let output = strip_ansi(output);
+    let (_, rest) = output.split_once("First copy your one-time code: ")?;
+    let (code, _) = rest.split_once('\n')?;
+    let code = code.trim_end();
+    let (left, right) = code.split_once('-')?;
+    let group = |part: &str| part.len() == 4 && part.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit());
+    (group(left) && group(right)).then(|| code.to_string())
 }
 
 fn spawn_login_reader(stream: impl Read + Send + 'static, tx: mpsc::Sender<String>) {
@@ -525,15 +557,56 @@ fn sign_in_terminal(line: &str) -> Result<()> {
     }
 }
 
+/// GitHub CLI hands the person a short-lived code. Keep its output and credentials out of the API.
+fn sign_in_github() -> Result<SignInOutcome> {
+    let _start = GITHUB_LOGIN_START.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    stop_previous_login(GITHUB_ID);
+    let mut cmd = procs::command(GITHUB_ID);
+    procs::own_group(&mut cmd);
+    let mut child = cmd
+        .args(["auth", "login", "--hostname", "github.com", "--web"])
+        .env("GH_PROMPT_DISABLED", "1")
+        .env("NO_COLOR", "1")
+        .env_remove("CLICOLOR_FORCE")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("could not start GitHub CLI")?;
+    let (tx, rx) = mpsc::channel();
+    if let Some(stderr) = child.stderr.take() {
+        spawn_login_reader(stderr, tx);
+    }
+    let deadline = Instant::now() + GITHUB_LOGIN_WAIT;
+    let mut output = String::new();
+    while let Ok(chunk) = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+        output.push_str(&chunk);
+        if let Some(code) = github_device_code(&output) {
+            watch_login_child(GITHUB_ID.into(), child);
+            let _ = open::that_detached(GITHUB_DEVICE_PAGE);
+            return Ok(SignInOutcome { mode: "browser", device_code: Some(code) });
+        }
+        if output.len() > MAX_LOG || Instant::now() >= deadline {
+            break;
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    bail!("GitHub CLI did not return a device code")
+}
+
 /// Signs in to a CLI: captures its OAuth URL and opens the default browser on macOS/Windows,
 /// falling back to a terminal window if the CLI prints no URL (or on Linux).
 pub fn sign_in(id: &str) -> Result<SignInOutcome> {
+    if id == GITHUB_ID {
+        return sign_in_github();
+    }
     let known = usable(id)?;
     if (cfg!(target_os = "macos") || cfg!(windows)) && sign_in_browser(known).is_some() {
-        return Ok(SignInOutcome { mode: "browser" });
+        return Ok(SignInOutcome { mode: "browser", device_code: None });
     }
     sign_in_terminal(known.login)?;
-    Ok(SignInOutcome { mode: "terminal" })
+    Ok(SignInOutcome { mode: "terminal", device_code: None })
 }
 
 /// A new console window running the line. `start` takes its first quoted argument as the
@@ -619,5 +692,14 @@ mod tests {
         );
         assert_eq!(extract_login_url("Listening on http://127.0.0.1:8080/callback only"), None);
         assert_eq!(extract_login_url("No link printed here"), None);
+    }
+
+    #[test]
+    fn github_login_accepts_only_a_complete_device_code() {
+        let prompt = "! First copy your one-time code: ";
+        assert_eq!(github_device_code(&format!("\n{prompt}\x1b[1mA1BC-2DEF\x1b[0m\r\nOpen this URL\n")).as_deref(), Some("A1BC-2DEF"));
+        assert_eq!(github_device_code(&format!("{prompt}A1BC-2DEF")), None);
+        assert_eq!(github_device_code(&format!("{prompt}A1BC-2DEF extra\n")), None);
+        assert_eq!(github_device_code("Other output: A1BC-2DEF\n"), None);
     }
 }

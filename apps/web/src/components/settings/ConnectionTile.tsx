@@ -1,4 +1,4 @@
-import type { BotAgent, CliInstall, CliTestResult, Connection, GitHubState } from '../../api'
+import type { BotAgent, CliInstall, CliTestResult, Connection } from '../../api'
 import { AgentLogo } from '../AgentLogo'
 import { compact, locale, t } from '../../i18n'
 import { Command } from '../../onboarding/parts'
@@ -132,48 +132,6 @@ export function ConnectionTile({ connection: c, install, signingIn, testState, o
           </>
         )}
       </footer>
-    </article>
-  )
-}
-
-interface GitHubTileProps {
-  github: GitHubState | null
-  onCheck: () => void
-}
-
-/** GitHub through the person's own `gh`: who is signed in and how many repositories it sees. */
-export function GitHubTile({ github, onCheck }: GitHubTileProps) {
-  const ok = github?.logged_in === true
-  return (
-    <article className={`cfg-ia ${ok ? '' : 'apagada'}`} id="cfg-github">
-      <header>
-        <span className="cfg-monograma">
-          <img src="/marcas/github.svg" width={17} height={17} alt="" />
-        </span>
-        <span className="cfg-nome">
-          <b>{t.githubTitle}</b>
-          <small>gh</small>
-        </span>
-        <button type="button" className="cfg-btn vidro pequeno" disabled={github === null} onClick={onCheck}>
-          {github === null ? t.githubChecking : t.checkAgain}
-        </button>
-      </header>
-      <p className={`cfg-estado ${ok ? 'ok' : github ? 'alerta' : ''}`}>
-        <i className={`ponto ${ok ? 'ok' : github ? 'alerta' : ''}`} />
-        <span>{github === null ? t.probing : ok ? `${t.githubAs} ${github.login}` : github.installed ? t.githubSignedOut : t.githubNoGh}</span>
-      </p>
-      {ok && (
-        <p className="cfg-numero">
-          <b>{github.repos.length}</b>
-          <small>{t.githubRepos}</small>
-        </p>
-      )}
-      {github && !ok && (
-        <footer className="cfg-comandos">
-          {!github.installed && <Command label={t.installLabel} command={github.install} />}
-          <Command label={t.signInLabel} command={github.connect} />
-        </footer>
-      )}
     </article>
   )
 }
