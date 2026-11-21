@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { type GitHubState, type LocalProject, type SetupState, cloneRepo, createSetupProject } from '../api'
-import { compact } from '../i18n'
+import { IS_REMOTE, type GitHubState, type LocalProject, type PickedProject, type SetupState, cloneRepo, createSetupProject, pickProjectFolder } from '../api'
+import { compact, t } from '../i18n'
 import { Frame } from './parts'
 import { o } from './texts'
 
@@ -13,8 +13,10 @@ interface StepProjectsProps {
   setup: SetupState
   github: GitHubState | null
   selected: string[]
+  pickedFolders: PickedProject[]
   onSelect: (selected: string[]) => void
   onSetup: (setup: SetupState) => void
+  onPickFolder: (project: PickedProject) => void
   onError: (message: string) => void
   onBack: () => void
   onNext: () => void
@@ -26,16 +28,18 @@ function usage(p: LocalProject): string {
   return parts.length > 0 ? parts.join(' · ') : o.noUsage
 }
 
-export function StepProjects({ setup, github, selected, onSelect, onSetup, onError, onBack, onNext, onSkip }: StepProjectsProps) {
+export function StepProjects({ setup, github, selected, pickedFolders, onSelect, onSetup, onPickFolder, onError, onBack, onNext, onSkip }: StepProjectsProps) {
   const [query, setQuery] = useState('')
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [pickingFolder, setPickingFolder] = useState(false)
+  const projects = [...pickedFolders.filter((folder) => !setup.projects.some((p) => p.project === folder.project)), ...setup.projects]
   const needle = query.trim().toLowerCase()
-  const matches = setup.projects.filter((p) => !needle || `${p.project} ${p.github ?? ''}`.toLowerCase().includes(needle))
+  const matches = projects.filter((p) => !needle || `${p.project} ${p.github ?? ''}`.toLowerCase().includes(needle))
   // Checked projects stay in view even when the search would hide them.
-  const shown = needle ? matches : [...setup.projects.filter((p) => selected.includes(p.project)), ...matches.filter((p) => !selected.includes(p.project))].slice(0, Math.max(VISIBLE, selected.length))
-  const hidden = needle ? 0 : setup.projects.length - shown.length
-  const local = new Set(setup.projects.flatMap((p) => (p.github ? [p.github] : [])))
+  const shown = needle ? matches : [...projects.filter((p) => selected.includes(p.project)), ...matches.filter((p) => !selected.includes(p.project))].slice(0, Math.max(VISIBLE, selected.length))
+  const hidden = needle ? 0 : projects.length - shown.length
+  const local = new Set(projects.flatMap((p) => (p.github ? [p.github] : [])))
   const remote = (github?.repos ?? []).filter((r) => !local.has(r.repo) && (!needle || r.repo.toLowerCase().includes(needle)))
   const validNewName = PROJECT_NAME_RE.test(newName.trim())
 
@@ -50,9 +54,24 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
       onError(failure instanceof Error ? failure.message : String(failure))
     }
   }
+  const browseFolders = async () => {
+    setPickingFolder(true)
+    onError('')
+    try {
+      const project = await pickProjectFolder()
+      if (project) {
+        onPickFolder(project)
+        setQuery('')
+      }
+    } catch (failure: unknown) {
+      onError(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      setPickingFolder(false)
+    }
+  }
   const create = async () => {
     const clean = newName.trim()
-    if (!PROJECT_NAME_RE.test(clean) || creating) return
+    if (!PROJECT_NAME_RE.test(clean) || creating || pickingFolder) return
     setCreating(true)
     onError('')
     try {
@@ -72,19 +91,24 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
     <Frame
       actions={
         <>
-          <button className="bv-btn link" onClick={onBack}>
+          <button className="bv-btn link" disabled={pickingFolder} onClick={onBack}>
             {o.back}
           </button>
           <span className="bv-mono">{`${selected.length}/${MAX_PICK} ${o.checked}`}</span>
-          <button className="bv-btn vidro bv-principal" onClick={onSkip}>
+          <button className="bv-btn vidro bv-principal" disabled={pickingFolder} onClick={onSkip}>
             {o.noBotsYet}
           </button>
-          <button className="bv-btn cheio" disabled={selected.length === 0} onClick={onNext}>
+          <button className="bv-btn cheio" disabled={selected.length === 0 || pickingFolder} onClick={onNext}>
             {o.continue}
           </button>
         </>
       }
     >
+      {!IS_REMOTE && (
+        <button type="button" className="bv-btn vidro" disabled={pickingFolder || creating || selected.length >= MAX_PICK} onClick={() => void browseFolders()}>
+          {pickingFolder ? t.choosingProjectFolder : t.chooseProjectFolder}
+        </button>
+      )}
       {setup.projects.length === 0 && (
         <form
           className="bv-novo-projeto"
@@ -106,13 +130,13 @@ export function StepProjects({ setup, github, selected, onSelect, onSetup, onErr
               aria-label={o.newProjectTitle}
               onChange={(event) => setNewName(event.target.value.replace(/[^A-Za-z0-9_-]/g, ''))}
             />
-            <button type="submit" className="bv-btn cheio" disabled={!validNewName || creating}>
+            <button type="submit" className="bv-btn cheio" disabled={!validNewName || creating || pickingFolder}>
               {creating ? o.newProjectCreating : o.newProjectCreate}
             </button>
           </div>
         </form>
       )}
-      {(setup.projects.length > 0 || remote.length > 0) && (
+      {(projects.length > 0 || remote.length > 0) && (
         <input className="bv-busca" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={o.search} aria-label={o.search} />
       )}
       {shown.length > 0 && (

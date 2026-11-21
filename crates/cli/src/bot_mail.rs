@@ -83,7 +83,7 @@ pub fn send(state_dir: &Path, id: &str, answer_ms: i64, project: &str) -> Result
         .find(|m| m.ms == answer_ms && m.author == "bot" && m.kind == "answer")
         .and_then(|m| m.data.pointer("/reply/to")?.as_array()?.iter().find(|n| n["project"] == project).cloned())
         .context("no such suggestion in that answer")?;
-    let to = bots::list(state_dir).into_iter().find(|b| b.name == project && b.dir != from.dir).context("that project has no bot")?;
+    let to = bots::project_list(state_dir).into_iter().find(|b| b.name == project && b.dir != from.dir).context("that project has no bot")?;
     if !crate::links::are_linked(state_dir, &from.name, project) {
         bail!("{} and {project} are not linked; link them in Settings › Links first", from.name);
     }
@@ -127,8 +127,8 @@ pub fn handle(state_dir: &Path, jobs: &Jobs, id: &str, message_id: &str) -> Resu
     if !is_message_id(message_id) {
         bail!("invalid message id");
     }
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
+    if jobs.is_thread_busy(id, crate::threads::MAIN) {
+        bail!("the main conversation is still answering; wait for it to finish");
     }
     let bot = bot(state_dir, id)?;
     let popped = ai_memory(&bot.dir, &["message", "pop", "--id", message_id, "--json"], None)?;

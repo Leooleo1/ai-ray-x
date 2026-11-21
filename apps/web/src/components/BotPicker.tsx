@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useState } from 'react'
-import type { Bot } from '../api'
+import { type Bot, busyIn, isEditing, projectBots } from '../api'
 import { AGENT_SHORT, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
@@ -73,7 +73,7 @@ const MAX_PULSE_FACES = 4
 export function BotPicker({ bots, onOpen, onAskMany, onChannel }: BotPickerProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const closeModal = useCallback(() => setModalOpen(false), [])
-  const cards = activeCards(bots.state.bots)
+  const cards = activeCards(projectBots(bots.state.bots))
   const empty = cards.length === 0
 
   return (
@@ -229,11 +229,11 @@ function QuickReply({ bot, waiting, bots }: { bot: Bot; waiting: Waiting; bots: 
         >
           <input value={text} placeholder={t.quickReplyPlaceholder} aria-label={t.quickReplyPlaceholder} disabled={sending} onChange={(event) => setText(event.target.value)} />
           {waiting.kind === 'proposal' && !text.trim() ? (
-            <button type="button" className="cheio" disabled={sending || bot.busy} onClick={() => void send('approve')}>
+            <button type="button" className="cheio" disabled={sending || Boolean(busyIn(bot, waiting.thread)) || isEditing(bot)} onClick={() => void send('approve')}>
               {t.requestApprove}
             </button>
           ) : (
-            <button type="submit" className="cheio" disabled={sending || bot.busy || !text.trim()}>
+            <button type="submit" className="cheio" disabled={sending || Boolean(busyIn(bot, waiting.thread)) || !text.trim()}>
               {t.send}
             </button>
           )}

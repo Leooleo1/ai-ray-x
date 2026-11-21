@@ -143,13 +143,22 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
-        // The other AIs a bot can switch to: each CLI is asked for its models, never on the main loop.
+        (Method::Post, "/api/setup/pick_folder") if !remote => {
+            let (state_dir, home) = (panel.state_dir.clone(), panel.roots.home.clone());
+            Answer::Later(Box::new(move || respond(setup::pick_folder(&state_dir, &home).map(|project| json!({ "project": project })))))
+        }
+        // All installed CLIs with their models, for starting a free conversation (never on the main loop).
+        (Method::Get, "/api/free/agents") if !remote => {
+            let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
+            Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others("", &|_| true, codex)))))
+        }
+        // The other AIs a bot can switch to: every one installed here (turned on in Settings or not), each
+        // CLI asked for its models, never on the main loop.
         (Method::Post, "/api/bot/other_agents") if !remote => match body(request) {
             Ok(input) => match crate::bots::find(&panel.state_dir, input.get("id").and_then(Value::as_str).unwrap_or("")) {
                 Ok(bot) => {
-                    let settings = crate::settings::Settings::load(&panel.state_dir);
                     let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
-                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|id| settings.is_enabled(id), codex)))))
+                    Answer::Later(Box::new(move || respond(Ok(crate::agent_switch::others(&bot.agent, &|_| true, codex)))))
                 }
                 Err(error) => Answer::Now(respond(Err(error))),
             },
@@ -324,7 +333,7 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
         (Method::Get, "/api/bots") => respond(bots::state(&panel.store, &panel.roots.home, &panel.state_dir, &panel.jobs).map(|state| seen_by(panel, remote, state))),
         (Method::Post, p) if p.starts_with("/api/bot/") => {
             let action = p["/api/bot/".len()..].to_string();
-            let limit = if action == "ask" { MAX_ASK_BODY } else { MAX_BODY };
+            let limit = if matches!(action.as_str(), "ask" | "free_ask") { MAX_ASK_BODY } else { MAX_BODY };
             match body_limit(request, limit) {
                 // A paired device reaches only the bots (and channels) that are not kept on this computer.
                 Ok(input) if remote => respond(crate::grants::device_may(&panel.state_dir, &input).and_then(|()| bot_action(panel, &action, &input)).map(|state| seen_by(panel, remote, state))),
@@ -365,9 +374,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
     let (state_dir, jobs) = (&panel.state_dir, &panel.jobs);
     let thread = input.get("thread").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or(crate::threads::MAIN);
     match action {
-        "activate" => {
+        "activate" | "activate_folder" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
-            let bot = bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
+            let activate = if action == "activate_folder" { bots::activate_folder } else { bots::activate };
+            let bot = activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
             // A new bot finds the team's notes waiting, and the others learn it joined.
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())
@@ -387,6 +397,31 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             crate::team::refresh(state_dir, dir.into_iter().collect());
             Ok(())
         }
+        "free_ask" => {
+            let images = match input.get("images") {
+                None | Some(Value::Null) => Vec::new(),
+                Some(Value::Array(items)) => items
+                    .iter()
+                    .map(|item| item.as_str().map(str::to_string).ok_or_else(|| anyhow!("images must be base64 strings")))
+                    .collect::<Result<Vec<_>>>()?,
+                Some(_) => return Err(anyhow!("images must be an array")),
+            };
+            let model = input.get("model").and_then(Value::as_str);
+            let (bot, created) = bots::start_free_chat(state_dir, jobs, field("agent"), model, field("text"), &images)?;
+            progress::record(state_dir, &[Milestone::Chat]);
+            let mut state = bots::state(&panel.store, &panel.roots.home, state_dir, jobs)?;
+            if let Some(obj) = state.as_object_mut() {
+                obj.insert("opened".into(), json!({ "bot": bot.id, "thread": created.id }));
+            }
+            return Ok(state);
+        }
+        "thread_model" => bots::set_thread_model(
+            state_dir,
+            field("id"),
+            thread,
+            input.get("model").and_then(Value::as_str),
+            input.get("effort").and_then(Value::as_str),
+        ),
         "ask" => {
             let images = match input.get("images") {
                 None | Some(Value::Null) => Vec::new(),
@@ -480,6 +515,9 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
         "routine_delete" => crate::routines::delete(state_dir, field("routine")),
         "thread_new" => bots::new_thread(state_dir, field("id"), bots::DEFAULT_THREAD_TITLE).map(|_| ()),
         "thread_delete" => {
+            if jobs.is_thread_busy(field("id"), thread) {
+                anyhow::bail!("this conversation is still answering");
+            }
             crate::live::end(&format!("{}:{thread}", field("id")));
             crate::threads::delete(state_dir, field("id"), thread)
         }
@@ -488,8 +526,8 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             let data = crate::room::answer(&panel.store, &panel.roots, state_dir, &dir, field("agent"))?;
             bots::house(state_dir, field("id"), thread, field("agent"), data)
         }
-        "stop" => jobs.stop(field("id")),
-        "correct" => jobs.correct(field("id"), field("text")),
+        "stop" => jobs.stop(field("id"), input.get("thread").and_then(Value::as_str)),
+        "correct" => jobs.correct(field("id"), input.get("thread").and_then(Value::as_str), field("text")),
         "continue" => bots::continue_turn(state_dir, jobs, field("id"), thread),
         "retry" => bots::retry_turn(state_dir, jobs, field("id"), thread),
         "configure" => {
@@ -724,7 +762,7 @@ fn report(panel: &mut Panel) -> anyhow::Result<Value> {
         object.insert("changes".into(), json!(apply::ledger(&panel.state_dir.join("changes.json"))?));
         // Before/after for changes in the panel's project and in every bot's project.
         let dirs: std::collections::BTreeSet<std::path::PathBuf> =
-            std::iter::once(panel.project_dir.clone()).chain(bots::list(&panel.state_dir).into_iter().map(|bot| bot.dir)).collect();
+            std::iter::once(panel.project_dir.clone()).chain(bots::project_list(&panel.state_dir).into_iter().map(|bot| bot.dir)).collect();
         let mut measured = Vec::new();
         for dir in &dirs {
             measured.extend(crate::room::outcomes(&panel.store, &panel.roots, &panel.state_dir, dir)?.into_iter().map(|(_, outcome)| outcome));

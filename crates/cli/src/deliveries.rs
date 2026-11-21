@@ -140,7 +140,7 @@ fn of_conversation(bot: &str, thread: &str, title: &str, messages: &[Message]) -
 /// Every delivery, newest first.
 pub fn list(state_dir: &Path) -> Vec<Delivery> {
     let mut all: Vec<Delivery> = Vec::new();
-    for bot in bots::list(state_dir) {
+    for bot in bots::project_list(state_dir) {
         let main = room::read_messages(&threads::chat_file(state_dir, &bot.id, threads::MAIN));
         all.extend(of_conversation(&bot.id, threads::MAIN, "", &main));
         for thread in threads::list(state_dir, &bot.id) {

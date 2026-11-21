@@ -22,6 +22,8 @@ pub struct Thread {
     pub title: String,
     #[serde(default)]
     pub session: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     pub created_ms: i64,
 }
 
@@ -60,9 +62,13 @@ fn save(state_dir: &Path, bot: &str, threads: &[Thread]) -> Result<()> {
 }
 
 pub fn create(state_dir: &Path, bot: &str, title: &str) -> Result<Thread> {
+    create_with_limit(state_dir, bot, title, MAX_THREADS)
+}
+
+pub fn create_with_limit(state_dir: &Path, bot: &str, title: &str, max_threads: usize) -> Result<Thread> {
     let threads = list(state_dir, bot);
-    if threads.len() >= MAX_THREADS {
-        bail!("a bot keeps at most {MAX_THREADS} extra conversations; close one first");
+    if threads.len() >= max_threads {
+        bail!("a bot keeps at most {max_threads} extra conversations; close one first");
     }
     let now = room::now_ms();
     // The id comes from the time; two made in the same millisecond take the next free one.
@@ -70,7 +76,7 @@ pub fn create(state_dir: &Path, bot: &str, title: &str) -> Result<Thread> {
     while threads.iter().any(|t| t.id == format!("t{stamp:x}")) {
         stamp += 1;
     }
-    let thread = Thread { id: format!("t{stamp:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, created_ms: now };
+    let thread = Thread { id: format!("t{stamp:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, model: None, created_ms: now };
     save(state_dir, bot, &threads.into_iter().chain([thread.clone()]).collect::<Vec<_>>())?;
     Ok(thread)
 }
@@ -96,6 +102,27 @@ pub fn session(state_dir: &Path, bot: &str, thread: &str) -> Result<Option<Strin
 pub fn set_session(state_dir: &Path, bot: &str, thread: &str, session: Option<String>) -> Result<()> {
     let threads = list(state_dir, bot).into_iter().map(|t| if t.id == thread { Thread { session: session.clone(), ..t } } else { t }).collect::<Vec<_>>();
     save(state_dir, bot, &threads)
+}
+
+/// Optional per-conversation model override (used by free conversations).
+pub fn model(state_dir: &Path, bot: &str, thread: &str) -> Option<String> {
+    if thread == MAIN {
+        return None;
+    }
+    list(state_dir, bot).into_iter().find(|t| t.id == thread).and_then(|t| t.model)
+}
+
+/// Sets or clears a conversation's own model override.
+pub fn set_model(state_dir: &Path, bot: &str, thread: &str, model: Option<String>) -> Result<()> {
+    if thread == MAIN || !valid(thread) {
+        bail!("invalid conversation");
+    }
+    let threads = list(state_dir, bot);
+    if !threads.iter().any(|t| t.id == thread) {
+        bail!("no such conversation");
+    }
+    let updated: Vec<Thread> = threads.into_iter().map(|t| if t.id == thread { Thread { model: model.clone(), ..t } } else { t }).collect();
+    save(state_dir, bot, &updated)
 }
 
 /// A new conversation is named by its first question.

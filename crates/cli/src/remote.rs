@@ -21,7 +21,7 @@ fn desk_only(method: &Method, path: &str) -> bool {
         || path == "/api/app/update"
         || path == "/api/app/check"
         || (*method != Method::Get && (path.starts_with("/api/setup") || path == "/api/settings"))
-        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/auditor", "/api/bot/request_approve", "/api/bot/request_discard", "/api/bot/rsi_create", "/api/bot/create_project"].contains(&path)
+        || ["/api/bot/preview_start", "/api/bot/allow", "/api/bot/grants", "/api/bot/auditor", "/api/bot/request_approve", "/api/bot/request_discard", "/api/bot/rsi_create", "/api/bot/create_project", "/api/bot/activate_folder"].contains(&path)
 }
 
 fn bearer(request: &Request) -> Option<&str> {
@@ -125,6 +125,7 @@ mod tests {
         assert!(desk_only(&Method::Post, "/api/remote/pair") && desk_only(&Method::Get, "/api/remote"));
         assert!(desk_only(&Method::Post, "/api/settings") && desk_only(&Method::Post, "/api/setup/clone") && desk_only(&Method::Post, "/api/setup/install") && desk_only(&Method::Post, "/api/setup/create_project") && desk_only(&Method::Post, "/api/setup/test") && desk_only(&Method::Post, "/api/setup/sign_in"));
         assert!(desk_only(&Method::Post, "/api/bot/preview_start") && desk_only(&Method::Post, "/api/bot/allow") && desk_only(&Method::Post, "/api/bot/auditor") && desk_only(&Method::Post, "/api/bot/rsi_create") && desk_only(&Method::Post, "/api/bot/create_project"));
+        assert!(desk_only(&Method::Post, "/api/setup/pick_folder") && desk_only(&Method::Post, "/api/bot/activate_folder"));
         assert!(!desk_only(&Method::Get, "/api/settings") && !desk_only(&Method::Post, "/api/bot/approve") && !desk_only(&Method::Get, "/api/bots"));
     }
 }

@@ -56,13 +56,9 @@ pub fn ask_many(state_dir: &Path, jobs: &Jobs, ids: &[String], text: &str) -> Re
     if ids.is_empty() || ids.len() > MAX_BOTS {
         bail!("pick 1 to {MAX_BOTS} bots");
     }
-    let known: Vec<String> = bots::list(state_dir).into_iter().map(|b| b.id).collect();
+    let known: Vec<String> = bots::project_list(state_dir).into_iter().map(|b| b.id).collect();
     let (mut items, mut skipped) = (Vec::new(), Vec::new());
     for id in ids.iter().filter(|id| known.contains(id)) {
-        if jobs.is_busy(id) {
-            skipped.push(id.clone());
-            continue;
-        }
         let asked = threads::create(state_dir, id, text).and_then(|thread| bots::ask(state_dir, jobs, id, &thread.id, text, &[]).map(|()| thread.id));
         match asked {
             Ok(thread) => items.push(Item { bot: id.clone(), thread }),

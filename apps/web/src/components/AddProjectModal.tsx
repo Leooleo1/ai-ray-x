@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { IS_REMOTE, type Bot, type BotAgent, type BotsState, type CliInstall, fetchInstalls, installCli } from '../api'
+import { IS_REMOTE, type Bot, type BotAgent, type BotsState, type CliInstall, type PickedProject, fetchInstalls, installCli, pickProjectFolder } from '../api'
 import { AGENT_LABEL, AGENT_SHORT } from '../avatars'
 import type { Bots } from '../bots'
 import { locale, t } from '../i18n'
@@ -66,6 +66,11 @@ export function AddProjectModal({ bots, onOpen, onClose }: AddProjectModalProps)
   const searchRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [choosing, setChoosing] = useState<string | null>(null)
+  const [localFolder, setLocalFolder] = useState<PickedProject | null>(null)
+  const [folderAgent, setFolderAgent] = useState<BotAgent | null>(null)
+  const [pickingFolder, setPickingFolder] = useState(false)
+  const [openingFolder, setOpeningFolder] = useState(false)
+  const [folderError, setFolderError] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
   const [newAgent, setNewAgent] = useState<BotAgent | null>(null)
   const [newCreating, setNewCreating] = useState(false)
@@ -77,6 +82,7 @@ export function AddProjectModal({ bots, onOpen, onClose }: AddProjectModalProps)
   const [pythonError, setPythonError] = useState<string | null>(null)
 
   const agents = bots.state.agents.map((a) => a.id)
+  const chosenFolderAgent = folderAgent && agents.includes(folderAgent) ? folderAgent : agents[0] ?? null
   const chosenNewAgent = newAgent && agents.includes(newAgent) ? newAgent : agents[0] ?? null
   const chosenRsiAgent = rsiAgent && agents.includes(rsiAgent) ? rsiAgent : agents[0] ?? null
   const hasPython = Boolean(bots.state.rsi_python)
@@ -163,6 +169,34 @@ export function AddProjectModal({ bots, onOpen, onClose }: AddProjectModalProps)
     }
   }
 
+  const browseFolders = async () => {
+    setFolderError(null)
+    setPickingFolder(true)
+    try {
+      const folder = await pickProjectFolder()
+      if (folder) setLocalFolder(folder)
+    } catch (failure: unknown) {
+      setFolderError(failure instanceof Error ? failure.message : String(failure))
+    } finally {
+      setPickingFolder(false)
+    }
+  }
+
+  const openLocalFolder = async () => {
+    if (!localFolder || !chosenFolderAgent || openingFolder) return
+    setOpeningFolder(true)
+    try {
+      const next = await bots.act('activate_folder', { project: localFolder.dir, agent: chosenFolderAgent })
+      const bot = next?.bots.find((b) => b.agent === chosenFolderAgent && b.dir === localFolder.dir)
+      if (bot) {
+        onClose()
+        onOpen(bot.id)
+      }
+    } finally {
+      setOpeningFolder(false)
+    }
+  }
+
   const createNewProject = async () => {
     const clean = newName.trim()
     if (!chosenNewAgent || !PROJECT_NAME_RE.test(clean) || newCreating) return
@@ -243,6 +277,43 @@ export function AddProjectModal({ bots, onOpen, onClose }: AddProjectModalProps)
         <div className="add-proj-corpo">
           {agents.length === 0 && <p className="nota">{t.noAgentsOn}</p>}
           {bots.error && <p className="nota failed">{bots.error}</p>}
+
+          {!IS_REMOTE && (
+            <section className="add-proj-secao">
+              <button type="button" className="projeto-acao" disabled={pickingFolder || openingFolder} onClick={() => void browseFolders()}>
+                {pickingFolder ? t.choosingProjectFolder : t.chooseProjectFolder}
+              </button>
+              {folderError && <p className="nota failed" role="alert">{folderError}</p>}
+              {localFolder && (
+                <div className="add-proj-novo">
+                  <div className="add-proj-modelo-topo">
+                    <span className="add-proj-nome" title={localFolder.dir}><b>{localFolder.name}</b></span>
+                    <button type="button" className="projeto-acao cheio" disabled={!chosenFolderAgent || pickingFolder || openingFolder} onClick={() => void openLocalFolder()}>
+                      {t.addAction}
+                    </button>
+                  </div>
+                  {agents.length > 1 && (
+                    <span className="projeto-ias" role="radiogroup" aria-label={t.pickAi}>
+                      {agents.map((agent) => (
+                        <button
+                          key={agent}
+                          type="button"
+                          role="radio"
+                          aria-checked={chosenFolderAgent === agent}
+                          className={`add-proj-pill ${chosenFolderAgent === agent ? 'ativo' : ''}`}
+                          disabled={openingFolder}
+                          onClick={() => setFolderAgent(agent)}
+                        >
+                          <AgentLogo agent={agent} size={13} />
+                          <span>{AGENT_SHORT[agent]}</span>
+                        </button>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="add-proj-secao">
             <h3 className="add-proj-titulo">{t.suggestedProjects}</h3>

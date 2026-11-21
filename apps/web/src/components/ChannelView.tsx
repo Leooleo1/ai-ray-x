@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { Bot, Channel, ChannelItem } from '../api'
+import { type Bot, type Channel, type ChannelItem, busyIn, projectBots } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import type { Bots } from '../bots'
 import { compact, t } from '../i18n'
@@ -30,8 +30,10 @@ export function ChannelView({ channel, bots, nav, onDeleted }: ChannelViewProps)
   const members = channel.members.map((m) => ({ ...m, bot: bots.state.bots.find((b) => b.id === m.bot) })).filter((m): m is typeof m & { bot: Bot } => m.bot !== undefined)
   const handleOf = (id: string) => channel.members.find((m) => m.bot === id)?.handle ?? id
   const lead = members[0]
-  const working = members.filter((m) => m.bot.busy && m.bot.busy_thread === channel.threads[m.bot.id])
-  const growing = working.reduce((sum, m) => sum + 1 + (m.bot.trail?.items.length ?? 0), 0)
+  const working = members
+    .map((m) => ({ ...m, job: busyIn(m.bot, channel.threads[m.bot.id] ?? '') }))
+    .filter((m): m is typeof m & { job: NonNullable<typeof m.job> } => Boolean(m.job))
+  const growing = working.reduce((sum, m) => sum + 1 + (m.job.trail?.items.length ?? 0), 0)
   const { unseen, jump } = useFollowBottom(list, channel.messages.length + growing, channel.id)
   const passed = (answer: number, index: number) => channel.messages.some((item) => item.message.kind === 'pass' && item.message.data.answer_ms === answer && item.message.data.index === index)
   const post = async (text: string) => (await bots.act('channel_post', { channel: channel.id, text })) !== null
@@ -69,10 +71,10 @@ export function ChannelView({ channel, bots, nav, onDeleted }: ChannelViewProps)
                 <div className="corpo">
                   <span className="canal-quem">
                     <b style={{ color: faceForBot(m.bot).color }}>{`@${m.handle}`}</b>
-                    <small>{m.bot.step ? `${t.stepWords[m.bot.step.kind]} ${m.bot.step.target}` : t.botReading}</small>
+                    <small>{m.job.step ? `${t.stepWords[m.job.step.kind]} ${m.job.step.target}` : t.botReading}</small>
                   </span>
-                  {m.bot.trail && m.bot.trail.items.length > 0 && <TrailView trail={{ ...m.bot.trail, items: m.bot.trail.items.slice(-LIVE_STEPS), dropped: 0 }} live />}
-                  {m.bot.trail?.partial && <p className="formando">{m.bot.trail.partial}</p>}
+                  {m.job.trail && m.job.trail.items.length > 0 && <TrailView trail={{ ...m.job.trail, items: m.job.trail.items.slice(-LIVE_STEPS), dropped: 0 }} live />}
+                  {m.job.trail?.partial && <p className="formando">{m.job.trail.partial}</p>}
                 </div>
               </div>
             ))}
@@ -166,7 +168,7 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
             <Markdown text={reply.question} />
             <span className="acao">
               <button type="button" className="vidro-btn" onClick={() => nav.openMessage(bot.id, thread, message.ms)}>{t.deskOpen}</button>
-              <button type="button" className="link" disabled={bot.busy} onClick={() => cancel('question')}>{t.cancel}</button>
+              <button type="button" className="link" disabled={Boolean(busyIn(bot, thread))} onClick={() => cancel('question')}>{t.cancel}</button>
             </span>
           </div>
         )}
@@ -178,7 +180,7 @@ function Line({ item, bots, nav, handleOf, passed, channel }: LineProps) {
               <button type="button" className="vidro-btn" onClick={() => nav.openMessage(bot.id, thread, message.ms)}>
                 {t.channelOpenToApprove}
               </button>
-              {proposal && <button type="button" className="link" disabled={bot.busy} onClick={() => cancel('proposal')}>{t.cancel}</button>}
+              {proposal && <button type="button" className="link" disabled={Boolean(busyIn(bot, thread))} onClick={() => cancel('proposal')}>{t.cancel}</button>}
             </span>
           </div>
         )}
@@ -234,11 +236,11 @@ export function ChannelNew({ bots, onCreated }: { bots: Bots; onCreated: (id: st
           <input value={name} maxLength={40} placeholder={t.channelNameHint} onChange={(event) => setName(event.target.value)} />
         </label>
         <span className="ajustes-grupo">{t.channelMembers}</span>
-        {bots.state.bots.length === 0 ? (
+        {projectBots(bots.state.bots).length === 0 ? (
           <p className="nota">{t.channelNoBots}</p>
         ) : (
           <ul className="canal-escolha">
-            {bots.state.bots.map((bot) => {
+            {projectBots(bots.state.bots).map((bot) => {
               const order = chosen.indexOf(bot.id)
               return (
                 <li key={bot.id}>

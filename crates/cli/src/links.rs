@@ -36,7 +36,7 @@ pub fn linked(state_dir: &Path, project: &str) -> Vec<String> {
 
 /// Wires two projects, or unwires them when they already are.
 pub fn toggle(state_dir: &Path, a: &str, b: &str) -> Result<()> {
-    let projects: Vec<String> = bots::list(state_dir).into_iter().map(|bot| bot.name).collect();
+    let projects: Vec<String> = bots::project_list(state_dir).into_iter().map(|bot| bot.name).collect();
     if a == b || !projects.iter().any(|p| p == a) || !projects.iter().any(|p| p == b) {
         bail!("wire two different projects that have bots");
     }

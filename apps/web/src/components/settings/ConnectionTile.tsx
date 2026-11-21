@@ -155,7 +155,7 @@ export function GitHubTile({ github, onCheck }: GitHubTileProps) {
           <small>gh</small>
         </span>
         <button type="button" className="cfg-btn vidro pequeno" disabled={github === null} onClick={onCheck}>
-          {t.checkAgain}
+          {github === null ? t.githubChecking : t.checkAgain}
         </button>
       </header>
       <p className={`cfg-estado ${ok ? 'ok' : github ? 'alerta' : ''}`}>

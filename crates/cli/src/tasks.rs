@@ -241,8 +241,11 @@ fn spent(messages: &[room::Message], since: i64) -> u64 {
 /// From the scheduler: tasks whose turn ended move on, and with "pick up" on, idle bots start their next one.
 pub fn tick(state_dir: &Path, jobs: &Jobs) {
     let board = load(state_dir);
-    for task in board.tasks.iter().filter(|t| t.status == Status::Doing && !jobs.is_busy(&t.bot)) {
+    for task in board.tasks.iter().filter(|t| t.status == Status::Doing) {
         let Ok(thread) = task_thread(state_dir, &task.bot) else { continue };
+        if jobs.is_thread_busy(&task.bot, &thread) {
+            continue;
+        }
         let messages = room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread));
         let since = task.started_ms.unwrap_or(0);
         let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted"));

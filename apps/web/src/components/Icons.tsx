@@ -15,6 +15,7 @@ export type IconName =
   | 'wiki'
   | 'ask-many'
   | 'plus'
+  | 'new-chat'
   | 'sliders'
   | 'close'
   | 'check'
@@ -48,6 +49,7 @@ const STROKES: Record<IconName, string[]> = {
   wiki: ['M5 4.5h9.5A2.5 2.5 0 0 1 17 7v12.5H7.5A2.5 2.5 0 0 1 5 17z', 'M5 17a2.5 2.5 0 0 1 2.5-2.5H17', 'M9 8h5', 'M9 11h3'],
   'ask-many': ['M4 12h5', 'M9 12l4-6 7-2', 'M9 12h11', 'M9 12l4 6 7 2'],
   plus: ['M12 5v14', 'M5 12h14'],
+  'new-chat': ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
   sliders: ['M4 7h9M17 7h3', 'M4 17h3M11 17h9', 'M15 5v4', 'M9 15v4'],
   close: ['M6 6l12 12', 'M6 18 18 6'],
   check: ['m5 12 4 4L19 6'],

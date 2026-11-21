@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Bot, BotMessage, Place, Trail } from '../../api'
+import { type Bot, type BotMessage, type Place, type Trail, busyIn } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
 import { Markdown } from '../Markdown'
@@ -59,6 +59,10 @@ interface BotLineProps {
   onDraft?: (action: 'apply' | 'discard' | 'undo') => void
   /** The conversation, for a full-access turn's diff; whether that turn was undone, and how to undo it. */
   thread?: string
+  /** Whether this conversation currently has a running turn. */
+  busy?: boolean
+  /** Whether a draft edit cannot start right now (this conversation busy or another draft edit running). */
+  editBusy?: boolean
   turnUndone?: boolean
   onTurnUndo?: () => void
   /** The latest answer can still be waiting for a decision. */
@@ -84,7 +88,7 @@ interface BotLineProps {
   onRetry?: () => void
 }
 
-export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, turnUndone = false, onTurnUndo, onBranch, waiting, cancelled, onCancel, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
+export function BotLine({ bot, message, previous, approvable, onApprove, sent, onSend, onOpenExchange, onOpenPlace, pinned, onPin, draftState, onDraft, thread, busy = false, editBusy = busy, turnUndone = false, onTurnUndo, onBranch, waiting, cancelled, onCancel, onRun, remembered, onRemember, onWiki, partners, reviewState, reviewerName, onReview, resumable = false, onContinue, onRetry }: BotLineProps) {
   const face = faceForBot(bot)
   const mark = separator(previous, message)
   const head = mark && (
@@ -280,7 +284,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                 <button type="button" className={`copiar ${pinned ? 'fixada' : ''}`} aria-pressed={pinned} onClick={onPin}>
                   {pinned ? t.pinned : t.pin}
                 </button>
-                {message.kind === 'answer' && (
+                {message.kind === 'answer' && !bot.free && (
                   <button type="button" className={`copiar ${remembered ? 'fixada' : ''}`} disabled={remembered} onClick={onRemember}>
                     {remembered ? t.remembered : t.remember}
                   </button>
@@ -294,9 +298,9 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               </span>
             </span>
           )}
-          {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={bot.busy} onAct={onDraft} />}
+          {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={busy} onAct={onDraft} />}
           {message.data.changes && thread && onTurnUndo && (
-            <TurnChanges bot={bot.id} thread={thread} ms={message.ms} changes={message.data.changes} undone={turnUndone} busy={bot.busy} onUndo={onTurnUndo} />
+            <TurnChanges bot={bot.id} thread={thread} ms={message.ms} changes={message.data.changes} undone={turnUndone} busy={busy} onUndo={onTurnUndo} />
           )}
           {reply?.trail && <AnswerPath trail={reply.trail} />}
           {reply?.open?.map((place) => (
@@ -335,10 +339,10 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               <Markdown text={reply.proposal} />
               {approvable && (
                 <span className="acao">
-                  <button className="cheio" disabled={bot.busy} onClick={onApprove}>
+                  <button className="cheio" disabled={editBusy} onClick={onApprove}>
                     {t.approveEdit}
                   </button>
-                  <button type="button" className="link" disabled={bot.busy} onClick={() => onCancel('proposal')}>
+                  <button type="button" className="link" disabled={busy} onClick={() => onCancel('proposal')}>
                     {t.cancel}
                   </button>
                   <span className="nota">{t.draftScope}</span>
@@ -347,7 +351,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               {approvable && reviewState === 'none' && partners.length > 0 && (
                 <span className="acao">
                   {partners.map((partner) => (
-                    <button key={partner.id} type="button" className="link" disabled={partner.busy} onClick={() => onReview(partner.id)}>
+                    <button key={partner.id} type="button" className="link" disabled={Boolean(busyIn(partner, 'review'))} onClick={() => onReview(partner.id)}>
                       {t.reviewAsk.replace('{a}', AGENT_LABEL[partner.agent])}
                     </button>
                   ))}
@@ -362,12 +366,12 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               <Markdown text={reply.question} />
               <span className="acao">
                 <span className="nota">{t.waitingReplyHint}</span>
-                <button type="button" className="link" disabled={bot.busy} onClick={() => onCancel('question')}>{t.cancel}</button>
+                <button type="button" className="link" disabled={busy} onClick={() => onCancel('question')}>{t.cancel}</button>
               </span>
             </div>
           ) : <Markdown text={reply.question} />)}
           {reply?.run?.map((request, index) => (
-            <RunRequestCard key={request.command} request={request} live={waiting && !cancelled('command', index)} busy={bot.busy}
+            <RunRequestCard key={request.command} request={request} live={waiting && !cancelled('command', index)} busy={busy}
               onRun={(always) => onRun(index, always)} onCancel={() => onCancel('command', index)} />
           ))}
           {reply?.to?.map((note) => {
@@ -383,7 +387,7 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
                       {t.sentMail}
                     </span>
                   ) : (
-                    <button className="vidro-btn" disabled={bot.busy} onClick={() => onSend(note.project)}>
+                    <button className="vidro-btn" disabled={busy} onClick={() => onSend(note.project)}>
                       {t.sendMail}
                     </button>
                   )}

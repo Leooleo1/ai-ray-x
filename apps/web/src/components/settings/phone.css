@@ -132,3 +132,71 @@
   font: 500 12px/16px var(--sans);
   text-decoration: none;
 }
+
+/* The Phone tab's sections are stacked, not the AI tiles' columns: the title and what it means on the
+   left, its control on the right, and what it holds below, at the width of the text. */
+.cfg-grade.celular {
+  gap: 0;
+}
+
+.celular > .cfg-ia {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-items: start;
+  gap: 14px;
+  padding: 22px 4px;
+  text-align: left;
+}
+
+.celular > .cfg-ia > * {
+  justify-self: start;
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.celular > .cfg-ia > header {
+  width: 100%;
+}
+
+.celular > .cfg-ia > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.celular .cfg-nome {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 620px;
+  min-width: 0;
+}
+
+.celular .cfg-nome b {
+  font: 500 15px/20px var(--sans);
+}
+
+.celular .cfg-nome small,
+.celular .cfg-faz {
+  color: var(--nevoa);
+  font-size: 13px;
+  line-height: 19px;
+  white-space: normal;
+}
+
+.celular .cfg-estado,
+.celular-modo,
+.celular .acao,
+.celular-aparelhos {
+  max-width: 620px;
+}
+
+.celular .acao {
+  align-self: flex-start;
+}
+
+.celular .celular-qr {
+  align-items: flex-start;
+}

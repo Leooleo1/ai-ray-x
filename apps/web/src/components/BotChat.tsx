@@ -1,11 +1,12 @@
 import { OpenTabs } from './chat/OpenTabs'
 import { ContextMeter } from './chat/ContextMeter'
 import { useEffect, useRef, useState } from 'react'
-import { type Bot, type Inbox, type Place, type Report, botInbox, wikiFromAnswer } from '../api'
+import { type Bot, type Inbox, type Place, type Report, botInbox, busyIn, isEditing, wikiFromAnswer } from '../api'
 import { AGENT_LABEL, faceForBot, speakerOf } from '../avatars'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import { type AccessMode, grantsFor, modeOf } from '../modes'
+import { AgentLogo } from './AgentLogo'
 import { Avatar } from './Avatar'
 import { BotSettings } from './BotSettings'
 import { ActivityBar } from './chat/ActivityBar'
@@ -41,6 +42,10 @@ interface BotChatProps {
   bot: Bot
   bots: Bots
   nav: ChatNav
+  /** Specific thread id to show directly (used by free conversations). */
+  initialThread?: string
+  /** Opens the new-free-chat screen from inside an open free conversation. */
+  onNewFree?: () => void
   /** A conversation and message to open at (from search or a group question). */
   focus: { thread: string; ms: number } | null
   /** Opens Settings at one of its tabs. */
@@ -51,8 +56,9 @@ interface BotChatProps {
   onChanged: () => void
 }
 
-/** A conversation with the person's own CLI in one project: read-only talk, edits after approval. */
-export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onChanged }: BotChatProps) {
+/** A conversation with the person's own CLI in one project, or a read-only free conversation. */
+export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSettings, unread, report, onChanged }: BotChatProps) {
+  const isFree = Boolean(bot.free)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const toggleSettings = () => {
@@ -69,7 +75,10 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   }
   // On a phone the project's conversations open as a sheet.
   const [listOpen, setListOpen] = useState(false)
-  const [thread, setThread] = useState(focus?.thread ?? MAIN)
+  const [thread, setThread] = useState(initialThread ?? focus?.thread ?? MAIN)
+  useEffect(() => {
+    if (initialThread) setThread(initialThread)
+  }, [initialThread])
   useEffect(() => {
     if (!focus) return undefined
     setThread(focus.thread)
@@ -84,13 +93,14 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
   // A conversation closed elsewhere falls back to the main one.
   const current = side ? thread : MAIN
   const messages = side ? side.messages : bot.messages
-  // One turn at a time per bot: busy here, or busy in another conversation.
-  const busyHere = bot.busy && (bot.busy_thread ?? MAIN) === current
-  const busyElsewhere = bot.busy && !busyHere
-  // ai-memory mail always lands in the main conversation.
-  const mail = current === MAIN ? (inbox.value?.messages ?? []) : []
+  // Each conversation runs its own turn; only draft edits stay one per bot.
+  const live = busyIn(bot, current)
+  const busyHere = Boolean(live)
+  const editingHere = busyHere || isEditing(bot)
+  // ai-memory mail always lands in the main conversation of project bots.
+  const mail = !isFree && current === MAIN ? (inbox.value?.messages ?? []) : []
   // The live path and the text being written grow while the bot works: the view follows them.
-  const growing = busyHere ? 1 + (bot.trail?.items.length ?? 0) + Math.floor((bot.trail?.partial.length ?? 0) / 60) : 0
+  const growing = busyHere ? 1 + (live?.trail?.items.length ?? 0) + Math.floor((live?.trail?.partial.length ?? 0) / 60) : 0
   const { unseen, jump } = useFollowBottom(list, messages.length + mail.length + growing, `${bot.id}:${current}`)
   // Run on an AI's See the app card: the panel opens and starts the commands at once.
   const [runSignal, setRunSignal] = useState(0)
@@ -184,56 +194,78 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
 
   return (
     <main className="chat">
-      <section className="cartao chat-centro bot-chat">
-        <ProjectList
-          bots={bots}
-          project={bot.name}
-          current={`${bot.id}:${current}`}
-          unread={unread}
-          nav={nav}
-          open={listOpen}
-          onThread={(id, thread) => {
-            setListOpen(false)
-            if (id === bot.id) setThread(thread)
-            else nav.openMessage(id, thread, 0)
-          }}
-          onNew={() => {
-            setListOpen(false)
-            void newThread()
-          }}
-          onClose={(id, thread) => void (id === bot.id ? closeThread(thread) : bots.act('thread_delete', { id, thread }))}
-        />
+      <section className={`cartao chat-centro bot-chat ${isFree ? 'sem-lista' : ''}`}>
+        {!isFree && (
+          <ProjectList
+            bots={bots}
+            project={bot.name}
+            current={`${bot.id}:${current}`}
+            unread={unread}
+            nav={nav}
+            open={listOpen}
+            onThread={(id, thread) => {
+              setListOpen(false)
+              if (id === bot.id) setThread(thread)
+              else nav.openMessage(id, thread, 0)
+            }}
+            onNew={() => {
+              setListOpen(false)
+              void newThread()
+            }}
+            onClose={(id, thread) => void (id === bot.id ? closeThread(thread) : bots.act('thread_delete', { id, thread }))}
+          />
+        )}
         <div className="conversa">
         <header className="chat-topo bot-topo">
-          <button type="button" className="icone-btn so-celular" aria-label={t.conversationsOf.replace('{p}', bot.name)} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 7h14M5 12h14M5 17h9" />
-            </svg>
-          </button>
-          <OpenTabs
-            bots={bots.state.bots}
-            open={{ bot: bot.id, thread: current }}
-            busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && b.busy && (b.busy_thread ?? 'main') === tab.thread)}
-            onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
-            onNew={() => void newThread()}
-          />
-          <ContextMeter bot={bot.id} thread={current} busy={busyHere} onFresh={() => void newThread()} />
-          <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
-          <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
-          <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3.5" y="5" width="17" height="12" rx="2" />
-              <path d="M9 20h6M12 17v3" />
-            </svg>
-          </button>
-          {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
-          <ModelPicker bot={bot} bots={bots} openSignal={modelSignal} />
-          <button type="button" data-abre-ajustes className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={toggleSettings}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="4" y="5" width="16" height="14" rx="2.5" />
-              <path d="M14 5v14" />
-            </svg>
-          </button>
+          {isFree ? (
+            <>
+              <span className="livre-topo-titulo">
+                <AgentLogo agent={bot.agent} size={18} />
+                <b>{side?.title ?? t.freeChatsSection}</b>
+              </span>
+              <ContextMeter bot={bot.id} thread={current} busy={busyHere} onFresh={() => onNewFree?.()} />
+              <ModelPicker bot={bot} bots={bots} thread={current} openSignal={modelSignal} />
+              {onNewFree && (
+                <button type="button" className="icone-btn" title={t.newFreeChat} aria-label={t.newFreeChat} onClick={onNewFree}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button type="button" className="icone-btn so-celular" aria-label={t.conversationsOf.replace('{p}', bot.name)} aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14M5 12h14M5 17h9" />
+                </svg>
+              </button>
+              <OpenTabs
+                bots={bots.state.bots}
+                open={{ bot: bot.id, thread: current }}
+                busy={(tab) => bots.state.bots.some((b) => b.id === tab.bot && Boolean(busyIn(b, tab.thread)))}
+                onOpen={(tab) => (tab.bot === bot.id ? setThread(tab.thread) : nav.openMessage(tab.bot, tab.thread, 0))}
+                onNew={() => void newThread()}
+              />
+              <ContextMeter bot={bot.id} thread={current} busy={busyHere} onFresh={() => void newThread()} />
+              <MemoriesLine bot={bot} openSignal={memorySignal} version={kept.size} />
+              <PinsLine bot={bot} onGo={(pin) => nav.openMessage(bot.id, pin.thread, pin.ms)} />
+              <button type="button" className={`icone-btn ${previewOpen ? 'ativo' : ''}`} title={t.previewOpen} aria-label={t.previewOpen} aria-expanded={previewOpen} onClick={togglePreview}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3.5" y="5" width="17" height="12" rx="2" />
+                  <path d="M9 20h6M12 17v3" />
+                </svg>
+              </button>
+              {messages.length > 0 && <CarryMenu bot={bot} thread={current} bots={bots} nav={nav} />}
+              <ModelPicker bot={bot} bots={bots} thread={current} openSignal={modelSignal} />
+              <button type="button" data-abre-ajustes className={`icone-btn ${settingsOpen ? 'ativo' : ''}`} title={t.settings} aria-label={t.settings} aria-expanded={settingsOpen} onClick={toggleSettings}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="5" width="16" height="14" rx="2.5" />
+                  <path d="M14 5v14" />
+                </svg>
+              </button>
+            </>
+          )}
         </header>
 
         <div className="chat-mensagens" ref={list}>
@@ -263,17 +295,17 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               bot={bot}
               message={message}
               previous={messages[index - 1]}
-              approvable={index === pending}
+              approvable={!isFree && index === pending}
               waiting={index === pendingRun}
               cancelled={(kind, which) => cancelledWaiting(messages, message.ms, kind, which)}
               onCancel={(waiting, which) => void bots.act('cancel_waiting', { id: bot.id, thread: current, answer_ms: message.ms, waiting, index: which })}
-              partners={partners}
+              partners={isFree ? [] : partners}
               reviewState={reviewState(message.ms)}
               reviewerName={reviewerOf(message.ms)}
               onReview={(reviewer) => void bots.act('review', { id: bot.id, thread: current, answer_ms: message.ms, reviewer })}
               remembered={kept.has(message.ms)}
-              onRemember={() => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
-              onWiki={() => wikiFromAnswer(bot.id, current, message.ms).then(() => {
+              onRemember={isFree ? () => undefined : () => void bots.act('remember', { id: bot.id, thread: current, answer_ms: message.ms })}
+              onWiki={isFree ? undefined : () => wikiFromAnswer(bot.id, current, message.ms).then(() => {
                 bots.refresh()
                 return true
               }, () => false)}
@@ -284,33 +316,35 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
               onOpenExchange={nav.openExchange}
               onOpenPlace={openPlace}
               draftState={message.kind === 'draft' ? draftStates.get(message.data.draft ?? '') ?? 'open' : undefined}
-              onDraft={(action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
+              onDraft={isFree ? undefined : (action) => void bots.act('draft', { id: bot.id, thread: current, draft: message.data.draft, action })}
               thread={current}
-              onBranch={() => void branchFrom(message.ms)}
+              busy={busyHere}
+              editBusy={editingHere}
+              onBranch={isFree ? undefined : () => void branchFrom(message.ms)}
               turnUndone={undoneTurns.has(message.ms)}
-              onTurnUndo={() => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
+              onTurnUndo={isFree ? undefined : () => void bots.act('turn_undo', { id: bot.id, thread: current, ms: message.ms })}
               pinned={bot.pins.some((p) => p.thread === current && p.ms === message.ms)}
               onPin={() => void bots.act('pin', { id: bot.id, thread: current, ms: message.ms })}
-              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !bot.busy}
+              resumable={message.kind === 'interrupted' && index === messages.length - 1 && !busyHere}
               onContinue={() => void bots.act('continue', { id: bot.id, thread: current })}
               onRetry={() => void bots.act('retry', { id: bot.id, thread: current })}
             />
             ),
           )}
-          {busyHere && bot.trail && (bot.trail.items.length > 0 || bot.trail.partial) && (
+          {busyHere && live?.trail && (live.trail.items.length > 0 || live.trail.partial) && (
             <div className="linha de-agente ao-vivo" aria-live="polite">
               <div className="corpo">
-                {bot.trail.items.length > 0 && <TrailView trail={bot.trail} live />}
-                {bot.trail.partial && (
+                {live.trail.items.length > 0 && <TrailView trail={live.trail} live />}
+                {live.trail.partial && (
                   <p className="formando">
-                    {bot.trail.partial}
+                    {live.trail.partial}
                     <i aria-hidden="true" />
                   </p>
                 )}
               </div>
             </div>
           )}
-          {mail.length > 0 && !bot.busy && (
+          {mail.length > 0 && !busyHere && (
             <div className="caixa" id={INBOX_ID}>
               {mail.map((item) => (
                 <div key={item.id} className="correio">
@@ -333,9 +367,8 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
             {t.newBelow}
           </button>
         )}
-        {busyElsewhere && <p className="linha-sistema">{t.busyElsewhere}</p>}
-        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} step={bot.step} since={lastAsk?.ms ?? Date.now()} />}
-        {!bot.busy && waiting > 0 && (
+        {busyHere && <ActivityBar face={face} speaker={speaker} doing={lastAsk?.kind === 'approve' ? t.botEditing : t.botReading} step={live?.step ?? null} since={live?.started_ms ?? lastAsk?.ms ?? Date.now()} />}
+        {!busyHere && waiting > 0 && (
           <div className="esperando">
             <i className="ponto alerta" />
             <span>{[pending >= 0 ? t.waitingApproval : '', mail.length > 0 ? t.waitingMail.replace('{n}', String(mail.length)) : ''].filter(Boolean).join(' · ')}</span>
@@ -346,15 +379,15 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
         )}
         <Composer
           draftKey={`${bot.id}:${current}`}
-          placeholder={`${t.composeBot} ${speaker} · ${t.slashHint}`}
-          commands={[...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
+          placeholder={isFree ? t.freeChatPlaceholder : `${t.composeBot} ${speaker} · ${t.slashHint}`}
+          commands={isFree ? [asideCommand] : [...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
           maxLength={bots.state.max_text}
-          busy={bot.busy}
+          busy={busyHere}
           allowImages
           onSend={send}
-          onStop={() => void bots.act('stop', { id: bot.id })}
-          mode={bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
-          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, text })) !== null : undefined}
+          onStop={() => void bots.act('stop', { id: bot.id, thread: current })}
+          mode={!isFree && bot.grants ? { value: modeOf(bot.grants), onPick: pickMode } : undefined}
+          onCorrect={busyHere ? async (text) => (await bots.act('correct', { id: bot.id, thread: current, text })) !== null : undefined}
         />
         {bots.error && !settingsOpen && <p className="nota failed chat-erro">{bots.error}</p>}
         {settingsOpen && (
@@ -379,8 +412,9 @@ export function BotChat({ bot, bots, nav, focus, onSettings, unread, report, onC
 /** The project's ai-memory inbox: asked when the chat opens, when a turn ends, and every so often. */
 function useInbox(bot: Bot) {
   const [value, setValue] = useState<Inbox | null>(null)
+  const mainBusy = Boolean(busyIn(bot, MAIN))
   useEffect(() => {
-    if (bot.busy) return undefined
+    if (bot.free || mainBusy) return undefined
     let alive = true
     const load = () => botInbox(bot.id).then((next) => alive && setValue(next)).catch(() => alive && setValue(null))
     void load()
@@ -389,6 +423,6 @@ function useInbox(bot: Bot) {
       alive = false
       window.clearInterval(timer)
     }
-  }, [bot.id, bot.busy])
+  }, [bot.id, mainBusy])
   return { value, clear: () => setValue(null) }
 }

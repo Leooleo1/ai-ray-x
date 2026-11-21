@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Bot, Task, TaskBoardState, TaskStatus } from '../api'
+import { type Bot, type BusyThread, type Task, type TaskBoardState, type TaskStatus, projectBots } from '../api'
 import type { Bots } from '../bots'
 import { t } from '../i18n'
 import type { ChatNav } from './chat/nav'
@@ -34,10 +34,16 @@ interface Placed {
 
 const byProject = (a: Bot, b: Bot) => a.name.localeCompare(b.name) || a.agent.localeCompare(b.agent)
 
-/** The board's task a busy bot is doing now, when its turn is one. */
-function taskOf(bot: Bot, board: TaskBoardState | null): Placed | undefined {
-  const index = board?.tasks.findIndex((task, i) => task.status === 'doing' && task.bot === bot.id && board.threads[i] === bot.busy_thread) ?? -1
+/** The board's task a busy conversation is doing now, when its turn is one. */
+function taskOf(bot: Bot, thread: string, board: TaskBoardState | null): Placed | undefined {
+  const index = board?.tasks.findIndex((task, i) => task.status === 'doing' && task.bot === bot.id && board.threads[i] === thread) ?? -1
   return board && index >= 0 ? { task: board.tasks[index], index } : undefined
+}
+
+function jobsOf(bot: Bot): BusyThread[] {
+  if (bot.busy_threads) return bot.busy_threads
+  if (!bot.busy) return []
+  return [{ thread: bot.busy_thread ?? 'main', step: bot.step, trail: bot.trail, started_ms: bot.started_ms ?? 0 }]
 }
 
 interface DeskProps {
@@ -55,12 +61,12 @@ export function Desk({ bots, nav }: DeskProps) {
     return saved
   }
   const [allDone, setAllDone] = useState(false)
-  const all = bots.state.bots
+  const all = projectBots(bots.state.bots)
   const botOf = (id: string) => all.find((b) => b.id === id)
   const placed = (status: TaskStatus): Placed[] => (board?.tasks ?? []).map((task, index) => ({ task, index })).filter(({ task }) => task.status === status)
 
   const working = all.filter((b) => b.busy).sort(byProject)
-  const live = working.map((bot) => ({ bot, doing: taskOf(bot, board) }))
+  const live = working.flatMap((bot) => jobsOf(bot).map((job) => ({ bot, job, doing: taskOf(bot, job.thread, board) })))
   const shownLive = new Set(live.flatMap(({ doing }) => (doing ? [doing.task.id] : [])))
   const doing = placed('doing').filter(({ task }) => !shownLive.has(task.id))
   const requests = bots.state.requests ?? []
@@ -89,8 +95,8 @@ export function Desk({ bots, nav }: DeskProps) {
           {placed('todo').map(card)}
         </Lane>
         <Lane status="doing" title={t.boardDoing} tone="cobalto" count={live.length + doing.length} empty={t.deskDoingEmpty} emptyArt="/mascotes/vazio-mesa.webp">
-          {live.map(({ bot, doing: task }) => (
-            <WorkCard key={bot.id} bot={bot} bots={bots} nav={nav} now={now} task={task?.task.title} />
+          {live.map(({ bot, job, doing: task }) => (
+            <WorkCard key={`${bot.id}:${job.thread}`} bot={bot} job={job} bots={bots} nav={nav} now={now} task={task?.task.title} />
           ))}
           {doing.map(card)}
         </Lane>

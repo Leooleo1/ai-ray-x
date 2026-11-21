@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Bot, BotMessage } from '../../api'
+import { type Bot, type BotMessage, busyIn } from '../../api'
 import { AGENT_LABEL, faceForBot, personaName } from '../../avatars'
 import type { Bots } from '../../bots'
 import { exchanges } from '../../exchanges'
@@ -105,7 +105,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                 {rowsOf(bot).map((row) => {
                   const key = `${bot.id}:${row.thread}`
                   const fresh = row.thread === MAIN && unread.has(bot.id)
-                  const busy = bot.busy && (bot.busy_thread ?? MAIN) === row.thread
+                  const busy = Boolean(busyIn(bot, row.thread))
                   const confirming = closing === key
                   return (
                     <li key={key} className="conversa-item">

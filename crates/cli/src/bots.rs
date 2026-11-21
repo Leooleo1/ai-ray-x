@@ -34,6 +34,10 @@ pub const DEFAULT_THREAD_TITLE: &str = "Conversa";
 pub const MAX_TEXT: usize = 4000;
 /// Maximum length of a new project folder name created under `~/Projects/`.
 pub const MAX_PROJECT_NAME: usize = 60;
+/// Extra conversations a free (project-less) bot keeps per AI.
+const MAX_FREE_THREADS: usize = 200;
+/// Subfolder under `state_dir` holding empty working folders for free conversations.
+const FREE_DIR: &str = "conversa-livre";
 const CANDIDATES: usize = 200;
 
 /// Serializes writes to the registry: answers finish on their own threads.
@@ -75,6 +79,9 @@ pub struct Bot {
     /// Built-in Dev/Infra auditor: audits scripts, workflows, routines and skills of this project.
     #[serde(default, skip_serializing_if = "crate::auditor::Config::is_default")]
     pub auditor: crate::auditor::Config,
+    /// True for internal project-less bots backing free conversations (always read-only).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub free: bool,
 }
 
 /// Name, look and instructions the person chose for a bot.
@@ -168,14 +175,25 @@ impl Persona {
     }
 }
 
-/// Bots answering right now, by id: whether the person asked them to stop, and in which conversation.
+/// Snapshot of one running turn on a bot, exposed to the panel per conversation.
+#[derive(Clone, Serialize)]
+pub struct BusyThread {
+    pub thread: String,
+    pub step: Option<crate::bot_steps::Step>,
+    pub trail: Option<crate::bot_trail::Trail>,
+    pub started_ms: i64,
+    pub editing: bool,
+}
+
+/// Active turns by `(bot_id, thread_id)`: each conversation runs on its own, while draft edits
+/// (`Mode::Edit`) remain one at a time per bot because `drafts::prepare` shares one copy per bot.
 #[derive(Clone, Default)]
-pub struct Jobs(Arc<Mutex<HashMap<String, Job>>>);
+pub struct Jobs(Arc<Mutex<HashMap<(String, String), Job>>>);
 
 #[derive(Default)]
 struct Job {
     stop: bool,
-    thread: String,
+    is_edit: bool,
     step: Option<crate::bot_steps::Step>,
     /// The path of the running turn, as the CLI reports it.
     trail: Option<crate::bot_trail::Trail>,
@@ -185,58 +203,80 @@ struct Job {
 }
 
 impl Jobs {
-    /// One turn at a time per bot, whichever conversation it is in.
-    fn start(&self, id: &str, thread: &str) -> bool {
-        self.0.lock().is_ok_and(|mut map| {
-            let std::collections::hash_map::Entry::Vacant(entry) = map.entry(id.to_string()) else {
-                return false;
-            };
-            entry.insert(Job { thread: thread.to_string(), started_ms: room::now_ms(), ..Job::default() });
-            true
-        })
+    /// Reserves `(id, thread)` for a turn of `mode`.
+    /// Parallel `Mode::Talk` turns on different conversations of the same bot are allowed;
+    /// a second `Mode::Edit` on the same bot is refused while one is already running.
+    pub(crate) fn start_mode(&self, id: &str, thread: &str, mode: Mode) -> Result<()> {
+        let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
+        let key = (id.to_string(), thread.to_string());
+        if map.contains_key(&key) {
+            bail!("this conversation is still answering");
+        }
+        if mode == Mode::Edit && map.iter().any(|((bot, _), job)| bot == id && job.is_edit) {
+            bail!("another edit in a draft copy is already running for this project; wait for it to finish");
+        }
+        map.insert(key, Job { is_edit: mode == Mode::Edit, started_ms: room::now_ms(), ..Job::default() });
+        Ok(())
     }
 
-    fn thread_of(&self, id: &str) -> Option<String> {
-        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.thread.clone()))
+    /// Snapshot of every conversation currently running on `id`, oldest first.
+    pub fn busy_threads(&self, id: &str) -> Vec<BusyThread> {
+        let Ok(map) = self.0.lock() else { return Vec::new() };
+        let mut list: Vec<BusyThread> = map
+            .iter()
+            .filter(|((bot, _), _)| bot == id)
+            .map(|((_, thread), job)| BusyThread {
+                thread: thread.clone(),
+                step: job.step.clone(),
+                trail: job.trail.clone(),
+                started_ms: job.started_ms,
+                editing: job.is_edit,
+            })
+            .collect();
+        list.sort_by(|a, b| a.started_ms.cmp(&b.started_ms).then_with(|| a.thread.cmp(&b.thread)));
+        list
     }
 
-    fn step_of(&self, id: &str) -> Option<crate::bot_steps::Step> {
-        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.step.clone()))
-    }
-
-    fn set_step(&self, id: &str, step: crate::bot_steps::Step) {
+    fn set_step(&self, id: &str, thread: &str, step: crate::bot_steps::Step) {
         if let Ok(mut map) = self.0.lock()
-            && let Some(job) = map.get_mut(id)
+            && let Some(job) = map.get_mut(&(id.to_string(), thread.to_string()))
         {
             job.step = Some(step);
         }
     }
 
-    fn set_trail(&self, id: &str, trail: &crate::bot_trail::Trail) {
+    fn set_trail(&self, id: &str, thread: &str, trail: &crate::bot_trail::Trail) {
         if let Ok(mut map) = self.0.lock()
-            && let Some(job) = map.get_mut(id)
+            && let Some(job) = map.get_mut(&(id.to_string(), thread.to_string()))
         {
             job.step = trail.current();
             job.trail = Some(trail.clone());
         }
     }
 
-    fn started_of(&self, id: &str) -> Option<i64> {
-        self.0.lock().ok().and_then(|map| map.get(id).map(|job| job.started_ms))
+    /// Picks the target `(id, thread)` key when a caller passes an optional thread name.
+    fn pick_key(map: &HashMap<(String, String), Job>, id: &str, thread: Option<&str>) -> Option<(String, String)> {
+        if let Some(thread) = thread.filter(|t| !t.is_empty()) {
+            let key = (id.to_string(), thread.to_string());
+            return map.contains_key(&key).then_some(key);
+        }
+        let mut keys: Vec<_> = map.iter().filter(|((bot, _), _)| bot == id).collect();
+        if keys.len() == 1 {
+            return Some(keys[0].0.clone());
+        }
+        keys.sort_by_key(|((_, th), job)| (th != MAIN, job.started_ms));
+        keys.first().map(|(k, _)| (*k).clone())
     }
 
-    fn trail_of(&self, id: &str) -> Option<crate::bot_trail::Trail> {
-        self.0.lock().ok().and_then(|map| map.get(id).and_then(|job| job.trail.clone()))
-    }
-
-    /// Stops the running turn so it goes on with the person's correction.
-    pub fn correct(&self, id: &str, text: &str) -> Result<()> {
+    /// Stops the running turn in `thread` so it goes on with the person's correction.
+    pub fn correct(&self, id: &str, thread: Option<&str>, text: &str) -> Result<()> {
         let text = text.trim();
         if text.is_empty() || text.chars().count() > MAX_TEXT {
             bail!("a correction has 1 to {MAX_TEXT} characters");
         }
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
-        let job = map.get_mut(id).context("the bot is not answering")?;
+        let key = Self::pick_key(&map, id, thread).context("the bot is not answering")?;
+        let job = map.get_mut(&key).context("the bot is not answering")?;
         job.stop = true;
         job.correction = Some(text.to_string());
         Ok(())
@@ -244,9 +284,9 @@ impl Jobs {
 
     /// The correction a stopped turn goes on with, and the CLI session it had reached;
     /// the turn is running again from here.
-    fn take_correction(&self, id: &str) -> Option<(String, Option<String>)> {
+    fn take_correction(&self, id: &str, thread: &str) -> Option<(String, Option<String>)> {
         let mut map = self.0.lock().ok()?;
-        let job = map.get_mut(id)?;
+        let job = map.get_mut(&(id.to_string(), thread.to_string()))?;
         let correction = job.correction.take()?;
         let session = job.trail.take().and_then(|trail| trail.session);
         job.stop = false;
@@ -254,35 +294,46 @@ impl Jobs {
         Some((correction, session))
     }
 
-    fn finish(&self, id: &str) {
+    fn finish(&self, id: &str, thread: &str) {
         if let Ok(mut map) = self.0.lock() {
-            map.remove(id);
+            map.remove(&(id.to_string(), thread.to_string()));
         }
     }
 
-    /// How many bots are working now (the desktop app's menu bar shows it).
+    /// How many turns are running right now across all bots and conversations.
     pub fn busy_count(&self) -> usize {
         self.0.lock().map_or(0, |map| map.len())
     }
 
+    /// True when any conversation of `id` is currently running a turn.
     pub fn is_busy(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.contains_key(id))
+        self.0.lock().is_ok_and(|map| map.keys().any(|(bot, _)| bot == id))
     }
 
-    fn should_stop(&self, id: &str) -> bool {
-        self.0.lock().is_ok_and(|map| map.get(id).is_some_and(|job| job.stop))
+    /// True when the specific `(id, thread)` conversation is currently running a turn.
+    pub fn is_thread_busy(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.contains_key(&(id.to_string(), thread.to_string())))
     }
 
-    /// Marks a running turn to stop; its thread kills the CLI on its next check.
-    pub fn stop(&self, id: &str) -> Result<()> {
+    /// True when another conversation of `id` besides `thread` is currently running.
+    fn has_other_busy(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.keys().any(|(bot, th)| bot == id && th != thread))
+    }
+
+    fn should_stop(&self, id: &str, thread: &str) -> bool {
+        self.0.lock().is_ok_and(|map| map.get(&(id.to_string(), thread.to_string())).is_some_and(|job| job.stop))
+    }
+
+    /// Marks the running turn in `thread` to stop; its worker kills the CLI on its next check.
+    pub fn stop(&self, id: &str, thread: Option<&str>) -> Result<()> {
         let mut map = self.0.lock().map_err(|_| anyhow::anyhow!("jobs lock poisoned"))?;
-        match map.get_mut(id) {
-            Some(job) => {
-                job.stop = true;
-                Ok(())
-            }
-            None => bail!("the bot is not answering"),
+        let Some(key) = Self::pick_key(&map, id, thread) else {
+            bail!("the bot is not answering");
+        };
+        if let Some(job) = map.get_mut(&key) {
+            job.stop = true;
         }
+        Ok(())
     }
 }
 
@@ -297,6 +348,11 @@ pub fn chat_file(state_dir: &Path, id: &str) -> PathBuf {
 
 pub fn list(state_dir: &Path) -> Vec<Bot> {
     fs::read_to_string(registry_file(state_dir)).ok().and_then(|text| serde_json::from_str(&text).ok()).unwrap_or_default()
+}
+
+/// Only project bots, excluding internal free-conversation bots.
+pub fn project_list(state_dir: &Path) -> Vec<Bot> {
+    list(state_dir).into_iter().filter(|b| !b.free).collect()
 }
 
 fn save(state_dir: &Path, bots: &[Bot]) -> Result<()> {
@@ -491,17 +547,42 @@ pub fn create_project(state_dir: &Path, home: &Path, name: &str, agent: &str) ->
 /// Turns a bot on for one project (a folder under the home, never the home itself).
 /// Turning on an existing bot again only replaces its persona.
 pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, persona: Option<Persona>) -> Result<Bot> {
-    if let Some(p) = &persona {
-        p.validate()?;
-    }
-    if !crate::connections::bot_agents().any(|a| a == agent) {
-        bail!("raiox cannot run {agent} as a bot");
-    }
     let home = home.canonicalize()?;
     let dir = home.join(project).canonicalize().with_context(|| format!("no folder {project} in the home folder"))?;
     let hidden = dir.strip_prefix(&home).ok().and_then(|rest| rest.components().next()).is_some_and(|first| first.as_os_str().to_string_lossy().starts_with('.'));
     if !dir.is_dir() || !dir.starts_with(&home) || dir == home || hidden {
         bail!("bots live in project folders under the home folder");
+    }
+    activate_dir(state_dir, dir, project, agent, persona, true)
+}
+
+/// Validates an explicitly chosen folder, including projects outside the home.
+pub(crate) fn picked_project_dir(state_dir: &Path, home: &Path, path: &Path) -> Result<PathBuf> {
+    if !path.is_absolute() {
+        bail!("select an absolute project folder");
+    }
+    let dir = path.canonicalize().context("the selected project folder no longer exists")?;
+    let home = home.canonicalize()?;
+    // A hidden folder in the home (.ssh, .aws, .config…) holds keys and settings, never a project.
+    let hidden = dir.strip_prefix(&home).ok().and_then(|rest| rest.components().next()).is_some_and(|first| first.as_os_str().to_string_lossy().starts_with('.'));
+    if !dir.is_dir() || dir.parent().is_none() || home.starts_with(&dir) || inside_state_dir(&dir, state_dir) || hidden {
+        bail!("select a project folder");
+    }
+    Ok(dir)
+}
+
+/// Opens a bot in the chosen folder, keeping its persona unless one is supplied.
+pub(crate) fn activate_folder(state_dir: &Path, home: &Path, project: &str, agent: &str, persona: Option<Persona>) -> Result<Bot> {
+    let dir = picked_project_dir(state_dir, home, Path::new(project))?;
+    activate_dir(state_dir, dir, project, agent, persona, false)
+}
+
+fn activate_dir(state_dir: &Path, dir: PathBuf, project: &str, agent: &str, persona: Option<Persona>, replace_persona: bool) -> Result<Bot> {
+    if let Some(p) = &persona {
+        p.validate()?;
+    }
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
     }
     let bot = Bot {
         id: bot_id(agent, &dir),
@@ -518,16 +599,100 @@ pub fn activate(state_dir: &Path, home: &Path, project: &str, agent: &str, perso
         reviewer: None,
         grants: crate::grants::Grants::default(),
         auditor: crate::auditor::Config::default(),
+        free: false,
     };
     let added = bot.clone();
     update(state_dir, |bots| {
         Ok(if bots.iter().any(|b| b.id == added.id) {
-            bots.into_iter().map(|b| if b.id == added.id { Bot { persona: added.persona.clone(), ..b } } else { b }).collect()
+            bots.into_iter()
+                .map(|b| if b.id == added.id && (replace_persona || added.persona.is_some()) { Bot { persona: added.persona.clone(), ..b } } else { b })
+                .collect()
         } else {
             bots.into_iter().chain([added]).collect()
         })
     })?;
     Ok(bot)
+}
+
+/// Returns the single internal free-conversation bot for `agent`, creating it once under
+/// `<state_dir>/conversa-livre/<agent>` in strictly read-only mode.
+pub fn ensure_free(state_dir: &Path, agent: &str) -> Result<Bot> {
+    if !crate::connections::bot_agents().any(|a| a == agent) {
+        bail!("raiox cannot run {agent} as a bot");
+    }
+    let dir = state_dir.join(FREE_DIR).join(agent);
+    fs::create_dir_all(&dir)?;
+    let dir = dir.canonicalize().unwrap_or(dir);
+    let mut kept: Option<Bot> = None;
+    update(state_dir, |bots| {
+        if let Some(existing) = bots.iter().find(|b| b.free && b.agent == agent) {
+            kept = Some(existing.clone());
+            return Ok(bots);
+        }
+        let bot = Bot {
+            id: bot_id(agent, &dir),
+            agent: agent.to_string(),
+            name: crate::connections::known(agent).map_or(agent, |k| k.name).to_string(),
+            dir: dir.clone(),
+            session: None,
+            persona: None,
+            model: None,
+            effort: None,
+            created_ms: room::now_ms(),
+            allowed: Vec::new(),
+            talk_model: None,
+            reviewer: None,
+            grants: crate::grants::Grants {
+                web: crate::grants::web_possible(agent),
+                full_access: false,
+                bypass: false,
+                auto_run: false,
+                auto_edit: false,
+                ..crate::grants::Grants::default()
+            },
+            auditor: crate::auditor::Config::default(),
+            free: true,
+        };
+        kept = Some(bot.clone());
+        Ok(bots.into_iter().chain([bot]).collect())
+    })?;
+    kept.context("could not create free bot")
+}
+
+/// Starts a new free conversation on `agent` with an optional per-conversation `model`.
+pub fn start_free_chat(state_dir: &Path, jobs: &Jobs, agent: &str, model: Option<&str>, text: &str, images: &[String]) -> Result<(Bot, threads::Thread)> {
+    let trimmed = text.trim();
+    let validated = crate::uploads::validate_all(images)?;
+    if (trimmed.is_empty() && validated.is_empty()) || trimmed.chars().count() > MAX_TEXT {
+        bail!("a message has 1 to {MAX_TEXT} characters");
+    }
+    let model = check_model(model)?;
+    let bot = ensure_free(state_dir, agent)?;
+    let thread = threads::create_with_limit(state_dir, &bot.id, DEFAULT_THREAD_TITLE, MAX_FREE_THREADS)?;
+    if let Some(m) = model {
+        threads::set_model(state_dir, &bot.id, &thread.id, Some(m))?;
+    }
+    if let Err(error) = ask(state_dir, jobs, &bot.id, &thread.id, text, images) {
+        let _ = threads::delete(state_dir, &bot.id, &thread.id);
+        return Err(error);
+    }
+    let updated = threads::list(state_dir, &bot.id).into_iter().find(|t| t.id == thread.id).unwrap_or(thread);
+    Ok((bot, updated))
+}
+
+/// Updates the model (and optionally effort on the bot) for a specific conversation thread.
+pub fn set_thread_model(state_dir: &Path, id: &str, thread: &str, model: Option<&str>, effort: Option<&str>) -> Result<()> {
+    let bot = find(state_dir, id)?;
+    let model = check_model(model)?;
+    if thread == MAIN {
+        return configure(state_dir, id, model.as_deref(), effort.or(bot.effort.as_deref()), None);
+    }
+    threads::set_model(state_dir, id, thread, model)?;
+    if let Some(effort) = effort {
+        let effort = check_effort(&bot.agent, Some(effort))?;
+        update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { effort: effort.clone(), ..b } } else { b }).collect()))?;
+    }
+    Ok(())
 }
 
 pub fn deactivate(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
@@ -621,8 +786,8 @@ pub fn retry_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Resu
 
 /// Starts the conversation over: the next message opens a fresh session.
 pub fn reset(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str) -> Result<()> {
-    if jobs.is_busy(id) {
-        bail!("the bot is answering; wait for it to finish");
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering; wait for it to finish");
     }
     set_thread_session(state_dir, id, thread, None)?;
     crate::live::end(&format!("{id}:{thread}"));
@@ -815,6 +980,9 @@ pub fn ask_aside(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, text: &s
 /// A task done in a copy of the project of the bot's own: what it changes comes back as a draft
 /// to apply, so it never touches the project, nor what another AI does in it meanwhile.
 pub fn ask_in_copy(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &str, prompt: &str, shown: &str) -> Result<()> {
+    if find(state_dir, id)?.free {
+        bail!("free conversations are read-only");
+    }
     let asked = Some(said("ask", json!({ "text": shown, "copy": true })));
     start(state_dir, jobs, id, thread, Turn { mode: Mode::Edit, text: prompt.to_string(), asked, home: Some(home.to_path_buf()), command: None, images: Vec::new(), keep_session: true, is_audit: false, auditor_agent: None })
 }
@@ -866,8 +1034,8 @@ pub fn cancel_waiting(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, ans
     if card.cancelled(&messages, answer_ms) {
         return Ok(());
     }
-    if jobs.thread_of(id).as_deref() == Some(thread) {
-        bail!("the bot is still answering");
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering");
     }
     let current = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
     if !current.is_some_and(|answer| answer.ms == answer_ms && answer.author == "bot" && answer.kind == "answer" && card.exists(answer)) {
@@ -882,6 +1050,9 @@ pub fn approve(state_dir: &Path, home: &Path, jobs: &Jobs, id: &str, thread: &st
     let _guard = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if !threads::valid(thread) {
         bail!("invalid conversation");
+    }
+    if find(state_dir, id).is_ok_and(|b| b.free) {
+        bail!("free conversations are read-only");
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     // A failed or interrupted approval can be retried, and a message sent on stays out of the way.
@@ -917,8 +1088,11 @@ pub fn run_command(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, answer
     if !threads::valid(thread) {
         bail!("invalid conversation");
     }
-    if jobs.is_busy(id) {
-        bail!("the bot is still answering");
+    if find(state_dir, id)?.free {
+        bail!("free conversations cannot run commands");
+    }
+    if jobs.is_thread_busy(id, thread) {
+        bail!("this conversation is still answering");
     }
     let messages = room::read_messages(&threads::chat_file(state_dir, id, thread));
     let last = messages.iter().rev().find(|m| !ASIDE.contains(&m.kind.as_str()));
@@ -962,12 +1136,10 @@ pub(crate) fn run_audit_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &s
     let bot = find(state_dir, id)?;
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
-    if !jobs.start(id, thread) {
-        bail!("the bot is still answering");
-    }
+    jobs.start_mode(id, thread, Mode::Talk)?;
     let asked = said("ask", shown);
     if let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked]) {
-        jobs.finish(id);
+        jobs.finish(id, thread);
         return Err(error);
     }
     let same_agent = audit_agent == bot.agent;
@@ -998,7 +1170,7 @@ pub(crate) fn run_audit_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &s
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
     std::thread::spawn(move || {
         turn::run(&state_dir, &jobs, &effective, &thread, turn, None);
-        jobs.finish(&effective.id);
+        jobs.finish(&effective.id, &thread);
         // Deliberately skip auto_edit::after_turn: audit fixes always require explicit human approval.
         crate::push::after_turn(&state_dir, &effective, &thread);
         crate::team::refresh(&state_dir, vec![effective.dir.clone()]);
@@ -1028,6 +1200,9 @@ pub fn set_reviewer(state_dir: &Path, id: &str, reviewer: &str) -> Result<()> {
 pub fn set_grants(state_dir: &Path, id: &str, input: &Value) -> Result<()> {
     // A setting for the next messages: it may change while a turn runs (that turn keeps what it started with).
     let bot = find(state_dir, id)?;
+    if bot.free {
+        bail!("free conversations are always read-only");
+    }
     let grants = crate::grants::changed(&bot.grants, &bot.agent, input)?;
     let full_changed = grants.full_access != bot.grants.full_access;
     update(state_dir, |bots| Ok(bots.into_iter().map(|b| if b.id == id { Bot { grants: grants.clone(), ..b } } else { b }).collect()))?;
@@ -1061,6 +1236,9 @@ pub fn set_limit(state_dir: &Path, id: &str, tokens: u64) -> Result<()> {
 /// Lets an exact command run without asking in this bot's project, or stops letting it.
 pub fn allow(state_dir: &Path, id: &str, command: &str, on: bool) -> Result<()> {
     let bot = find(state_dir, id)?;
+    if bot.free {
+        bail!("free conversations cannot run commands");
+    }
     if on {
         crate::commands::check(command).map_err(|why| anyhow::anyhow!("raiox will not run this command ({why})"))?;
         if !bot.allowed.iter().any(|c| c == command) && bot.allowed.len() >= MAX_ALLOWED {
@@ -1112,26 +1290,29 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
         bail!("invalid conversation");
     }
     let bot = find(state_dir, id)?;
+    if bot.free && (turn.mode == Mode::Edit || turn.command.is_some()) {
+        bail!("free conversations are read-only");
+    }
     crate::budget::check(state_dir, &bot.name)?;
     crate::grants::check_week(state_dir, &bot)?;
     // A turn that does not keep its session (a side question) does not continue the conversation's either.
     let session = if turn.keep_session { thread_session(state_dir, &bot, thread)? } else { None };
-    if !jobs.start(id, thread) {
-        bail!("the bot is still answering");
-    }
+    jobs.start_mode(id, thread, turn.mode)?;
     if let Some(asked) = &turn.asked
         && let Err(error) = room::append_messages(&threads::chat_file(state_dir, id, thread), vec![asked.clone()])
     {
-        jobs.finish(id);
+        jobs.finish(id, thread);
         return Err(error);
     }
     let (state_dir, jobs, thread) = (state_dir.to_path_buf(), jobs.clone(), thread.to_string());
     Ok(std::thread::spawn(move || {
         let answer = turn::run(&state_dir, &jobs, &bot, &thread, turn, session);
-        jobs.finish(&bot.id);
-        crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
+        jobs.finish(&bot.id, &thread);
+        if !bot.free {
+            crate::auto_edit::after_turn(&state_dir, &jobs, &bot.id, &thread);
+            crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
+        }
         crate::push::after_turn(&state_dir, &bot, &thread);
-        crate::team::refresh(&state_dir, vec![bot.dir.clone()]);
         answer
     }))
 }
@@ -1145,13 +1326,16 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
             let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
                 .into_iter()
-                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
+                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "model": t.model, "created_ms": t.created_ms, "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
                 .collect();
+            let busy_threads = jobs.busy_threads(&bot.id);
+            let primary = busy_threads.first();
             json!({
                 "id": bot.id,
                 "agent": bot.agent,
                 "name": bot.name,
                 "dir": bot.dir,
+                "free": bot.free,
                 "has_session": bot.session.is_some(),
                 "persona": bot.persona,
                 "model": bot.model,
@@ -1163,11 +1347,12 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
                 "talk_model": bot.talk_model,
                 "reviewer": bot.reviewer,
                 "budget": { "limit": crate::budget::limit(state_dir, &bot.name), "used": crate::budget::used_today(state_dir, &bot.name), "choices": crate::budget::CHOICES },
-                "busy": jobs.is_busy(&bot.id),
-                "busy_thread": jobs.thread_of(&bot.id),
-                "step": jobs.step_of(&bot.id),
-                "trail": jobs.trail_of(&bot.id),
-                "started_ms": jobs.started_of(&bot.id),
+                "busy": !busy_threads.is_empty(),
+                "busy_thread": primary.map(|b| b.thread.as_str()),
+                "busy_threads": busy_threads,
+                "step": primary.and_then(|b| b.step.as_ref()),
+                "trail": primary.and_then(|b| b.trail.as_ref()),
+                "started_ms": primary.map(|b| b.started_ms),
                 "last_ms": last_ms,
                 "last_line": last_line,
                 "messages": messages,
@@ -1285,6 +1470,47 @@ mod tests {
     }
 
     #[test]
+    fn a_picked_local_folder_can_be_opened_without_git_or_a_home_relative_path() {
+        let root = temp_dir("picked-folder");
+        let home = root.join("home");
+        let state = home.join(".state");
+        let project = root.join("Pasta de projetos").join("Aplicação");
+        fs::create_dir_all(&state).unwrap();
+        fs::create_dir_all(&project).unwrap();
+        let source_file = project.join("source.txt");
+        fs::write(&source_file, "original").unwrap();
+
+        let project_path = project.to_str().unwrap();
+        assert!(activate(&state, &home, project_path, "claude", None).is_err());
+        let persona = Persona {
+            preset: "custom".into(),
+            name: "Parceira".into(),
+            instructions: String::new(),
+            color: "#5599ff".into(),
+            shape: "claude".into(),
+            finish: "solid".into(),
+            role: String::new(),
+        };
+        let bot = activate_folder(&state, &home, project_path, "claude", Some(persona.clone())).unwrap();
+        assert_eq!(bot.dir, project.canonicalize().unwrap());
+        assert_eq!(bot.name, "Aplicação");
+        set_session(&state, &bot.id, Some("first-session".into())).unwrap();
+        assert_eq!(activate_folder(&state, &home, project_path, "claude", None).unwrap().id, bot.id);
+        assert_eq!(list(&state).len(), 1);
+        let reopened = find(&state, &bot.id).unwrap();
+        assert_eq!(reopened.session.as_deref(), Some("first-session"));
+        assert_eq!(reopened.persona, Some(persona));
+        assert_eq!(fs::read_dir(&project).unwrap().count(), 1);
+        assert_eq!(fs::read_to_string(&source_file).unwrap(), "original");
+
+        fs::create_dir_all(home.join(".ssh")).unwrap();
+        for invalid in [&home, &state, &source_file, &project.join("missing"), &PathBuf::from("relative"), &home.join(".ssh")] {
+            assert!(picked_project_dir(&state, &home, invalid).is_err());
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn approval_needs_a_proposal_in_the_latest_answer() {
         let state = temp_dir("approve");
         let jobs = Jobs::default();
@@ -1316,14 +1542,75 @@ mod tests {
         assert!(ask(&state, &jobs, &bot.id, MAIN, "look", &[fake]).is_err());
         assert!(!crate::uploads::dir(&state, &bot.id).exists());
 
-        // If the bot is busy, validated images saved before start are cleaned up.
-        assert!(jobs.start(&bot.id, MAIN));
+        // If the conversation is busy, validated images saved before start are cleaned up.
+        assert!(jobs.start_mode(&bot.id, MAIN, Mode::Talk).is_ok());
         let valid_png = base64::engine::general_purpose::STANDARD.encode([0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0]);
         assert!(ask(&state, &jobs, &bot.id, MAIN, "", &[valid_png]).unwrap_err().to_string().contains("still answering"));
         let remaining: Vec<_> = fs::read_dir(crate::uploads::dir(&state, &bot.id)).into_iter().flatten().flatten().collect();
         assert!(remaining.is_empty(), "failed ask must not leave orphan upload files");
-        jobs.finish(&bot.id);
+        jobs.finish(&bot.id, MAIN);
         let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn parallel_talk_threads_run_stop_and_aggregate_independently() {
+        let jobs = Jobs::default();
+        assert!(!jobs.is_busy("b1"));
+        assert_eq!(jobs.busy_count(), 0);
+
+        // Two conversations of the same bot start at the same time in Mode::Talk.
+        jobs.start_mode("b1", MAIN, Mode::Talk).unwrap();
+        jobs.start_mode("b1", "side1", Mode::Talk).unwrap();
+        assert!(jobs.start_mode("b1", MAIN, Mode::Talk).is_err(), "same conversation cannot start twice");
+        assert!(jobs.is_busy("b1"));
+        assert!(jobs.is_thread_busy("b1", MAIN));
+        assert!(jobs.is_thread_busy("b1", "side1"));
+        assert!(!jobs.is_thread_busy("b1", "side2"));
+        assert_eq!(jobs.busy_count(), 2);
+
+        // Steps and trails stay isolated per conversation.
+        jobs.set_step("b1", MAIN, crate::bot_steps::Step { kind: "read", target: "a.rs".into() });
+        jobs.set_step("b1", "side1", crate::bot_steps::Step { kind: "search", target: "b.rs".into() });
+        let threads = jobs.busy_threads("b1");
+        assert_eq!(threads.len(), 2);
+        let main_step = threads.iter().find(|t| t.thread == MAIN).and_then(|t| t.step.as_ref()).unwrap();
+        let side_step = threads.iter().find(|t| t.thread == "side1").and_then(|t| t.step.as_ref()).unwrap();
+        assert_eq!(main_step.target, "a.rs");
+        assert_eq!(side_step.target, "b.rs");
+
+        // Stopping one conversation does not stop the other.
+        jobs.stop("b1", Some(MAIN)).unwrap();
+        assert!(jobs.should_stop("b1", MAIN));
+        assert!(!jobs.should_stop("b1", "side1"));
+
+        // Finishing one keeps bot busy until the other finishes too.
+        jobs.finish("b1", MAIN);
+        assert!(jobs.is_busy("b1"));
+        assert!(!jobs.is_thread_busy("b1", MAIN));
+        assert!(jobs.is_thread_busy("b1", "side1"));
+        assert_eq!(jobs.busy_count(), 1);
+
+        jobs.finish("b1", "side1");
+        assert!(!jobs.is_busy("b1"));
+        assert_eq!(jobs.busy_count(), 0);
+    }
+
+    #[test]
+    fn edit_mode_stays_one_per_bot_while_talk_can_run_alongside() {
+        let jobs = Jobs::default();
+        jobs.start_mode("b1", MAIN, Mode::Edit).unwrap();
+        // A second Edit on another conversation of the same bot is refused with a clear message.
+        let err = jobs.start_mode("b1", "side1", Mode::Edit).unwrap_err();
+        assert!(err.to_string().contains("draft copy"), "{err:#}");
+        // Another bot's Edit is unaffected, and Talk on another thread of the same bot is allowed.
+        jobs.start_mode("b2", MAIN, Mode::Edit).unwrap();
+        jobs.start_mode("b1", "side1", Mode::Talk).unwrap();
+        assert_eq!(jobs.busy_threads("b1").len(), 2);
+        assert!(jobs.busy_threads("b1").iter().any(|t| t.thread == MAIN && t.editing));
+        assert!(jobs.busy_threads("b1").iter().any(|t| t.thread == "side1" && !t.editing));
+        // Once the first Edit finishes, another conversation of b1 can run an Edit.
+        jobs.finish("b1", MAIN);
+        jobs.start_mode("b1", "side2", Mode::Edit).unwrap();
     }
 
     #[test]
@@ -1431,6 +1718,60 @@ mod tests {
         // An unsupported agent is refused without creating the folder.
         assert!(create_project(&state, &home, "bad-agent", "copilot").is_err());
         assert!(!home.join("Projects/bad-agent").exists());
+
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn free_bot_is_created_once_per_agent_excluded_from_projects_and_strictly_read_only() {
+        let home = temp_dir("free-bot");
+        fs::create_dir_all(home.join("Projects/real-app/.git")).unwrap();
+        let state = home.join("state");
+        let jobs = Jobs::default();
+
+        // A real project bot alongside a free bot.
+        let real = activate(&state, &home, "Projects/real-app", "claude", None).unwrap();
+        assert!(!real.free);
+
+        // Creating the free bot for an AI creates an empty folder under <state>/conversa-livre/<agent>
+        // and reuses the exact same bot on repeat calls.
+        let first = ensure_free(&state, "claude").unwrap();
+        let second = ensure_free(&state, "claude").unwrap();
+        assert_eq!(first.id, second.id);
+        assert!(first.free);
+        assert!(first.dir.is_dir());
+        assert!(first.dir.starts_with(state.canonicalize().unwrap().join(FREE_DIR)));
+        assert!(!first.grants.full_access && !first.grants.auto_run && !first.grants.auto_edit && !first.grants.bypass);
+        let codex_free = ensure_free(&state, "codex").unwrap();
+        assert_ne!(first.id, codex_free.id);
+        assert_eq!(list(&state).len(), 3, "registry has 1 project bot + 2 free bots");
+
+        // Free bots never appear in project_list, candidates, links, or reviewers.
+        let projects = project_list(&state);
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].id, real.id);
+        let store = Store::open_in_memory().unwrap();
+        let cands = candidates(&store, &home, &state).unwrap();
+        assert!(!cands.iter().any(|c| c.project.contains(FREE_DIR)));
+        assert!(review::reviewers(&state, &first).is_empty());
+
+        // Free bots stay strictly read-only: grants, commands, approvals and copy-edits are all refused.
+        assert!(set_grants(&state, &first.id, &json!({ "full_access": true })).is_err());
+        assert!(allow(&state, &first.id, "ls", true).is_err());
+        assert!(approve(&state, &home, &jobs, &first.id, MAIN, None).is_err());
+        assert!(ask_in_copy(&state, &home, &jobs, &first.id, MAIN, "edit", "edit").is_err());
+        assert!(run_command(&state, &jobs, &first.id, MAIN, None, 0, false).is_err());
+
+        // Per-conversation model override works cleanly for free conversation threads.
+        let thread = threads::create_with_limit(&state, &first.id, DEFAULT_THREAD_TITLE, MAX_FREE_THREADS).unwrap();
+        set_thread_model(&state, &first.id, &thread.id, Some("haiku"), None).unwrap();
+        assert_eq!(threads::model(&state, &first.id, &thread.id).as_deref(), Some("haiku"));
+
+        // Free guide never mentions a project folder or edit proposals.
+        let guide = bot_run::free_guide("");
+        assert!(guide.contains("no project attached"));
+        assert!(!guide.contains("RAIOX-PROPOSAL"));
+        assert!(!guide.contains("RAIOX-RUN"));
 
         let _ = fs::remove_dir_all(&home);
     }

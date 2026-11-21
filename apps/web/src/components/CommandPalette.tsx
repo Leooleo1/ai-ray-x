@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { type Bot, type Flow, fetchFlows } from '../api'
+import { type Bot, type Flow, fetchFlows, projectBots } from '../api'
 import { AGENT_LABEL, faceForBot } from '../avatars'
 import { t } from '../i18n'
 import { Avatar } from './Avatar'
@@ -56,7 +56,8 @@ export function CommandPalette({ bots, channels, onClose, onGo, onChat, onThread
   const items = useMemo<Item[]>(() => {
     const page = (tab: Tab, label: string, icon: IconName): Item => ({ key: `p-${tab}`, group: t.paletteGo, label, icon: <Icon name={icon} />, run: () => onGo(tab) })
     const action = (key: string, label: string, icon: IconName, run: () => void): Item => ({ key: `a-${key}`, group: t.paletteActions, label, icon: <Icon name={icon} />, run })
-    const projects = [...new Map(bots.map((bot) => [bot.name, bot])).values()]
+    const realBots = projectBots(bots)
+    const projects = [...new Map(realBots.map((bot) => [bot.name, bot])).values()]
     return [
       page('agents', t.tabAgents, 'agents'),
       page('desk', t.deskTab, 'desk'),
@@ -67,6 +68,7 @@ export function CommandPalette({ bots, channels, onClose, onGo, onChat, onThread
       page('usage', t.usageTab, 'usage'),
       page('efficiency', t.tabEfficiency, 'efficiency'),
       page('settings', t.settingsTitle, 'sliders'),
+      action('nova', t.newFreeChat, 'new-chat', () => onChat('nova')),
       action('fluxo', t.flowNew, 'flows', () => onGo('flows')),
       action('projeto', t.addProject, 'plus', () => onChat('bots')),
       action('canal', t.channelNewNav, 'hash', () => onChat('canal:novo')),
@@ -75,7 +77,7 @@ export function CommandPalette({ bots, channels, onClose, onGo, onChat, onThread
         key: `proj-${bot.name}`,
         group: t.projects,
         label: bot.name,
-        hint: bots.filter((b) => b.name === bot.name).map((b) => AGENT_LABEL[b.agent]).join(', '),
+        hint: realBots.filter((b) => b.name === bot.name).map((b) => AGENT_LABEL[b.agent]).join(', '),
         icon: <Avatar agent={faceForBot(bot)} size={18} state="still" />,
         run: () => onChat(`bot:${bot.id}`),
       })),
@@ -84,9 +86,9 @@ export function CommandPalette({ bots, channels, onClose, onGo, onChat, onThread
           key: `conv-${bot.id}-${thread.id}`,
           group: t.paletteConversations,
           label: thread.title,
-          hint: `${bot.name} · ${AGENT_LABEL[bot.agent]}`,
+          hint: bot.free ? AGENT_LABEL[bot.agent] : `${bot.name} · ${AGENT_LABEL[bot.agent]}`,
           icon: <Avatar agent={faceForBot(bot)} size={18} state="still" />,
-          run: () => onThread(bot.id, thread.id),
+          run: () => (bot.free ? onChat(`conversa:${bot.id}/${thread.id}`) : onThread(bot.id, thread.id)),
         })),
       ),
       ...channels.map<Item>((channel) => ({ key: `canal-${channel.id}`, group: t.channels, label: `#${channel.name}`, icon: <Icon name="hash" />, run: () => onChat(`canal:${channel.id}`) })),
