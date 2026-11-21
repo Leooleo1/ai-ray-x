@@ -31,7 +31,8 @@ fn next(messages: &[room::Message]) -> Next {
     let has_proposal = last.data.pointer("/reply/proposal").and_then(Value::as_str).is_some_and(|p| !p.trim().is_empty());
     match last.kind.as_str() {
         "answer" if has_proposal => Next::Approve,
-        "draft" => last.data["draft"].as_str().map_or(Next::Nothing, |draft| Next::Apply(draft.to_string())),
+        "draft" if last.data["review_required"].as_bool() != Some(true) =>
+            last.data["draft"].as_str().map_or(Next::Nothing, |draft| Next::Apply(draft.to_string())),
         _ => Next::Nothing,
     }
 }
@@ -64,6 +65,7 @@ mod tests {
     fn a_proposal_is_approved_and_its_draft_applied_and_nothing_more() {
         assert_eq!(next(&[message("bot", "answer", json!({ "reply": { "text": "x", "proposal": "Renomear soma" } }))]), Next::Approve);
         assert_eq!(next(&[message("bot", "draft", json!({ "draft": "d1" }))]), Next::Apply("d1".into()));
+        assert_eq!(next(&[message("bot", "draft", json!({ "draft": "d1", "review_required": true }))]), Next::Nothing);
         assert_eq!(next(&[message("bot", "answer", json!({ "reply": { "text": "só conversa", "proposal": null } }))]), Next::Nothing);
         assert_eq!(next(&[message("bot", "draft", json!({ "draft": "d1" })), message("you", "draft_applied", json!({}))]), Next::Nothing, "an applied draft ends the chain");
         assert_eq!(next(&[message("bot", "failed", json!({ "error": "x" }))]), Next::Nothing);

@@ -7,7 +7,7 @@
 //! The copy follows the project's .gitignore and leaves out secrets files,
 //! dependency and build folders, and nested repositories (worktrees,
 //! submodules). Each bot edits in one working copy, always at the same place
-//! (`rascunhos/<bot>/copia/<project path under home>`), so its CLI keeps one
+//! (`rascunhos/<bot>/copia/work/<project path under home>`), so its CLI keeps one
 //! history folder for all its drafts. What a draft changed is kept apart in
 //! `rascunhos/<bot>/<draft>/`, and the working copy goes when the edit ends.
 
@@ -26,9 +26,10 @@ use crate::room;
 
 /// Folders a copy leaves out even without a .gitignore: version control,
 /// dependencies, build output and tool caches.
-const SKIP_DIRS: [&str; 21] = [
+const SKIP_DIRS: &[&str] = &[
     ".git", "node_modules", "target", "dist", "build", ".next", ".nuxt", ".svelte-kit", ".turbo", ".venv", "venv",
     "__pycache__", ".cache", "coverage", ".gradle", "Pods", "DerivedData", ".terraform", ".wrangler", ".vercel", ".output",
+    ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".raiox",
 ];
 /// The AI's instructions for the project: copied even when the .gitignore leaves them out.
 const AGENT_FILES: [&str; 4] = ["CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", ".cursorrules"];
@@ -119,6 +120,7 @@ pub struct Changes {
 pub struct Workspace {
     pub dir: PathBuf,
     project: PathBuf,
+    baseline: PathBuf,
     /// Each copied file: its stamp in the project and in the copy.
     copied: BTreeMap<String, (Stamp, Stamp)>,
 }
@@ -164,7 +166,7 @@ fn is_secret(rel: &str) -> bool {
 /// Folders a walk never enters: the fixed list, and any folder that is a repository of its own.
 fn skipped(entry: &ignore::DirEntry) -> bool {
     let is_dir = entry.file_type().is_some_and(|kind| kind.is_dir());
-    is_dir && (SKIP_DIRS.contains(&entry.file_name().to_string_lossy().as_ref()) || entry.path().join(".git").exists())
+    is_dir && (SKIP_DIRS.iter().any(|name| entry.file_name().to_string_lossy().eq_ignore_ascii_case(name)) || entry.path().join(".git").exists())
 }
 
 /// Every regular file under `dir`, as sorted relative paths, without the skipped folders and
@@ -206,6 +208,10 @@ pub fn fingerprint(project: &Path) -> Option<u64> {
 
 /// Copies the project into the bot's working copy, replacing what an earlier edit left there.
 pub fn prepare(state_dir: &Path, home: &Path, bot: &str, project: &Path) -> Result<Workspace> {
+    let project_root = project.canonicalize().context("project folder unavailable")?;
+    if state_dir.canonicalize().is_ok_and(|state| state.starts_with(&project_root)) {
+        bail!("a draft cannot include the Raiox data folder");
+    }
     let rel = relative(project, home);
     if rel.as_os_str().is_empty() {
         bail!("a draft needs a project folder, not the home folder");
@@ -216,9 +222,10 @@ pub fn prepare(state_dir: &Path, home: &Path, bot: &str, project: &Path) -> Resu
     {
         return Err(error).context("clearing the earlier working copy");
     }
-    let dir = root.join(rel);
-    match copy_project(project, &dir) {
-        Ok(copied) => Ok(Workspace { dir, project: project.to_path_buf(), copied }),
+    let dir = root.join("work").join(rel);
+    let baseline = root.join("baseline");
+    match copy_project(project, &dir, &baseline) {
+        Ok(copied) => Ok(Workspace { dir, project: project.to_path_buf(), baseline, copied }),
         Err(error) => {
             let _ = fs::remove_dir_all(&root);
             Err(error)
@@ -226,11 +233,11 @@ pub fn prepare(state_dir: &Path, home: &Path, bot: &str, project: &Path) -> Resu
     }
 }
 
-fn copy_project(project: &Path, dir: &Path) -> Result<BTreeMap<String, (Stamp, Stamp)>> {
+fn copy_project(project: &Path, dir: &Path, baseline: &Path) -> Result<BTreeMap<String, (Stamp, Stamp)>> {
     fs::create_dir_all(dir)?;
     let mut files = walk(project, true)?;
     let instructions: Vec<String> =
-        AGENT_FILES.iter().filter(|name| project.join(name).is_file() && !files.iter().any(|f| f == *name)).map(|name| name.to_string()).collect();
+        AGENT_FILES.iter().filter(|name| fs::symlink_metadata(project.join(name)).is_ok_and(|meta| meta.is_file()) && !files.iter().any(|f| f == *name)).map(|name| name.to_string()).collect();
     files.extend(instructions);
     let mut copied = BTreeMap::new();
     for rel in files {
@@ -244,6 +251,12 @@ fn copy_project(project: &Path, dir: &Path) -> Result<BTreeMap<String, (Stamp, S
         // On APFS this is a copy-on-write clone: instant, and free until the AI changes the file.
         fs::copy(&from, &to).with_context(|| format!("copying {rel}"))?;
         if let Some(copy) = stamp(&to) {
+            // Keep the exact initial contents for text diffs, even if the person edits the live file meanwhile.
+            if copy.0 <= MAX_DIFF_BYTES as u64 {
+                let saved = baseline.join(&rel);
+                create_parent(&saved)?;
+                fs::copy(&to, saved)?;
+            }
             copied.insert(rel, (original, copy));
         }
     }
@@ -291,22 +304,26 @@ fn keep(state_dir: &Path, bot: &str, work: &Workspace) -> Result<(Option<String>
 /// removed), and new files the .gitignore keeps. New secrets files are listed apart.
 fn compare(work: &Workspace) -> Result<Changes> {
     let mut files = Vec::new();
+    let root = work.dir.canonicalize()?;
     for (rel, (_, copy)) in &work.copied {
         let path = work.dir.join(rel);
         let is_file = fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_file());
-        let before = || fs::read(work.project.join(rel)).unwrap_or_default();
-        if !is_file {
-            files.push(change(rel, Status::Deleted, &before(), &[]));
-        } else if stamp(&path) != Some(*copy) {
-            let (old, new) = (before(), fs::read(&path)?);
-            if old != new {
-                files.push(change(rel, Status::Modified, &old, &new));
+        if is_file && stamp(&path) == Some(*copy) {
+            continue;
+        }
+        let before = (copy.0 <= MAX_DIFF_BYTES as u64).then(|| fs::read(work.baseline.join(rel))).transpose()?;
+        if !is_file || path.canonicalize().ok().as_ref() != Some(&root.join(rel)) {
+            files.push(change(rel, Status::Deleted, before.as_deref(), &[]));
+        } else {
+            let new = fs::read(path)?;
+            if before.as_deref() != Some(new.as_slice()) {
+                files.push(change(rel, Status::Modified, before.as_deref(), &new));
             }
         }
     }
     for rel in walk(&work.dir, true)? {
         if !work.copied.contains_key(&rel) && !is_secret(&rel) {
-            files.push(change(&rel, Status::Added, &[], &fs::read(work.dir.join(&rel))?));
+            files.push(change(&rel, Status::Added, Some(&[]), &fs::read(work.dir.join(&rel))?));
         }
     }
     let blocked = walk(&work.dir, false)?.into_iter().filter(|rel| is_secret(rel)).collect();
@@ -317,8 +334,9 @@ fn is_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(8000).any(|b| *b == 0)
 }
 
-fn change(rel: &str, status: Status, before: &[u8], after: &[u8]) -> FileChange {
+fn change(rel: &str, status: Status, before: Option<&[u8]>, after: &[u8]) -> FileChange {
     let base = FileChange { path: rel.to_string(), status, added: 0, removed: 0, diff: String::new(), binary: true, truncated: false };
+    let Some(before) = before else { return base };
     if is_binary(before) || is_binary(after) || before.len().max(after.len()) > MAX_DIFF_BYTES {
         return base;
     }
@@ -533,7 +551,7 @@ mod tests {
         assert!(prepare(&state, &home, "b1", &home).is_err(), "never the whole home folder");
 
         let work = prepare(&state, &home, "b1", &project).unwrap();
-        assert!(work.dir.ends_with("rascunhos/b1/copia/Projects/app"));
+        assert!(work.dir.ends_with("rascunhos/b1/copia/work/Projects/app"));
         let copied: Vec<&str> = work.copied.keys().map(String::as_str).collect();
         assert_eq!(copied, vec![".gitignore", "CLAUDE.local.md", "old.txt", "src/a.ts"]);
 
@@ -587,10 +605,13 @@ mod tests {
         let state = home.join("state");
         let work = prepare(&state, &home, "b1", &project).unwrap();
         fs::write(work.dir.join("src/a.ts"), "2\n").unwrap();
-        let id = collect(&state, "b1", &work).unwrap().0.unwrap();
         // The person edits the same file before applying.
         std::thread::sleep(std::time::Duration::from_millis(20));
         fs::write(project.join("src/a.ts"), "1 and more\n").unwrap();
+        let (id, changes) = collect(&state, "b1", &work).unwrap();
+        assert!(changes.files[0].diff.contains("-export const a = 1"));
+        assert!(!changes.files[0].diff.contains("1 and more"));
+        let id = id.unwrap();
         let refused = apply(&state, "b1", &id).unwrap_err().to_string();
         assert!(refused.contains("src/a.ts"), "{refused}");
         assert_eq!(fs::read_to_string(project.join("src/a.ts")).unwrap(), "1 and more\n");

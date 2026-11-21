@@ -63,6 +63,7 @@ fn save(state_dir: &Path, bot: &str, threads: &[Thread]) -> Result<()> {
     let temp = file.with_extension("tmp");
     fs::write(&temp, serde_json::to_string_pretty(threads)? + "\n")?;
     fs::rename(temp, file)?;
+    room::chat_changed();
     Ok(())
 }
 

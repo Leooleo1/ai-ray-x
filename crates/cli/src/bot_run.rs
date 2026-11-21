@@ -61,6 +61,10 @@ pub struct Reply {
     /// Screenshots the bot asked for: a path of the running app, a local URL or "simulator".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shots: Vec<String>,
+    #[serde(skip)]
+    pub(crate) requested_files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) artifacts: Vec<crate::artifacts::Artifact>,
     /// Tasks it left on the team's board.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tasks: Vec<String>,
@@ -102,6 +106,7 @@ pub struct Target<'a> {
     /// Full access (its grants): the CLI edits, runs commands and uses git in the project by itself,
     /// in its own automatic mode, instead of only reading.
     pub full: bool,
+    pub copy_checks: bool,
     /// With full access, the "full" mode: the CLI runs with no review of its own at all
     /// (Claude Code's bypassPermissions, Codex without approvals or sandbox).
     pub bypass: bool,
@@ -127,11 +132,24 @@ pub fn free_guide(persona: &str) -> String {
 /// change, and the personality the person gave it (may be empty).
 pub fn guide(project: &str, persona: &str, others: &[String], unwired: &[String], full: bool) -> String {
     let access = if full { full_access(project) } else { reads_only(project) };
+    guide_with_access(access, persona, others, unwired, full)
+}
+
+pub fn draft_guide(project: &str, persona: &str) -> String {
+    let access = format!("This is a working copy of {project}. Edit only inside this copy and let the person review the changes before applying them. Answer in the person's language.");
+    guide_with_access(access, persona, &[], &[], false)
+}
+
+fn guide_with_access(access: String, persona: &str, others: &[String], unwired: &[String], full: bool) -> String {
     let base = format!(
         "{access} \
          To look at the project's app as it runs (when the person started it in raiox's See the app) or at the iOS \
          simulator, end with one line {SHOT_MARK} <a path such as /login, a local URL, or simulator> (at most two); \
          raiox takes a screenshot and hands it to you. \
+         To deliver a generated file, save it in raiox-output/ inside the current project or draft, using your existing permissions. \
+         End with RAIOX-FILE: raiox-output/filename on its own line for each actual file (up to three, 5 MiB each). \
+         PNG, JPEG, WebP, GIF, PDF, TXT, Markdown and CSV are supported. Raiox verifies and attaches the file. \
+         If you cannot create or access the actual file, say so. Use the marker in place of a local or sandbox link. \
          To leave work for later on the person's task board (for you, at most three), end with one line per task: \
          {TASK_MARK} <a short title>; leave each task once, not again in later answers. \
          When you need an answer from the person before continuing, put the question once on its own line: \
@@ -219,12 +237,16 @@ fn full_access(project: &str) -> String {
     )
 }
 
-fn edit_prompt(proposal: &str) -> String {
+fn edit_prompt(proposal: &str, copy_checks: bool) -> String {
+    let checks = if copy_checks {
+        "Use the sandboxed shell only to run available local checks in this copy. Do not install packages, start servers, commit, push, or deploy."
+    } else {
+        "There is no shell here: do not try to run commands, install packages or start servers."
+    };
     format!(
         "Approved by the person: {proposal}\n\
          Make this change now in the files of this folder, a working copy of the project: the person reviews the \
-         differences before they reach the project. There is no shell here: do not try to run commands, install \
-         packages or start servers, and never give the person this folder's path (name files by their path in the \
+         differences before they reach the project. {checks} Never give the person this folder's path (name files by their path in the \
          project). End with a short list of the files you changed."
     )
 }
@@ -248,7 +270,7 @@ fn secret_rules(mode: Mode) -> Vec<String> {
 pub fn prompt_for(mode: Mode, text: &str) -> String {
     match mode {
         Mode::Talk => text.to_string(),
-        Mode::Edit => edit_prompt(text),
+        Mode::Edit => edit_prompt(text, false),
     }
 }
 
@@ -336,6 +358,10 @@ fn codex(target: &Target, mode: Mode) -> Command {
         // Codex's own automatic review answers its approvals; the network lets installs and git reach out.
         command.args(["--approve-for-me", "-c", "sandbox_workspace_write.network_access=true"]);
     }
+    if mode == Mode::Edit && target.copy_checks {
+        command.args(["-c", "approval_policy=\"never\"", "-c", "sandbox_workspace_write.network_access=false",
+            "-c", "sandbox_workspace_write.writable_roots=[]"]);
+    }
     // Values are checked by the caller (letters, digits, dots and dashes), so quoting is safe.
     if let Some(model) = target.model {
         command.args(["-c", &format!("model=\"{model}\"")]);
@@ -391,8 +417,11 @@ pub fn run(target: &Target, mode: Mode, text: &str, scratch: &Path, stop: &dyn F
     let (mut command, prompt) = match agent {
         "claude" => (claude_command(target, mode), prompt_for(mode, text)),
         // Codex has no system-prompt flag: the guide opens the first message of a thread.
-        "codex" if target.session.is_none() => (codex(target, mode), format!("{}\n\n---\n\n{}", target.guide, prompt_for(mode, text))),
-        "codex" => (codex(target, mode), prompt_for(mode, text)),
+        "codex" => {
+            let prompt = if mode == Mode::Edit { edit_prompt(text, target.copy_checks) } else { text.to_string() };
+            let prompt = if target.session.is_none() { format!("{}\n\n---\n\n{prompt}", target.guide) } else { prompt };
+            (codex(target, mode), prompt)
+        }
         // Cursor, too: the guide opens the read-only talk session; an approved edit runs in its own session.
         "cursor" if mode == Mode::Talk && target.session.is_none() => (cursor(target, mode), format!("{}\n\n---\n\n{}", target.guide, text)),
         "cursor" => (cursor(target, mode), prompt_for(mode, text)),
@@ -544,6 +573,8 @@ pub fn reply_from(text: &str) -> Reply {
         verdict: marked.verdict,
         ask: marked.asks,
         shots: marked.shots,
+        requested_files: marked.files,
+        artifacts: Vec::new(),
         tasks: marked.tasks,
         trail: None,
         session: None,
@@ -644,7 +675,7 @@ mod tests {
     }
 
     fn target<'a>(dir: &'a Path, agent: &'a str, full: bool) -> Target<'a> {
-        Target { agent, dir, guide: String::new(), session: None, model: None, effort: None, shots: None, images: &[], web: false, mcp: false, full, bypass: false }
+        Target { agent, dir, guide: String::new(), session: None, model: None, effort: None, shots: None, images: &[], web: false, mcp: false, full, bypass: false, copy_checks: false }
     }
 
     #[test]
@@ -703,6 +734,17 @@ mod tests {
         assert!(has_pair(&agy, "--mode", "plan") && agy.contains(&"--sandbox".to_string()));
         let opencode = crate::bot_clis::opencode(&target(dir, "opencode", false), Mode::Talk);
         assert!(has_pair(&args(&opencode), "--agent", "plan") && opencode_config(&opencode).contains(r#""bash":"deny""#));
+    }
+
+    #[test]
+    fn a_copy_uses_workspace_write_even_when_the_bot_has_full_access() {
+        let dir = Path::new("/tmp/draft");
+        let configuration = Target { copy_checks: true, bypass: true, ..target(dir, "codex", true) };
+        let arguments = args(&codex(&configuration, Mode::Edit));
+        assert!(has_pair(&arguments, "-c", "sandbox_mode=\"workspace-write\""));
+        assert!(has_pair(&arguments, "-c", "sandbox_workspace_write.network_access=false"));
+        assert!(has_pair(&arguments, "-c", "approval_policy=\"never\""));
+        assert!(!arguments.iter().any(|arg| arg.contains("bypass")));
     }
 
     #[test]

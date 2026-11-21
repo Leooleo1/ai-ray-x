@@ -12,6 +12,7 @@ pub const RUN_MARK: &str = "RAIOX-RUN:";
 pub const VERDICT_MARK: &str = "RAIOX-VERDICT:";
 pub const ASK_MARK: &str = "RAIOX-ASK";
 pub const SHOT_MARK: &str = "RAIOX-SHOT:";
+pub const FILE_MARK: &str = "RAIOX-FILE:";
 /// A task the bot leaves on the team's board.
 pub const TASK_MARK: &str = "RAIOX-TASK:";
 const MAX_TASKS: usize = 3;
@@ -50,6 +51,7 @@ pub struct Marked {
     pub asks: Vec<Note>,
     /// Screenshots the bot asks for, from RAIOX-SHOT lines: a path of the running app, a local URL or "simulator".
     pub shots: Vec<String>,
+    pub files: Vec<String>,
     /// Tasks the bot leaves on the team's board, from RAIOX-TASK lines.
     pub tasks: Vec<String>,
 }
@@ -97,6 +99,11 @@ pub fn split(answer: &str) -> Marked {
             if !shot.is_empty() && !shot.contains(char::is_whitespace) && marked.shots.len() < MAX_SHOTS && !marked.shots.contains(&shot) {
                 marked.shots.push(shot);
             }
+        } else if let Some(file) = trimmed.strip_prefix(FILE_MARK) {
+            let file = unquote(file);
+            if !file.is_empty() && file.len() <= 512 && marked.files.len() < 3 && !marked.files.contains(&file) {
+                marked.files.push(file);
+            }
         } else if let Some(ask) = trimmed.strip_prefix(ASK_MARK).and_then(|rest| rest.trim().strip_prefix('@')).and_then(|rest| rest.split_once(':')) {
             let (handle, text) = (ask.0.trim().to_lowercase(), unquote(ask.1));
             if !handle.is_empty() && !handle.contains(char::is_whitespace) && !text.is_empty() {
@@ -125,6 +132,13 @@ pub fn split(answer: &str) -> Marked {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attachments_are_limited_and_keep_spaces_in_names() {
+        let marked = split("Generated files.\nRAIOX-FILE: `raiox-output/my picture.png`\nRAIOX-FILE: raiox-output/my picture.png\nRAIOX-FILE: raiox-output/two.pdf\nRAIOX-FILE: raiox-output/three.txt\nRAIOX-FILE: raiox-output/four.csv");
+        assert_eq!(marked.text, "Generated files.");
+        assert_eq!(marked.files, ["raiox-output/my picture.png", "raiox-output/two.pdf", "raiox-output/three.txt"]);
+    }
 
     #[test]
     fn proposals_and_notes_become_cards() {

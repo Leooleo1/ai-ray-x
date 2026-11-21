@@ -1,4 +1,4 @@
-import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from 'react'
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode, type RefObject, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { t } from '../../i18n'
 import { type AccessMode, nextMode } from '../../modes'
 import { ModeChip } from './ModeChip'
@@ -54,6 +54,7 @@ interface ComposerProps {
   draftKey: string
   placeholder: string
   inputRef?: RefObject<HTMLTextAreaElement | null>
+  appendRef?: RefObject<((text: string) => 'too-long' | 'sending' | null) | null>
   maxLength: number
   busy: boolean
   blocked?: boolean
@@ -71,7 +72,7 @@ interface ComposerProps {
 }
 
 /** One line that grows. Enter sends, Shift+Enter breaks the line; while the bot works, the button and Esc stop it. */
-export function Composer({ draftKey, placeholder, inputRef, maxLength, busy, blocked = false, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
+export function Composer({ draftKey, placeholder, inputRef, appendRef, maxLength, busy, blocked = false, allowImages = false, onSend, onStop, onCorrect, mode, commands = [] }: ComposerProps) {
   const [draft, setDraft] = useState(() => drafts.get(draftKey) ?? '')
   const [images, setImages] = useState<PendingImage[]>(() => (allowImages ? draftImages.get(draftKey) ?? [] : []))
   const [attachError, setAttachError] = useState<string | null>(null)
@@ -82,6 +83,14 @@ export function Composer({ draftKey, placeholder, inputRef, maxLength, busy, blo
   const field = inputRef ?? localField
   const picker = useRef<HTMLInputElement>(null)
   const dragDepth = useRef(0)
+
+  useImperativeHandle(appendRef, () => (text) => {
+    if (sending) return 'sending'
+    const next = draft ? draft + '\n\n' + text : text
+    if (maxLength > 0 && next.length > maxLength) return 'too-long'
+    setDraft(next)
+    return null
+  })
 
   useEffect(() => {
     setDraft(drafts.get(draftKey) ?? '')
