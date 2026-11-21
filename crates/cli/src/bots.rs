@@ -563,7 +563,9 @@ pub(crate) fn picked_project_dir(state_dir: &Path, home: &Path, path: &Path) -> 
     }
     let dir = path.canonicalize().context("the selected project folder no longer exists")?;
     let home = home.canonicalize()?;
-    if !dir.is_dir() || dir.parent().is_none() || home.starts_with(&dir) || inside_state_dir(&dir, state_dir) {
+    // A hidden folder in the home (.ssh, .aws, .config…) holds keys and settings, never a project.
+    let hidden = dir.strip_prefix(&home).ok().and_then(|rest| rest.components().next()).is_some_and(|first| first.as_os_str().to_string_lossy().starts_with('.'));
+    if !dir.is_dir() || dir.parent().is_none() || home.starts_with(&dir) || inside_state_dir(&dir, state_dir) || hidden {
         bail!("select a project folder");
     }
     Ok(dir)
@@ -1501,7 +1503,8 @@ mod tests {
         assert_eq!(fs::read_dir(&project).unwrap().count(), 1);
         assert_eq!(fs::read_to_string(&source_file).unwrap(), "original");
 
-        for invalid in [&home, &state, &source_file, &project.join("missing"), &PathBuf::from("relative")] {
+        fs::create_dir_all(home.join(".ssh")).unwrap();
+        for invalid in [&home, &state, &source_file, &project.join("missing"), &PathBuf::from("relative"), &home.join(".ssh")] {
             assert!(picked_project_dir(&state, &home, invalid).is_err());
         }
         let _ = fs::remove_dir_all(root);
