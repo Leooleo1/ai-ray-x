@@ -58,6 +58,16 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     setGithub(null)
     fetchGitHub().then(setGithub).catch((failure: unknown) => setError(message(failure)))
   }, [])
+  /** Check again, by hand: the result is said, since it is often the same as before. */
+  const checkGithub = useCallback(() => {
+    setGithub(null)
+    fetchGitHub()
+      .then((next) => {
+        setGithub(next)
+        notify(next.logged_in ? t.githubChecked.replace('{who}', next.login ?? '').replace('{n}', String(next.repos.length)) : t.githubSignedOut)
+      })
+      .catch((failure: unknown) => setError(message(failure)))
+  }, [])
   useEffect(() => {
     let alive = true
     fetchSettings(false)
@@ -220,7 +230,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
                 onDefaults={(chosen) => void save({ defaults: { [c.id]: { model: chosen.model ?? '', effort: chosen.effort ?? '' } } })}
               />
             ))}
-            {settings && <GitHubTile github={github} onCheck={loadGithub} />}
+            {settings && <GitHubTile github={github} onCheck={checkGithub} />}
             {ordered
               .filter((c) => !ready.includes(c))
               .map((c) => (
