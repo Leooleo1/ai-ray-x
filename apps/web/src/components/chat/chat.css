@@ -2393,6 +2393,31 @@ form.compositor {
   font-variant-numeric: tabular-nums;
 }
 
+.caminho-evidencias {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 0;
+  color: var(--nevoa);
+  font-size: 12px;
+  list-style: none;
+}
+
+.caminho-evidencias li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  overflow-wrap: anywhere;
+}
+
+.evidencia-ok {
+  color: var(--ok);
+}
+
+.evidencia-falhou {
+  color: var(--brasa);
+}
+
 .caminho summary::-webkit-details-marker {
   display: none;
 }
@@ -2407,6 +2432,10 @@ form.compositor {
 
 .caminho .trilha {
   margin-top: 6px;
+}
+
+.trilha-recolher {
+  margin-top: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {

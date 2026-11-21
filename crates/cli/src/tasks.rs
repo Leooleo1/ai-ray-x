@@ -1,13 +1,14 @@
 //! The team's board: tasks for the bots, from the person or from the bots
-//! themselves (a RAIOX-TASK line). A task runs in its bot's "Tasks"
-//! conversation, from a fresh session each time. When the turn ends it is
+//! themselves (a RAIOX-TASK line). Each task runs in its own conversation.
+//! When the turn ends it is
 //! done, or it waits for the person when the bot asks for something (a
 //! proposal, a draft, a command or a question). With "pick tasks up" on, the scheduler
 //! starts each idle bot's next task by itself. Each card shows what its task
 //! cost in tokens.
 
-use std::fs;
+use std::{collections::HashMap, fs};
 use std::path::Path;
+use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,7 @@ const OLD_TITLE: &str = "Tarefas";
 const MAX_TITLE: usize = 120;
 const MAX_DETAIL: usize = 2000;
 const MAX_TASKS: usize = 300;
+static BOARD: Mutex<()> = Mutex::new(());
 /// Tasks one answer can leave on the board.
 pub const MAX_FROM_ANSWER: usize = 3;
 
@@ -49,6 +51,9 @@ pub struct Task {
     pub from: String,
     pub created_ms: i64,
     pub updated_ms: i64,
+    /// The dedicated conversation, once the task has started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread: Option<String>,
     /// When its turn started, and the answer it got (to open it, and to count its tokens).
     #[serde(default)]
     pub started_ms: Option<i64>,
@@ -113,11 +118,15 @@ pub fn finished_since(state_dir: &Path, after_ms: i64) -> Vec<(String, String, i
 
 fn save(state_dir: &Path, board: &Board) -> Result<()> {
     fs::create_dir_all(state_dir)?;
-    fs::write(state_dir.join(FILE), serde_json::to_string_pretty(board)?)?;
+    let file = state_dir.join(FILE);
+    let temp = file.with_extension("tmp");
+    fs::write(&temp, serde_json::to_string_pretty(board)?)?;
+    fs::rename(temp, file)?;
     Ok(())
 }
 
 fn change(state_dir: &Path, edit: impl FnOnce(&mut Board) -> Result<()>) -> Result<()> {
+    let _guard = BOARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut board = load(state_dir);
     edit(&mut board)?;
     save(state_dir, &board)
@@ -139,27 +148,52 @@ pub fn add_with(state_dir: &Path, bot: &str, title: &str, detail: &str, from: &s
     if title.is_empty() {
         bail!("a task needs a title");
     }
-    let now = room::now_ms();
-    let id = format!("k{now:x}{}", load(state_dir).tasks.len());
-    let task = Task { id: id.clone(), title, detail: clean(detail, MAX_DETAIL), bot: bot.to_string(), status: Status::Todo, from: from.to_string(), created_ms: now, updated_ms: now, started_ms: None, answer_ms: None, tokens: 0, isolated };
-    change(state_dir, |board| {
+    let id = {
+        let _guard = BOARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut board = load(state_dir);
         if board.tasks.len() >= MAX_TASKS {
             bail!("the board holds at most {MAX_TASKS} tasks; delete done ones");
         }
-        board.tasks.push(task);
-        Ok(())
-    })?;
+        let now = room::now_ms();
+        let conversations = threads::list(state_dir, bot);
+        let mut suffix = board.tasks.len();
+        let mut id = format!("k{now:x}{suffix}");
+        while board.tasks.iter().any(|task| task.id == id) || conversations.iter().any(|thread| thread.id == id) {
+            suffix += 1;
+            id = format!("k{now:x}{suffix}");
+        }
+        board.tasks.push(Task {
+            id: id.clone(),
+            title,
+            detail: clean(detail, MAX_DETAIL),
+            bot: bot.to_string(),
+            status: Status::Todo,
+            from: from.to_string(),
+            created_ms: now,
+            updated_ms: now,
+            thread: None,
+            started_ms: None,
+            answer_ms: None,
+            tokens: 0,
+            isolated,
+        });
+        save(state_dir, &board)?;
+        id
+    };
     let milestones: &[Milestone] = if from == "person" { &[Milestone::Desk, Milestone::Task] } else { &[Milestone::Desk] };
     progress::record(state_dir, milestones);
     Ok(id)
 }
 
-/// The bot's conversation for tasks (made when first needed).
-fn task_thread(state_dir: &Path, bot: &str) -> Result<String> {
-    if let Some(thread) = threads::list(state_dir, bot).into_iter().find(|t| t.title == THREAD_TITLE || t.title == OLD_TITLE) {
-        return Ok(thread.id);
+/// Tasks already run on older versions keep pointing to the shared conversation until run again.
+fn task_thread<'a>(task: &Task, threads: &'a [threads::Thread]) -> Option<&'a str> {
+    if let Some(id) = &task.thread {
+        return threads.iter().find(|thread| &thread.id == id).map(|thread| thread.id.as_str());
     }
-    Ok(threads::create(state_dir, bot, THREAD_TITLE)?.id)
+    if task.started_ms.is_none() && task.answer_ms.is_none() {
+        return None;
+    }
+    threads.iter().find(|t| !t.task && (t.title == THREAD_TITLE || t.title == OLD_TITLE)).map(|thread| thread.id.as_str())
 }
 
 fn prompt(task: &Task) -> String {
@@ -175,30 +209,57 @@ fn prompt(task: &Task) -> String {
     format!("Task from the team's board: {}{detail}\n\nDo it now. If it needs a change to the project, propose it as usual.", task.title)
 }
 
-/// Starts a task: its bot gets it in its "Tasks" conversation, from a fresh session.
+/// Starts a task in its own conversation, with the same history on a retry.
 pub fn start(state_dir: &Path, jobs: &Jobs, id: &str) -> Result<()> {
-    let task = load(state_dir).tasks.into_iter().find(|t| t.id == id).context("no such task")?;
-    if !matches!(task.status, Status::Todo | Status::Waiting) {
+    start_with(state_dir, jobs, id, |task, thread| {
+        if task.isolated {
+            let home = dirs::home_dir().context("home folder not found")?;
+            // A retry uses a new copy; its CLI session cannot point to the old copy.
+            threads::set_session(state_dir, &task.bot, thread, None)?;
+            bots::ask_in_copy(state_dir, &home, jobs, &task.bot, thread, &prompt(task), &task.title)
+        } else {
+            bots::ask(state_dir, jobs, &task.bot, thread, &prompt(task), &[])
+        }
+    })
+}
+
+fn start_with(state_dir: &Path, jobs: &Jobs, id: &str, launch: impl FnOnce(&Task, &str) -> Result<()>) -> Result<()> {
+    let _guard = BOARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut board = load(state_dir);
+    let index = board.tasks.iter().position(|task| task.id == id).context("no such task")?;
+    let previous = board.tasks[index].clone();
+    if !matches!(previous.status, Status::Todo | Status::Waiting) {
         bail!("this task is not waiting to start");
     }
-    let thread = task_thread(state_dir, &task.bot)?;
-    // Each task starts clean: the last one's context would only cost tokens here.
-    threads::set_session(state_dir, &task.bot, &thread, None)?;
-    let started = room::now_ms();
-    if task.isolated {
-        let home = dirs::home_dir().context("home folder not found")?;
-        bots::ask_in_copy(state_dir, &home, jobs, &task.bot, &thread, &prompt(&task), &task.title)?;
-    } else {
-        bots::ask(state_dir, jobs, &task.bot, &thread, &prompt(&task), &[])?;
+    let thread = previous.thread.as_deref().unwrap_or(&previous.id);
+    if jobs.is_thread_busy(&previous.bot, thread) {
+        bail!("this conversation is still answering");
     }
-    change(state_dir, |board| {
-        if let Some(t) = board.tasks.iter_mut().find(|t| t.id == id) {
-            t.status = Status::Doing;
-            t.started_ms = Some(started);
-            t.updated_ms = started;
+    let created = threads::create_for_task(state_dir, &previous.bot, thread, &previous.title)?;
+    let started = room::now_ms();
+    let task = &mut board.tasks[index];
+    task.thread = Some(thread.to_string());
+    task.status = Status::Doing;
+    task.started_ms = Some(started);
+    task.updated_ms = started;
+    task.answer_ms = None;
+    task.tokens = 0;
+    let remove_empty_thread = || {
+        if created && !threads::chat_file(state_dir, &previous.bot, thread).exists() {
+            let _ = threads::delete(state_dir, &previous.bot, thread);
         }
-        Ok(())
-    })
+    };
+    if let Err(error) = save(state_dir, &board) {
+        remove_empty_thread();
+        return Err(error);
+    }
+    if let Err(error) = launch(&board.tasks[index], thread) {
+        remove_empty_thread();
+        board.tasks[index] = previous;
+        save(state_dir, &board)?;
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// Where a finished turn leaves its task: done, or waiting when the bot asks for something.
@@ -238,35 +299,65 @@ fn spent(messages: &[room::Message], since: i64) -> u64 {
         .sum()
 }
 
+fn sync_turn(state_dir: &Path, task: &Task) -> Result<()> {
+    let conversations = threads::list(state_dir, &task.bot);
+    let messages = task_thread(task, &conversations)
+        .map(|thread| room::read_messages(&threads::chat_file(state_dir, &task.bot, thread)))
+        .unwrap_or_default();
+    let since = task.started_ms.unwrap_or(0);
+    let ended = messages.iter().rev().find(|message| {
+        message.author == "bot" && message.ms >= since
+            && matches!(message.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted")
+    });
+    let (status, answer, tokens) = if task.status == Status::Waiting && task.thread.is_none() {
+        // The shared history can contain later work on a different card.
+        if !task.isolated || !task.answer_ms.is_some_and(|at| draft_applied(&messages, at)) {
+            return Ok(());
+        }
+        (Status::Done, task.answer_ms, task.tokens)
+    } else if let Some(ended) = ended {
+        let status = if draft_applied(&messages, ended.ms) {
+            Status::Done
+        } else if task.isolated {
+            copy_outcome(ended)
+        } else {
+            outcome(ended)
+        };
+        (status, Some(ended.ms), spent(&messages, since))
+    } else if task.thread.is_some() && task.status == Status::Doing {
+        // The app may have stopped between saving the start and launching the turn.
+        (Status::Waiting, None, 0)
+    } else {
+        return Ok(());
+    };
+    if (task.status, task.answer_ms, task.tokens) == (status, answer, tokens) {
+        return Ok(());
+    }
+    change(state_dir, |board| {
+        if let Some(current) = board.tasks.iter_mut().find(|item| item.id == task.id)
+            && (current.status, current.started_ms, current.answer_ms) == (task.status, task.started_ms, task.answer_ms)
+        {
+            current.status = status;
+            current.answer_ms = answer;
+            current.tokens = tokens;
+            current.updated_ms = room::now_ms();
+        }
+        Ok(())
+    })
+}
+
 /// From the scheduler: tasks whose turn ended move on, and with "pick up" on, idle bots start their next one.
 pub fn tick(state_dir: &Path, jobs: &Jobs) {
-    let board = load(state_dir);
-    for task in board.tasks.iter().filter(|t| t.status == Status::Doing) {
-        let Ok(thread) = task_thread(state_dir, &task.bot) else { continue };
-        if jobs.is_thread_busy(&task.bot, &thread) {
-            continue;
-        }
-        let messages = room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread));
-        let since = task.started_ms.unwrap_or(0);
-        let ended = messages.iter().rev().find(|m| m.author == "bot" && m.ms >= since && matches!(m.kind.as_str(), "answer" | "draft" | "failed" | "stopped" | "interrupted"));
-        let Some(ended) = ended else { continue };
-        let status = if task.isolated { copy_outcome(ended) } else { outcome(ended) };
-        let (at, tokens) = (ended.ms, spent(&messages, since));
-        let _ = change(state_dir, |b| {
-            if let Some(t) = b.tasks.iter_mut().find(|t| t.id == task.id) {
-                t.status = status;
-                t.answer_ms = Some(at);
-                t.tokens = tokens;
-                t.updated_ms = room::now_ms();
-            }
-            Ok(())
-        });
-    }
-    // An isolated task whose draft the person applied is done.
-    for task in board.tasks.iter().filter(|t| t.isolated && t.status == Status::Waiting) {
-        let (Some(at), Ok(thread)) = (task.answer_ms, task_thread(state_dir, &task.bot)) else { continue };
-        if draft_applied(&room::read_messages(&threads::chat_file(state_dir, &task.bot, &thread)), at) {
-            let _ = mark(state_dir, &task.id, "done");
+    // Do not read a partially started task while start_with holds this lock.
+    let board = {
+        let _guard = BOARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        load(state_dir)
+    };
+    for task in board.tasks.iter().filter(|t| matches!(t.status, Status::Doing | Status::Waiting)) {
+        let conversations = threads::list(state_dir, &task.bot);
+        let task_running = task_thread(task, &conversations).is_some_and(|thread| jobs.is_thread_busy(&task.bot, thread));
+        if !task_running {
+            let _ = sync_turn(state_dir, task);
         }
     }
     if !board.auto || board.window.is_some_and(|w| !w.holds(chrono::Timelike::hour(&chrono::Local::now()))) {
@@ -341,15 +432,29 @@ pub fn window(state_dir: &Path) -> Option<Window> {
     load(state_dir).window
 }
 
+pub(crate) fn linked_threads(state_dir: &Path) -> HashMap<String, String> {
+    load(state_dir).tasks.into_iter().filter_map(|task| task.thread.map(|thread| (thread, task.bot))).collect()
+}
+
+/// The board keeps its conversation until the person removes the task card.
+pub(crate) fn close_thread(state_dir: &Path, bot: &str, thread: &str) -> Result<()> {
+    let _guard = BOARD.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if linked_threads(state_dir).get(thread).is_some_and(|owner| owner == bot) {
+        bail!("this conversation belongs to a task on the board");
+    }
+    threads::delete(state_dir, bot, thread)
+}
+
 /// The board for the panel: the tasks, newest first, and where each task's conversation is.
 pub fn state(state_dir: &Path) -> Value {
     let board = load(state_dir);
     let mut tasks = board.tasks;
     tasks.sort_by_key(|t| std::cmp::Reverse(t.updated_ms));
-    let threads: Vec<Value> = tasks
-        .iter()
-        .map(|t| threads::list(state_dir, &t.bot).into_iter().find(|th| th.title == THREAD_TITLE || th.title == OLD_TITLE).map_or(Value::Null, |th| json!(th.id)))
-        .collect();
+    let mut conversations = HashMap::new();
+    for task in &tasks {
+        conversations.entry(task.bot.as_str()).or_insert_with(|| threads::list(state_dir, &task.bot));
+    }
+    let threads: Vec<Option<&str>> = tasks.iter().map(|task| task_thread(task, &conversations[task.bot.as_str()])).collect();
     json!({ "tasks": tasks, "threads": threads, "auto": board.auto, "window": board.window })
 }
 
@@ -357,8 +462,102 @@ pub fn state(state_dir: &Path) -> Value {
 mod tests {
     use super::*;
 
+    fn fixture(name: &str) -> (std::path::PathBuf, std::path::PathBuf, String) {
+        let home = std::env::temp_dir().join(format!("raiox-task-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(home.join("Projects/app")).unwrap();
+        let state = home.join(".state");
+        let owner = bots::activate(&state, &home, "Projects/app", "claude", None).unwrap().id;
+        (home, state, owner)
+    }
+
     fn message(kind: &str, reply: Value) -> room::Message {
         room::Message { ms: 10, author: "bot".into(), kind: kind.into(), data: json!({ "reply": reply }) }
+    }
+
+    #[test]
+    fn task_cards_and_deliveries_open_their_own_conversations_for_one_bot() {
+        let (home, state_dir, bot) = fixture("conversations");
+        let jobs = Jobs::default();
+        let first = add(&state_dir, &bot, "Fix checkout", "", "person").unwrap();
+        let second = add(&state_dir, &bot, "Review tests", "", "person").unwrap();
+        for (id, text, tokens) in [(&first, "Checkout changed", 5), (&second, "Tests reviewed", 9)] {
+            start_with(&state_dir, &jobs, id, |task, thread| {
+                let mut answer = message("answer", json!({ "text": text, "read_tokens": tokens }));
+                answer.ms = task.started_ms.unwrap() + 1;
+                room::append_messages(&threads::chat_file(&state_dir, &bot, thread), vec![answer])
+            }).unwrap();
+            tick(&state_dir, &jobs);
+        }
+        let panel = state(&state_dir);
+        for (index, task) in panel["tasks"].as_array().unwrap().iter().enumerate() {
+            assert_eq!(panel["threads"][index], task["id"]);
+            assert_eq!(task["status"], "done");
+        }
+        assert_ne!(first, second);
+        let deliveries = crate::deliveries::list(&state_dir);
+        assert!(deliveries.iter().any(|item| item.kind == "task" && item.thread == first && item.tokens == 5));
+        assert!(deliveries.iter().any(|item| item.kind == "task" && item.thread == second && item.tokens == 9));
+        assert!(close_thread(&state_dir, &bot, &first).is_err());
+        mark(&state_dir, &first, "reopen").unwrap();
+        start_with(&state_dir, &jobs, &first, |task, thread| {
+            assert_eq!(thread, first);
+            assert_eq!(task.answer_ms, None);
+            assert_eq!(room::read_messages(&threads::chat_file(&state_dir, &bot, thread))[0].data["reply"]["text"], "Checkout changed");
+            Ok(())
+        }).unwrap();
+        mark(&state_dir, &first, "done").unwrap();
+        mark(&state_dir, &first, "delete").unwrap();
+        assert!(threads::list(&state_dir, &bot).iter().any(|thread| thread.id == first));
+        close_thread(&state_dir, &bot, &first).unwrap();
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn a_legacy_card_keeps_its_shared_history_if_starting_a_new_turn_fails() {
+        let (home, state_dir, bot) = fixture("legacy");
+        let legacy = threads::create(&state_dir, &bot, OLD_TITLE).unwrap();
+        let task = add(&state_dir, &bot, "Review totals", "", "person").unwrap();
+        change(&state_dir, |board| {
+            board.tasks[0].status = Status::Waiting;
+            board.tasks[0].started_ms = Some(5);
+            board.tasks[0].answer_ms = Some(10);
+            Ok(())
+        }).unwrap();
+        let jobs = Jobs::default();
+        assert_eq!(state(&state_dir)["threads"][0], legacy.id);
+        assert!(start_with(&state_dir, &jobs, &task, |_, _| anyhow::bail!("could not launch")).is_err());
+        assert_eq!(state(&state_dir)["threads"][0], legacy.id);
+        assert_eq!(threads::list(&state_dir, &bot).len(), 1);
+        start_with(&state_dir, &jobs, &task, |_, _| Ok(())).unwrap();
+        assert_eq!(state(&state_dir)["threads"][0], task);
+        assert_eq!(threads::list(&state_dir, &bot).len(), 2);
+        let _ = std::fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn a_draft_applied_after_a_task_question_finishes_the_same_card() {
+        let (home, state_dir, bot) = fixture("follow-up");
+        let task_id = add(&state_dir, &bot, "Fix totals", "", "person").unwrap();
+        let jobs = Jobs::default();
+        start_with(&state_dir, &jobs, &task_id, |task, thread| {
+            let mut question = message("answer", json!({ "question": "Which totals?" }));
+            question.ms = task.started_ms.unwrap() + 1;
+            room::append_messages(&threads::chat_file(&state_dir, &bot, thread), vec![question])
+        }).unwrap();
+        tick(&state_dir, &jobs);
+        let waiting = load(&state_dir).tasks.remove(0);
+        assert_eq!(waiting.status, Status::Waiting);
+        let file = threads::chat_file(&state_dir, &bot, &task_id);
+        let draft_ms = waiting.answer_ms.unwrap() + 1;
+        let draft = room::Message { ms: draft_ms, author: "bot".into(), kind: "draft".into(), data: json!({ "draft": "d1" }) };
+        room::append_messages(&file, vec![draft]).unwrap();
+        tick(&state_dir, &jobs);
+        assert_eq!(load(&state_dir).tasks[0].answer_ms, Some(draft_ms));
+        let applied = room::Message { ms: draft_ms + 1, author: "you".into(), kind: "draft_applied".into(), data: json!({ "draft": "d1" }) };
+        room::append_messages(&file, vec![applied]).unwrap();
+        tick(&state_dir, &jobs);
+        assert_eq!(load(&state_dir).tasks[0].status, Status::Done);
+        let _ = std::fs::remove_dir_all(home);
     }
 
     #[test]

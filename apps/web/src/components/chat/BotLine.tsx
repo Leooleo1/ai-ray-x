@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { type Bot, type BotMessage, type Place, type Trail, busyIn } from '../../api'
 import { AGENT_LABEL, faceForBot } from '../../avatars'
 import { compact, locale, t } from '../../i18n'
@@ -10,6 +10,7 @@ import type { CancellableKind } from './waiting'
 import { RanBlock, RunRequestCard } from './RunCards'
 import { ShotBlock, UploadedImages } from './ShotBlock'
 import { TrailView } from './TrailView'
+import { trailEvidence } from './trailEvidence'
 import { Expandable } from './Expandable'
 
 /** After a pause this long, the time stands above the next message again. */
@@ -298,11 +299,11 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
               </span>
             </span>
           )}
+          {reply?.trail && <AnswerPath trail={reply.trail} />}
           {message.kind === 'draft' && onDraft && <DraftCard message={message} state={draftState ?? 'open'} busy={busy} onAct={onDraft} />}
           {message.data.changes && thread && onTurnUndo && (
             <TurnChanges bot={bot.id} thread={thread} ms={message.ms} changes={message.data.changes} undone={turnUndone} busy={busy} onUndo={onTurnUndo} />
           )}
-          {reply?.trail && <AnswerPath trail={reply.trail} />}
           {reply?.open?.map((place) => (
             <div key={place} className="cartao-acao">
               <span className="cartao-acao-icone" aria-hidden="true">
@@ -403,11 +404,43 @@ export function BotLine({ bot, message, previous, approvable, onApprove, sent, o
 
 /** The path an answer took, folded under it: opens on a tap. */
 function AnswerPath({ trail }: { trail: Trail }) {
+  const details = useRef<HTMLDetailsElement>(null)
+  const summary = useRef<HTMLElement>(null)
   const steps = trail.items.filter((item) => item.kind !== 'say').length + trail.dropped
+  const { files, tests } = trailEvidence(trail.items)
+  const filesLabel = files.length === 1 ? t.trailReadOne : t.trailReadMany.replace('{n}', String(files.length))
+  const testsLabel = tests.length === 1 ? t.trailTestOne : t.trailTestMany.replace('{n}', String(tests.length))
+  const label = [
+    steps === 1 ? t.trailOpenOne : t.trailOpen.replace('{n}', String(steps)),
+    files.length > 0 ? filesLabel : '',
+    tests.length > 0 ? testsLabel : '',
+  ].filter(Boolean).join(' · ')
+  const collapse = () => {
+    if (details.current) details.current.open = false
+    summary.current?.focus()
+  }
   return (
-    <details className="caminho">
-      <summary>{steps === 1 ? t.trailOpenOne : t.trailOpen.replace('{n}', String(steps))}</summary>
+    <details ref={details} className="caminho">
+      <summary ref={summary}>{label}</summary>
+      {files.length > 0 && (
+        <ul className="caminho-evidencias" aria-label={filesLabel}>
+          {files.slice(0, 6).map((file) => <li key={file}><code>{file}</code></li>)}
+        </ul>
+      )}
+      {tests.length > 0 && (
+        <ul className="caminho-evidencias" aria-label={testsLabel}>
+          {tests.slice(-6).map(({ target, ok }, index) => (
+            <li key={index}>
+              <span className={ok ? 'evidencia-ok' : 'evidencia-falhou'}>{ok ? t.trailTestOk : t.trailTestFailed}</span>
+              <code>{target}</code>
+            </li>
+          ))}
+        </ul>
+      )}
       <TrailView trail={trail} live={false} />
+      <button type="button" className="ver-mais trilha-recolher" onClick={collapse}>
+        {t.trailClose}
+      </button>
     </details>
   )
 }

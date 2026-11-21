@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { IS_REMOTE, UNPAIRED, busyIn, fetchReport, pairDevice, pairingCode, projectBots, sessionToken, type Report } from './api'
+import { IS_REMOTE, UNPAIRED, busyIn, fetchReport, pairDevice, pairingCode, projectBots, sessionToken, type BotsState, type Report } from './api'
 import { PairScreen } from './components/PairScreen'
 import { useBots } from './bots'
 import { exchanges } from './exchanges'
@@ -171,10 +171,10 @@ export function App() {
     return <PairScreen message={state.message} onPair={pair} />
   }
   if (!state.report.setup.done || setupOpen) {
-    const finish = (firstBot: string | null) => {
+    const finish = (firstBot: string | null, bots?: BotsState) => {
       history.pushState(null, '', firstBot ? `${BOTS_PATH}/${firstBot}` : BOTS_PATH)
       // Done now, before the next report arrives with it.
-      setState({ ...state, report: { ...state.report, setup: { done: true } } })
+      setState({ ...state, report: { ...state.report, setup: { done: true }, bots: bots ?? state.report.bots } })
       setSetupOpen(false)
       setVersion((v) => v + 1)
     }

@@ -1,6 +1,6 @@
 import { Skeleton } from './Skeleton'
 import { notify } from '../notify'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { type GitHubState, IS_REMOTE, type SettingsState, fetchGitHub, fetchSettings, projectBots, saveSettings, type CliInstall, type CliTestResult, fetchInstalls, installCli, signInCli, testCli } from '../api'
 import { AGENT_LABEL, faceForBot, faceOf } from '../avatars'
 import type { Bots } from '../bots'
@@ -8,7 +8,8 @@ import { t } from '../i18n'
 import { PRESETS } from '../onboarding/presets'
 import { TourDialog } from '../tour/TourDialog'
 import { BotsPanel } from './settings/BotsPanel'
-import { ConnectionTile, GitHubTile } from './settings/ConnectionTile'
+import { ConnectionTile } from './settings/ConnectionTile'
+import { GitHubTile } from './settings/GitHubTile'
 import { type SetupStep, SetupHero, type StepId } from './settings/SetupHero'
 import { LanguagePicker } from './LanguagePicker'
 import { DevicePanel } from './settings/DevicePanel'
@@ -46,6 +47,12 @@ const SIGN_IN_WAIT_MS = 5 * 60 * 1000
 export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTab }: SettingsPageProps) {
   const [settings, setSettings] = useState<SettingsState | null>(null)
   const [github, setGithub] = useState<GitHubState | null>(null)
+  const [githubError, setGithubError] = useState<string | null>(null)
+  const [githubChecking, setGithubChecking] = useState(true)
+  const [githubAction, setGithubAction] = useState<'install' | 'connect' | null>(null)
+  const [githubCode, setGithubCode] = useState<string | null>(null)
+  const githubProbe = useRef(false)
+  const githubTile = useRef<HTMLElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [touring, setTouring] = useState(false)
   const [savingNavigation, setSavingNavigation] = useState(false)
@@ -54,19 +61,30 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     setTab(initialTab)
   }, [initialTab])
 
-  const loadGithub = useCallback(() => {
-    setGithub(null)
-    fetchGitHub().then(setGithub).catch((failure: unknown) => setError(message(failure)))
-  }, [])
-  /** Check again, by hand: the result is said, since it is often the same as before. */
-  const checkGithub = useCallback(() => {
-    setGithub(null)
-    fetchGitHub()
-      .then((next) => {
-        setGithub(next)
-        notify(next.logged_in ? t.githubChecked.replace('{who}', next.login ?? '').replace('{n}', String(next.repos.length)) : t.githubSignedOut)
-      })
-      .catch((failure: unknown) => setError(message(failure)))
+  const loadGithub = useCallback(async (quiet = false, showResult = false) => {
+    if (githubProbe.current) return
+    githubProbe.current = true
+    if (!quiet) {
+      setGithubChecking(true)
+      setGithubError(null)
+    }
+    try {
+      const next = await fetchGitHub()
+      setGithub(next)
+      if (showResult) {
+        notify(next.logged_in ? t.githubChecked.replace('{who}', next.login ?? '').replace('{n}', String(next.repos.length))
+          : next.installed ? t.githubSignedOut : t.githubNoGh)
+      }
+      if (next.logged_in) {
+        setGithubCode(null)
+        setGithubError(null)
+      }
+    } catch {
+      if (!quiet) setGithubError(t.githubCheckFailed)
+    } finally {
+      githubProbe.current = false
+      if (!quiet) setGithubChecking(false)
+    }
   }, [])
   useEffect(() => {
     let alive = true
@@ -87,7 +105,7 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
         if (alive) setError(message(failure))
       })
     fetchInstalls().then(setInstalls).catch(() => undefined)
-    loadGithub()
+    void loadGithub()
     return () => {
       alive = false
     }
@@ -97,6 +115,41 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const [installs, setInstalls] = useState<Record<string, CliInstall>>({})
   const [signingIn, setSigningIn] = useState<Record<string, { since: number; mode: 'browser' | 'terminal' }>>({})
   const [tests, setTests] = useState<Record<string, { testing: boolean; result?: CliTestResult }>>({})
+  const githubInstall = installs.gh?.state
+  useEffect(() => {
+    if (githubInstall === 'done') void loadGithub()
+  }, [githubInstall, loadGithub])
+  useEffect(() => {
+    if (!githubCode || github?.logged_in) return undefined
+    const poll = window.setInterval(() => void loadGithub(true), FOLLOW_MS)
+    const timeout = window.setTimeout(() => {
+      setGithubCode(null)
+      setGithubError(t.githubSignInExpired)
+    }, SIGN_IN_WAIT_MS)
+    return () => {
+      window.clearInterval(poll)
+      window.clearTimeout(timeout)
+    }
+  }, [githubCode, github?.logged_in, loadGithub])
+
+  const runGithubAction = async () => {
+    if (IS_REMOTE || !github || githubChecking || githubAction || githubInstall === 'running' || github.logged_in || githubCode) return
+    setGithubError(null)
+    setGithubAction(github.installed ? 'connect' : 'install')
+    try {
+      if (github.installed) {
+        const { device_code } = await signInCli('gh')
+        if (device_code) setGithubCode(device_code)
+        else setGithubError(t.githubSignInFailed)
+      } else if (github.can_install) {
+        setInstalls(await installCli('gh'))
+      }
+    } catch {
+      setGithubError(github.installed ? t.githubSignInFailed : t.installStopped)
+    } finally {
+      setGithubAction(null)
+    }
+  }
   const installing = Object.values(installs).some((job) => job.state === 'running')
   const waitingSignIn = Object.entries(signingIn).some(([id, info]) => Date.now() - info.since < SIGN_IN_WAIT_MS && settings?.connections.find((c) => c.id === id)?.logged_in === false)
   useEffect(() => {
@@ -158,7 +211,9 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
   const links = bots.state.links.length
   const steps: SetupStep[] = [
     { id: 'ais', label: t.stepAis, done: settings ? connections.some((c) => c.bots && c.enabled && c.installed && c.logged_in !== false) : null },
-    { id: 'github', label: t.githubTitle, done: github ? github.logged_in : null },
+    { id: 'github', label: t.githubTitle, done: github ? github.logged_in : githubError ? false : null,
+      actionLabel: IS_REMOTE || githubCode || githubChecking || !github ? t.githubView : github.installed ? t.nextGithub : github.can_install ? t.githubInstall : t.githubSetup,
+      busy: githubAction !== null || githubInstall === 'running' },
     { id: 'bots', label: t.stepBots, done: realBots.length > 0 },
     ...(projects >= 2 ? [{ id: 'wires' as const, label: t.stepWires, done: links > 0 }] : []),
   ]
@@ -167,7 +222,14 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
     else if (step === 'wires') setTab('fios')
     else {
       setTab('conexoes')
-      if (step === 'github') window.setTimeout(() => document.getElementById('cfg-github')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0)
+      if (step === 'github') {
+        if (github?.installed || github?.can_install) void runGithubAction()
+        window.requestAnimationFrame(() => {
+          const tile = githubTile.current
+          tile?.focus({ preventScroll: true })
+          tile?.scrollIntoView({ block: 'nearest' })
+        })
+      }
     }
   }
   // A count shows once it is known: no '0 connections' while the machine is still being checked.
@@ -231,7 +293,17 @@ export function SettingsPage({ bots, onOpenBot, onAddBot, onRedoSetup, initialTa
                 onDefaults={(chosen) => void save({ defaults: { [c.id]: { model: chosen.model ?? '', effort: chosen.effort ?? '' } } })}
               />
             ))}
-            {settings && <GitHubTile github={github} onCheck={checkGithub} />}
+            <GitHubTile
+              tileRef={githubTile}
+              github={github}
+              checking={githubChecking}
+              error={githubError}
+              action={githubAction}
+              install={githubInstall}
+              code={githubCode}
+              onAction={() => void runGithubAction()}
+              onCheck={() => void loadGithub(false, true)}
+            />
             {ordered
               .filter((c) => !ready.includes(c))
               .map((c) => (

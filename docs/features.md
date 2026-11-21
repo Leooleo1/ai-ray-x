@@ -101,9 +101,10 @@ tasks. Each opens the conversation it came from.
 
 **Board.** The Desk's lanes are also a board of tasks for the AIs. Add one and pick the AI, or let an AI leave
 up to three follow-ups at the end of an answer (a `RAIOX-TASK:` line). A task
-runs in that AI's "Tasks" conversation, from a fresh session; when the turn
-ends it is done, or waiting for you when the AI proposes a change, runs a
-command or writes a draft. Each card shows what its task cost in tokens. With
+gets its own conversation when it starts. Open the card to see its request,
+answers, tests and changes. A turn ends with the task done or waiting for you
+when the AI asks a question, proposes a change, requests a command or writes a
+draft. Each card shows what its task cost in tokens. With
 "Bots pick tasks up" on, each idle AI starts its next task by itself, on the
 routines' clock.
 

@@ -5,6 +5,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,7 @@ pub const MAIN: &str = "main";
 /// Conversations a bot keeps besides the main one.
 const MAX_THREADS: usize = 12;
 const MAX_TITLE: usize = 40;
+static INDEX: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Thread {
@@ -25,6 +27,9 @@ pub struct Thread {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     pub created_ms: i64,
+    /// Task conversations do not use up the slots for parallel conversations.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub task: bool,
 }
 
 fn folder(state_dir: &Path, bot: &str) -> PathBuf {
@@ -66,8 +71,9 @@ pub fn create(state_dir: &Path, bot: &str, title: &str) -> Result<Thread> {
 }
 
 pub fn create_with_limit(state_dir: &Path, bot: &str, title: &str, max_threads: usize) -> Result<Thread> {
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let threads = list(state_dir, bot);
-    if threads.len() >= max_threads {
+    if threads.iter().filter(|thread| !thread.task).count() >= max_threads {
         bail!("a bot keeps at most {max_threads} extra conversations; close one first");
     }
     let now = room::now_ms();
@@ -76,15 +82,34 @@ pub fn create_with_limit(state_dir: &Path, bot: &str, title: &str, max_threads: 
     while threads.iter().any(|t| t.id == format!("t{stamp:x}")) {
         stamp += 1;
     }
-    let thread = Thread { id: format!("t{stamp:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, model: None, created_ms: now };
+    let thread = Thread { id: format!("t{stamp:x}"), title: title.chars().take(MAX_TITLE).collect(), session: None, model: None, created_ms: now, task: false };
     save(state_dir, bot, &threads.into_iter().chain([thread.clone()]).collect::<Vec<_>>())?;
     Ok(thread)
+}
+
+/// A task id gives its conversation a stable name across starts and retries.
+pub(crate) fn create_for_task(state_dir: &Path, bot: &str, id: &str, title: &str) -> Result<bool> {
+    if !id.starts_with('k') || !valid(id) {
+        bail!("invalid task conversation");
+    }
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut threads = list(state_dir, bot);
+    if let Some(thread) = threads.iter().find(|thread| thread.id == id) {
+        if !thread.task {
+            bail!("the task conversation id is already in use");
+        }
+        return Ok(false);
+    }
+    threads.push(Thread { id: id.to_string(), title: title.chars().take(MAX_TITLE).collect(), session: None, model: None, created_ms: room::now_ms(), task: true });
+    save(state_dir, bot, &threads)?;
+    Ok(true)
 }
 
 pub fn delete(state_dir: &Path, bot: &str, thread: &str) -> Result<()> {
     if thread == MAIN || !valid(thread) {
         bail!("the main conversation stays");
     }
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let threads = list(state_dir, bot);
     if !threads.iter().any(|t| t.id == thread) {
         bail!("no conversation {thread}");
@@ -100,6 +125,7 @@ pub fn session(state_dir: &Path, bot: &str, thread: &str) -> Result<Option<Strin
 }
 
 pub fn set_session(state_dir: &Path, bot: &str, thread: &str, session: Option<String>) -> Result<()> {
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let threads = list(state_dir, bot).into_iter().map(|t| if t.id == thread { Thread { session: session.clone(), ..t } } else { t }).collect::<Vec<_>>();
     save(state_dir, bot, &threads)
 }
@@ -117,6 +143,7 @@ pub fn set_model(state_dir: &Path, bot: &str, thread: &str, model: Option<String
     if thread == MAIN || !valid(thread) {
         bail!("invalid conversation");
     }
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let threads = list(state_dir, bot);
     if !threads.iter().any(|t| t.id == thread) {
         bail!("no such conversation");
@@ -127,10 +154,11 @@ pub fn set_model(state_dir: &Path, bot: &str, thread: &str, model: Option<String
 
 /// A new conversation is named by its first question.
 pub fn name_after(state_dir: &Path, bot: &str, thread: &str, text: &str, default_prefix: &str) -> Result<()> {
+    let _guard = INDEX.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let title: String = text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_TITLE).collect();
     let threads = list(state_dir, bot)
         .into_iter()
-        .map(|t| if t.id == thread && t.title.starts_with(default_prefix) { Thread { title: title.clone(), ..t } } else { t })
+        .map(|t| if t.id == thread && !t.task && t.title.starts_with(default_prefix) { Thread { title: title.clone(), ..t } } else { t })
         .collect::<Vec<_>>();
     save(state_dir, bot, &threads)
 }
@@ -148,6 +176,20 @@ mod tests {
         assert_eq!(unique.len(), ids.len(), "every conversation has its own id: {ids:?}");
         assert!(ids.iter().all(|id| valid(id)));
         let _ = fs::remove_dir_all(&state);
+    }
+
+    #[test]
+    fn task_conversations_do_not_use_parallel_conversation_slots() {
+        let state = std::env::temp_dir().join(format!("raiox-task-thread-limit-{}", std::process::id()));
+        for index in 0..=MAX_THREADS {
+            assert!(create_for_task(&state, "b1", &format!("k{index}"), "Task").unwrap());
+        }
+        assert!(!create_for_task(&state, "b1", "k0", "Same task").unwrap());
+        for _ in 0..MAX_THREADS {
+            create(&state, "b1", "Conversation").unwrap();
+        }
+        assert!(create(&state, "b1", "Too many parallel conversations").is_err());
+        let _ = fs::remove_dir_all(state);
     }
 
     #[test]

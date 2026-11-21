@@ -1,4 +1,5 @@
 import type { GitHubState, SetupState } from '../api'
+import { t } from '../i18n'
 import { Command, Frame } from './parts'
 import { o } from './texts'
 
@@ -39,8 +40,11 @@ export function StepGitHub({ github, setup, loading, onCheck, onBack, onNext }: 
       {github && !github.logged_in && (
         <div className="bv-instrucoes">
           <p>{github.installed ? o.githubLoggedOut : o.githubMissing}</p>
-          {!github.installed && <Command label={o.installWith} command={github.install} />}
-          <Command label={o.loginWith} command={github.connect} />
+          {github.installed ? <Command label={o.loginWith} command={github.connect} /> : github.install ? (
+            <Command label={o.installWith} command={github.install} />
+          ) : (
+            <a className="acao-texto" href="https://cli.github.com/" target="_blank" rel="noreferrer">{t.githubInstallHelp}</a>
+          )}
         </div>
       )}
       {github?.logged_in && (

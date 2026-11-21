@@ -10,15 +10,17 @@ interface TaskCardProps {
   /** Another bot that left it (a bot's own follow-up says nothing more). */
   from: Bot | undefined
   act: ActOnBoard
-  onOpen: () => void
+  draft: boolean
+  onOpen?: () => void
 }
 
 const nameOf = (bot: Bot) => bot.persona?.name || bot.name
 
 /** A task on the board, with the one step that moves it on and the quieter ones. */
-export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
+export function TaskCard({ task, owner, from, act, draft, onOpen }: TaskCardProps) {
   const [confirming, setConfirming] = useState(false)
   const { status } = task
+  const seeDiff = status === 'waiting' && task.isolated && draft
   const remove = () => {
     if (!confirming) return setConfirming(true)
     setConfirming(false)
@@ -28,7 +30,7 @@ export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
     <article className={`mesa-cartao ${status}`}>
       {status === 'waiting' && (
         <span className="mesa-tipo">
-          <span>{task.isolated ? t.boardCopyReady : t.deskTaskToFinish}</span>
+          <span>{seeDiff ? t.boardCopyReady : t.deskTaskToFinish}</span>
         </span>
       )}
       <p className="mesa-titulo">{task.title}</p>
@@ -44,7 +46,7 @@ export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
             {t.boardStart}
           </button>
         )}
-        {status === 'waiting' && task.isolated && (
+        {seeDiff && onOpen && (
           <button type="button" className="mesa-cheio" onClick={onOpen}>
             {t.boardSeeDiff}
           </button>
@@ -55,7 +57,7 @@ export function TaskCard({ task, owner, from, act, onOpen }: TaskCardProps) {
           </button>
         )}
         {status === 'doing' && <small className="mesa-trabalhando">{t.boardWorking}</small>}
-        {status !== 'todo' && !(status === 'waiting' && task.isolated) && (
+        {!seeDiff && onOpen && (
           <button type="button" className="acao-texto" onClick={onOpen}>
             {t.boardOpen}
           </button>

@@ -1319,6 +1319,7 @@ fn start_turn(state_dir: &Path, jobs: &Jobs, id: &str, thread: &str, turn: Turn)
 
 /// Everything the panel shows about bots.
 pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Result<Value> {
+    let task_threads = crate::tasks::linked_threads(state_dir);
     let bots: Vec<Value> = list(state_dir)
         .into_iter()
         .map(|bot| {
@@ -1326,7 +1327,12 @@ pub fn state(store: &Store, home: &Path, state_dir: &Path, jobs: &Jobs) -> Resul
             let (last_ms, last_line) = main_preview(&messages);
             let side: Vec<Value> = threads::list(state_dir, &bot.id)
                 .into_iter()
-                .map(|t| json!({ "id": t.id, "title": t.title, "has_session": t.session.is_some(), "model": t.model, "created_ms": t.created_ms, "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)) }))
+                .map(|t| json!({
+                    "id": t.id, "title": t.title, "has_session": t.session.is_some(),
+                    "model": t.model, "created_ms": t.created_ms,
+                    "task": task_threads.get(&t.id) == Some(&bot.id),
+                    "messages": room::read_messages(&threads::chat_file(state_dir, &bot.id, &t.id)),
+                }))
                 .collect();
             let busy_threads = jobs.busy_threads(&bot.id);
             let primary = busy_threads.first();

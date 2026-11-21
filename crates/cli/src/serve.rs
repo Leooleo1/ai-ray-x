@@ -170,7 +170,14 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         (Method::Post, "/api/setup/sign_in") if !remote => match body(request) {
             Ok(input) => {
                 let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|out| json!({ "opened": true, "mode": out.mode })))))
+                Answer::Later(Box::new(move || respond(crate::install::sign_in(&id).map(|out| json!({ "opened": true, "mode": out.mode, "device_code": out.device_code })))))
+            }
+            Err(reply) => Answer::Now(reply),
+        },
+        (Method::Post, "/api/setup/install") if !remote => match body(request) {
+            Ok(input) => {
+                let id = input.get("id").and_then(Value::as_str).unwrap_or("").to_string();
+                Answer::Later(Box::new(move || respond(crate::install::install(&id).map(|()| crate::install::state()))))
             }
             Err(reply) => Answer::Now(reply),
         },
@@ -315,10 +322,6 @@ fn dispatch(panel: &mut Panel, request: &mut Request, path: &str, port: u16, rem
             Err(reply) => reply,
         },
         (Method::Get, "/api/setup/install") => respond(Ok::<_, anyhow::Error>(crate::install::state())),
-        (Method::Post, "/api/setup/install") if !remote => match body(request) {
-            Ok(input) => respond(crate::install::install(input.get("id").and_then(Value::as_str).unwrap_or("")).map(|()| crate::install::state())),
-            Err(reply) => reply,
-        },
         (Method::Post, "/api/setup/create_project") if !remote => match body(request) {
             Ok(input) => respond(setup::create_project(
                 &panel.store,
@@ -518,8 +521,9 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
             if jobs.is_thread_busy(field("id"), thread) {
                 anyhow::bail!("this conversation is still answering");
             }
+            crate::tasks::close_thread(state_dir, field("id"), thread)?;
             crate::live::end(&format!("{}:{thread}", field("id")));
-            crate::threads::delete(state_dir, field("id"), thread)
+            Ok(())
         }
         "house" => {
             let dir = bots::dir_of(state_dir, field("id"))?;

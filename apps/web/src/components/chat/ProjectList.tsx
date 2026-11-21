@@ -36,11 +36,12 @@ interface Row {
   thread: string
   title: string
   last: BotMessage | undefined
+  task?: boolean
 }
 
 function rowsOf(bot: Bot): Row[] {
   const main: Row = { bot, thread: MAIN, title: t.mainConversation, last: bot.messages.at(-1) }
-  const side = bot.threads.map((x) => ({ bot, thread: x.id, title: x.title, last: x.messages.at(-1) }))
+  const side = bot.threads.map((x) => ({ bot, thread: x.id, title: x.title, last: x.messages.at(-1), task: x.task }))
   // The main conversation first, then the others with the newest on top.
   return [main, ...side.sort((a, b) => (b.last?.ms ?? 0) - (a.last?.ms ?? 0))]
 }
@@ -127,7 +128,7 @@ export function ProjectList({ bots, project, current, unread, nav, onThread, onN
                           </span>
                         </span>
                       </button>
-                      {row.thread !== MAIN && (
+                      {row.thread !== MAIN && !row.task && (
                         <button
                           type="button"
                           className={`fechar-conversa ${confirming ? 'confirmar' : ''}`}

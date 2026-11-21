@@ -89,6 +89,9 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
   const [memorySignal, setMemorySignal] = useState(0)
   const inbox = useInbox(bot)
   const list = useRef<HTMLDivElement>(null)
+  const composer = useRef<HTMLTextAreaElement>(null)
+  const [correctionThread, setCorrectionThread] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
   const side = bot.threads.find((x) => x.id === thread)
   // A conversation closed elsewhere falls back to the main one.
   const current = side ? thread : MAIN
@@ -167,6 +170,9 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
   const kept = new Set(messages.filter((m) => m.kind === 'remembered').map((m) => m.data.answer_ms))
   const sent = new Set(messages.filter((m) => m.kind === 'sent').map((m) => `${m.data.answer_ms}|${m.data.project}`))
   const lastAsk = [...messages].reverse().find((m) => m.author === 'you')
+  const latest = messages.at(-1)
+  const offerCorrection = !isFree && !busyHere && latest?.kind === 'answer' && !latest.data.reply?.proposal && !latest.data.reply?.question
+    && lastAsk?.data.text === t.botStarters[0].prompt
   // Each draft's latest fate: applied, undone or discarded; open until one of those.
   const draftStates = new Map(
     messages
@@ -184,6 +190,14 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
     const payload: Record<string, unknown> = { id: bot.id, thread: current, text }
     if (images && images.length > 0) payload.images = images
     return (await bots.act('ask', payload)) !== null
+  }
+  const sendStarter = async (prompt: string) => {
+    setStarting(true)
+    try {
+      await send(prompt)
+    } finally {
+      setStarting(false)
+    }
   }
   /** Full access from the conversation: on, then the AI is told it may go on. */
   const giveAccess = async () => {
@@ -276,9 +290,9 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
               <span>{`${bot.name} · ${AGENT_LABEL[bot.agent]}`}</span>
               <p>{t.botEmpty}</p>
               <div className="chat-vazio-sugestoes">
-                {t.botStarters.map((starter) => (
-                  <button key={starter} className="chip" onClick={() => void send(starter)}>
-                    {starter}
+                {t.botStarters.map(({ label, prompt }) => (
+                  <button key={label} type="button" className="chip" disabled={bot.busy || starting} onClick={() => void sendStarter(prompt)}>
+                    {label}
                   </button>
                 ))}
               </div>
@@ -331,6 +345,18 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
             />
             ),
           )}
+          {offerCorrection && correctionThread !== current && (
+            <div className="linha de-agente">
+              <div className="corpo">
+                <button type="button" className="chip" onClick={() => {
+                  setCorrectionThread(current)
+                  composer.current?.focus()
+                }}>
+                  {t.botAskCorrection}
+                </button>
+              </div>
+            </div>
+          )}
           {busyHere && live?.trail && (live.trail.items.length > 0 || live.trail.partial) && (
             <div className="linha de-agente ao-vivo" aria-live="polite">
               <div className="corpo">
@@ -379,7 +405,8 @@ export function BotChat({ bot, bots, nav, initialThread, onNewFree, focus, onSet
         )}
         <Composer
           draftKey={`${bot.id}:${current}`}
-          placeholder={isFree ? t.freeChatPlaceholder : `${t.composeBot} ${speaker} · ${t.slashHint}`}
+          inputRef={composer}
+          placeholder={isFree ? t.freeChatPlaceholder : offerCorrection && correctionThread === current ? t.botCorrectionPlaceholder : `${t.composeBot} ${speaker} · ${t.slashHint}`}
           commands={isFree ? [asideCommand] : [...houseCommands((agent) => void bots.act('house', { id: bot.id, thread: current, agent })), asideCommand]}
           maxLength={bots.state.max_text}
           busy={busyHere}

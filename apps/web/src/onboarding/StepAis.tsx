@@ -13,6 +13,8 @@ const SIGN_IN_WAIT_MS = 5 * 60 * 1000
 interface StepAisProps {
   setup: SetupState | null
   loading: boolean
+  openProject?: boolean
+  openingProject?: boolean
   onCheck: () => void
   /** Looks again without showing it is checking (while installs and sign-ins go on). */
   onRefresh: () => void
@@ -32,7 +34,7 @@ const messageOf = (error: unknown) => (error instanceof Error ? error.message : 
 const lastLine = (log: string) => log.trim().split('\n').pop() ?? ''
 const formatMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace('.', locale === 'pt-BR' ? ',' : '.')} s`)
 
-export function StepAis({ setup, loading, onCheck, onRefresh, onBack, onNext, onFree }: StepAisProps) {
+export function StepAis({ setup, loading, openProject, openingProject, onCheck, onRefresh, onBack, onNext, onFree }: StepAisProps) {
   const [signingIn, setSigningIn] = useState<Record<string, { since: number; mode: 'browser' | 'terminal' }>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [tests, setTests] = useState<Record<string, { testing: boolean; result?: CliTestResult }>>({})
@@ -90,14 +92,14 @@ export function StepAis({ setup, loading, onCheck, onRefresh, onBack, onNext, on
     <Frame
       actions={
         <>
-          <button className="bv-btn link" onClick={onBack}>
+          <button className="bv-btn link" disabled={openingProject} onClick={onBack}>
             {o.back}
           </button>
-          <button className="bv-btn vidro" disabled={loading} onClick={onCheck}>
+          <button className="bv-btn vidro" disabled={loading || openingProject} onClick={onCheck}>
             {o.checkAgain}
           </button>
-          <button className="bv-btn cheio bv-principal" disabled={!setup} onClick={onNext}>
-            {ready ? o.continue : o.noBotsYet}
+          <button className="bv-btn cheio bv-principal" disabled={!setup || openingProject || (openProject && !ready)} onClick={onNext}>
+            {openProject ? (openingProject ? o.quickOpening : o.quickOpenChat) : ready ? o.continue : o.noBotsYet}
           </button>
         </>
       }
