@@ -24,7 +24,7 @@ const MAX_DESCRIPTION: usize = 120;
 
 #[derive(Debug, Serialize)]
 pub struct Project {
-    /// Path relative to the home, as bots take it.
+    /// Home-relative for discovered projects, absolute for a folder picked by hand.
     pub project: String,
     pub name: String,
     pub github: Option<String>,
@@ -261,6 +261,31 @@ pub fn create_project(store: &Store, home: &Path, state_dir: &Path, clones: &Clo
     Ok(json!({
         "project": created,
         "setup": state(store, home, state_dir, clones)?,
+    }))
+}
+
+#[derive(Serialize)]
+pub(crate) struct PickedProject {
+    #[serde(flatten)]
+    project: Project,
+    dir: PathBuf,
+}
+
+/// A project explicitly selected on this computer. Cancellation returns no project.
+pub(crate) fn pick_folder(state_dir: &Path, home: &Path) -> Result<Option<PickedProject>> {
+    let Some(path) = crate::folder_picker::pick()? else { return Ok(None) };
+    let dir = crate::bots::picked_project_dir(state_dir, home, &path)?;
+    let path = dir.to_str().context("the folder path must be UTF-8")?;
+    Ok(Some(PickedProject {
+        project: Project {
+            project: label(&home.canonicalize()?, &dir).unwrap_or_else(|| path.to_string()),
+            name: dir.file_name().map_or_else(|| path.to_string(), |name| name.to_string_lossy().into_owned()),
+            github: origin(&dir),
+            claude: 0,
+            codex: 0,
+            last_ms: None,
+        },
+        dir,
     }))
 }
 

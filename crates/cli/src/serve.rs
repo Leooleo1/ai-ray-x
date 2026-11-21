@@ -143,6 +143,10 @@ fn route(panel: &mut Panel, request: &mut Request, token: &str, hosts: &[String]
         },
         (Method::Get, "/api/setup") => setup_answer(panel, fresh),
         (Method::Get, "/api/setup/github") => Answer::Later(Box::new(|| respond(Ok(setup::github())))),
+        (Method::Post, "/api/setup/pick_folder") if !remote => {
+            let (state_dir, home) = (panel.state_dir.clone(), panel.roots.home.clone());
+            Answer::Later(Box::new(move || respond(setup::pick_folder(&state_dir, &home).map(|project| json!({ "project": project })))))
+        }
         // All installed CLIs with their models, for starting a free conversation (never on the main loop).
         (Method::Get, "/api/free/agents") if !remote => {
             let codex = crate::bot_usage::codex_models(&panel.store).unwrap_or_default();
@@ -370,9 +374,10 @@ fn bot_action(panel: &Panel, action: &str, input: &Value) -> anyhow::Result<Valu
     let (state_dir, jobs) = (&panel.state_dir, &panel.jobs);
     let thread = input.get("thread").and_then(Value::as_str).filter(|t| !t.is_empty()).unwrap_or(crate::threads::MAIN);
     match action {
-        "activate" => {
+        "activate" | "activate_folder" => {
             let persona = input.get("persona").filter(|p| !p.is_null()).map(|p| serde_json::from_value::<bots::Persona>(p.clone())).transpose()?;
-            let bot = bots::activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
+            let activate = if action == "activate_folder" { bots::activate_folder } else { bots::activate };
+            let bot = activate(state_dir, &panel.roots.home, field("project"), field("agent"), persona)?;
             // A new bot finds the team's notes waiting, and the others learn it joined.
             crate::team::refresh(state_dir, crate::team::around(state_dir, &bot.name));
             Ok(())

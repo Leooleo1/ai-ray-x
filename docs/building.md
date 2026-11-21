@@ -13,6 +13,7 @@ for Intel Macs, Linux, or to work on raiox.
 - Optional: [ai-memory](https://github.com/akitaonrails/ai-memory) for the team
   notes and the messages between projects, and the GitHub CLI (`gh`) to find
   and clone your repositories during setup.
+- Linux folder selection in the local panel uses Zenity or KDialog.
 
 ## Run it from source
 
